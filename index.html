@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>FrogSchem — Schematic Editor</title>
+<meta name="description" content="Touch-first electrical schematic editor for iPad. Draw circuit diagrams with your fingers or Apple Pencil.">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FrogSchem">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="toolbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M3 17h4l2-4 3 8 3-12 2 8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>FrogSchem</span>
+    </div>
+    <div class="tools" id="tools">
+      <button id="tool-select" class="tool active" title="Select / Move (V)">&#9654;</button>
+      <button id="tool-wire" class="tool" title="Wire (W)">&#8270;</button>
+      <button id="tool-pan" class="tool" title="Pan (H)">&#9998;</button>
+      <span class="divider"></span>
+      <button id="btn-undo" class="tool" title="Undo (Ctrl+Z)">&#8630;</button>
+      <button id="btn-redo" class="tool" title="Redo (Ctrl+Y)">&#8631;</button>
+      <span class="divider"></span>
+      <button id="btn-zoomfit" class="tool" title="Zoom to fit (0)">&#9711;</button>
+    </div>
+    <div class="actions">
+      <button id="btn-new" class="btn">New</button>
+      <button id="btn-open" class="btn">Open</button>
+      <button id="btn-save" class="btn">Save</button>
+      <button id="btn-export" class="btn primary">Export</button>
+      <button id="btn-help" class="btn" title="Help">?</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <aside id="palette">
+      <div class="palette-title">Components</div>
+      <div id="palette-grid"></div>
+    </aside>
+    <section id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div id="hud">
+        <span id="hud-pos">0, 0</span>
+        <span id="hud-zoom">100%</span>
+      </div>
+      <div id="tooltip" class="hidden"></div>
+    </section>
+  </div>
+
+  <div id="propsbar" class="hidden">
+    <label>Ref</label><input id="prop-name" type="text" spellcheck="false">
+    <label>Value</label><input id="prop-value" type="text" spellcheck="false">
+    <button id="prop-rotate" class="btn">&#8635; Rotate</button>
+    <button id="prop-dupe" class="btn">&#10010; Copy</button>
+    <button id="prop-del" class="btn danger">&#10005; Delete</button>
+    <button id="prop-done" class="btn primary">Done</button>
+  </div>
+</div>
+
+<div id="modal" class="hidden">
+  <div id="modal-box">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="modal-actions">
+      <button id="modal-cancel" class="btn">Cancel</button>
+      <button id="modal-ok" class="btn primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
