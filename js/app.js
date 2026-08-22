@@ -6,6 +6,7 @@
   const R = window.KipadRender;
   const Pcb = window.KipadPcb;
   const Gerber = window.KipadGerber;
+  const Drill = window.KipadDrill || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
@@ -44,6 +45,22 @@
   let currentTab = 'layers';
   let libQuery = '', symQuery = '';
   let libSel = null, symSel = null;
+
+  // ---------- mode + schematic state ----------
+  const Sch = window.KipadSchematic;
+  let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
+  let sch = null;               // schematic model
+  let schTool = 'select';       // select | symbol | wire | label | junction
+  let schSelId = null;          // selected symbol id
+  let schWirePts = [];          // in-progress wire
+  let schPlaceName = null;      // symbol being placed
+  let schAngle = 0;
+  let schUndo = [], schRedo = [];
+  let schDrag = null;           // {symId, dx, dy}
+  let schWireCur = null;
+  const PLUGINS_KEY = 'kipad.plugins.v1';
+  let plugins = {};             // name -> {name, enabled}
+  let installedPlugins = [];    // {name, fn} loaded from files
 
   const TRACK_WIDTHS = [0.2, 0.25, 0.5, 1.0];
   const GRIDS = [0.1, 0.25, 0.5, 1.0];
@@ -93,6 +110,7 @@
 
   // ---------- render ----------
   function render() {
+    if (mode === 'schematic') { renderSchematicView(); return; }
     const state = {
       selId, hiNet, showRats, layerVis,
       activeLayer: layer,
@@ -469,6 +487,21 @@
     render();
   }
 
+  function setSchTool(t) {
+    schTool = t;
+    if (t !== 'symbol') schPlaceName = null;
+    schWirePts = [];
+    document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+    const map = { select: 'sch-select', symbol: 'sch-symbol', wire: 'sch-wire', label: 'sch-label', junction: 'sch-junction' };
+    if (map[t] && $(map[t])) $(map[t]).classList.add('active');
+    if (t === 'symbol') {
+      setTab('symbols');
+      if (!schPlaceName && symSel) schPlaceName = symSel;
+      setStatus(schPlaceName ? 'Tap canvas to place ' + schPlaceName + ' (R rotate)' : 'Pick a symbol from the Symbols panel first');
+    }
+    render();
+  }
+
   // ---------- actions ----------
   function doDelete() {
     if (selId) {
@@ -527,7 +560,7 @@
   }
 
   // outline graphics (line/rect/circle/arc → Edge.Cuts polylines)
-  let gfxStart = null;
+  let gfxStart = null; // for line/rect/circle first point
   function startGfx(x, y) {
     gfxStart = [snap(x), snap(y)];
     outlinePts = [gfxStart];
@@ -564,6 +597,7 @@
     } else if (tool === 'arc') {
       if (outlinePts.length === 1) outlinePts.push(p);
       else {
+        // 3-point arc through start, mid, end
         pushUndo();
         const a = outlinePts[0], b = outlinePts[1], c = p;
         const pts = arcPolyline(a, b, c);
@@ -574,6 +608,7 @@
     }
   }
   function arcPolyline(a, b, c) {
+    // circle through 3 points, sample from a to c passing b
     const ax = a[0], ay = a[1], bx = b[0], by = b[1], cx = c[0], cy = c[1];
     const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
     if (Math.abs(d) < 1e-9) return [a, c];
@@ -586,6 +621,7 @@
     let sweep = a2 - a0;
     while (sweep < -Math.PI) sweep += 2 * Math.PI;
     while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    // check midpoint direction
     let mid = a1 - a0;
     while (mid < -Math.PI) mid += 2 * Math.PI;
     while (mid > Math.PI) mid -= 2 * Math.PI;
@@ -642,6 +678,13 @@
     }
     setStatus('Gerber exported (F.Cu, B.Cu, Edge.Cuts)');
   }
+  function doDrill() {
+    if (!Drill) { setStatus('Drill module not loaded'); return; }
+    const text = Drill.exportDrill(board);
+    if (!text) { setStatus('No holes to export'); return; }
+    download('kipad.drl', text, 'text/plain');
+    setStatus('Drill file exported (.drl)');
+  }
   function download(name, text, mime) {
     const blob = new Blob([text], { type: mime || 'text/plain' });
     const a = document.createElement('a');
@@ -680,12 +723,186 @@
     r.readAsText(file);
   }
 
+  // ---------- mode / launcher ----------
+
+  function setMode(m) {
+    mode = m;
+    $('launcher').classList.toggle('hidden', m !== 'launcher');
+    $('main').classList.toggle('hidden', m === 'launcher');
+    document.querySelectorAll('.pcb-only').forEach(el => el.classList.toggle('hidden', m !== 'pcb'));
+    document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
+    if (m === 'schematic' && !sch) { sch = Sch.makeSchematic(); schTool = 'select'; }
+    if (m === 'schematic') { setTab('symbols'); }
+    if (m === 'pcb') { setTab('layers'); }
+    setTool('select');
+    resize();
+  }
+
+  function renderSchematicView() {
+    const state = {
+      dpr: window.devicePixelRatio || 1,
+      grid,
+      crosshair,
+      selSymId: schSelId,
+      wirePts: schWirePts.length ? schWirePts : null,
+      wireCur: schWireCur,
+      previewSym: (schTool === 'symbol' && schPlaceName && crosshair)
+        ? { name: schPlaceName, at: [snap(crosshair[0]), snap(crosshair[1])], angle: schAngle } : null
+    };
+    R.renderSchematic(ctx, cw, ch, sch, view, state, Syms);
+    $('hud-pos').textContent = fmt(view.x) + ', ' + fmt(view.y) + ' mm';
+    $('hud-zoom').textContent = Math.round(view.zoom * 100 / 3) + '%';
+    $('hud-tool').textContent = schToolName();
+    $('st-pos').textContent = 'X: ' + fmt(view.x) + ' Y: ' + fmt(view.y) + ' mm';
+    $('st-grid').textContent = 'Grid: ' + grid;
+    $('st-zoom').textContent = 'Zoom: ' + Math.round(view.zoom * 100 / 3) + '%';
+    $('st-tool').textContent = schToolName();
+    $('st-layer').textContent = 'Schematic';
+  }
+
+  function schToolName() {
+    const m = { select: 'Select', symbol: 'Place Symbol', wire: 'Wire', label: 'Net Label', junction: 'Junction' };
+    return m[schTool] || schTool;
+  }
+
+  function schSnapshot() { return JSON.stringify(sch); }
+  function schPushUndo() { schUndo.push(schSnapshot()); if (schUndo.length > 50) schUndo.shift(); schRedo = []; }
+  function schUndoStep() {
+    if (!schUndo.length) return;
+    schRedo.push(schSnapshot());
+    sch = JSON.parse(schUndo.pop());
+    render(); refreshAll();
+  }
+  function schRedoStep() {
+    if (!schRedo.length) return;
+    schUndo.push(schSnapshot());
+    sch = JSON.parse(schRedo.pop());
+    render(); refreshAll();
+  }
+
+  function schDoDelete() {
+    if (!schSelId) return;
+    schPushUndo();
+    sch.symbols = sch.symbols.filter(s => s.id !== schSelId);
+    schSelId = null;
+    render(); refreshAll();
+  }
+  function schDoRotate() {
+    if (!schSelId) return;
+    const s = sch.symbols.find(x => x.id === schSelId);
+    if (!s) return;
+    schPushUndo();
+    s.angle = (s.angle + 90) % 360;
+    render();
+  }
+
+  function schHitSymbol(wx, wy) {
+    for (let i = sch.symbols.length - 1; i >= 0; i--) {
+      const s = sch.symbols[i];
+      if (Math.hypot(wx - s.at[0], wy - s.at[1]) < 2) return s;
+    }
+    return null;
+  }
+
+  function doUpdatePCB() {
+    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    try {
+      const board2 = B.makeBoard();
+      const getFootprint = name => !!FPs.getFootprint(name);
+      const fallback = ref => {
+        const p = ref.replace(/[0-9#]+$/, '');
+        const map = { R: 'R_0603_1608Metric', C: 'C_0805_2012Metric', D: 'D_SOD-123', Q: 'SOT-23', U: 'SOIC-8_3.9x4.9mm_P1.27mm', J: 'PinHeader_1x04_P2.54mm_Vertical', L: 'L_0603_1608Metric', SW: 'SW_SPST_PTS645' };
+        return map[p] || null;
+      };
+      Sch.updatePCB(sch, board2, { getFootprint, fallbackFootprint: fallback });
+      if (!board2.footprints.length) { setStatus('No footprints could be resolved from schematic'); return; }
+      pushUndo();
+      board = board2;
+      selId = null; hiNet = null; route = null;
+      setMode('pcb');
+      zoomFit();
+      refreshAll();
+      setStatus('Updated PCB from schematic: ' + board.footprints.length + ' footprints, ' + board.nets.length + ' nets');
+    } catch (e) { setStatus('Update PCB failed: ' + e.message); }
+  }
+
+  function schSave() {
+    if (!Sch) { setStatus('schematic module not loaded'); return; }
+    download('kipad.kicad_sch', Sch.serializeSch(sch, Syms.getSymbol), 'application/x-kicad-schematic');
+    setStatus('Saved .kicad_sch');
+  }
+  function schOpen(file) {
+    if (!Sch) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        schPushUndo();
+        sch = Sch.parseSch(r.result, Syms.getSymbol);
+        schSelId = null; schWirePts = [];
+        setMode('schematic');
+        zoomFit();
+        render(); refreshAll();
+        setStatus('Opened ' + file.name);
+      } catch (e) { setStatus('Open failed: ' + e.message); }
+    };
+    r.readAsText(file);
+  }
+
+  function schNew() {
+    schPushUndo();
+    sch = Sch.makeSchematic();
+    schSelId = null; schWirePts = [];
+    setMode('schematic');
+    zoomFit(); render(); refreshAll();
+    setStatus('New schematic');
+  }
+
+  // ---------- plugin manager ----------
+  function loadPlugins() {
+    try { plugins = JSON.parse(localStorage.getItem(PLUGINS_KEY)) || {}; } catch (e) { plugins = {}; }
+  }
+  function savePlugins() {
+    localStorage.setItem(PLUGINS_KEY, JSON.stringify(plugins));
+  }
+  const BUILTIN_PLUGINS = [
+    { name: 'netclasses', label: 'Net Classes & Clearance', desc: 'Per-net track width and clearance control (planned)' },
+    { name: 'zones', label: 'Copper Zones / Pours', desc: 'Filled copper zones (planned)' },
+    { name: 'silkscreen-text', label: 'Silkscreen Text Editing', desc: 'Edit text on the board (planned)' },
+    { name: 'erc', label: 'ERC (schematic checks)', desc: 'Electrical rules check for schematics (planned)' }
+  ];
+  function showPlugins() {
+    loadPlugins();
+    const rows = BUILTIN_PLUGINS.map(p => {
+      const on = plugins[p.name] && plugins[p.name].enabled;
+      return `<div class="plugin-row"><div><b>${p.label}</b><br><span class="desc">${p.desc}</span></div>
+        <button class="btn ${on ? 'primary' : ''}" data-plug="${p.name}">${on ? 'Enabled' : 'Install'}</button></div>`;
+    }).join('');
+    const custom = installedPlugins.map(p =>
+      `<div class="plugin-row"><div><b>${p.name}</b><br><span class="desc">custom .js plugin</span></div>
+       <span class="desc">loaded</span></div>`).join('');
+    showModal('Plugin and Content Manager', `
+      <div class="plugin-list">${rows}${custom}</div>
+      <p class="desc">Kipad plugins are lightweight JS extensions. Built-in modules listed above; more coming.
+      Install a custom plugin (.js file) to extend tools.</p>`);
+    $('modal-body').querySelectorAll('[data-plug]').forEach(b => b.addEventListener('click', () => {
+      const name = b.dataset.plug;
+      const cur = plugins[name] || {};
+      plugins[name] = { enabled: !cur.enabled };
+      savePlugins();
+      setStatus((plugins[name].enabled ? 'Enabled ' : 'Disabled ') + name);
+      showPlugins();
+    }));
+    $('modal-ok').addEventListener('click', hideModal);
+  }
+
   // ---------- pointer handling ----------
   canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
+
+    if (mode === 'schematic') { schPointerDown(wx, wy); return; }
 
     if (pointers.size === 2) {
       const [p1, p2] = [...pointers.values()];
@@ -770,6 +987,22 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
+
+    if (mode === 'schematic') {
+      schWireCur = (schTool === 'wire' && schWirePts.length) ? [snap(wx), snap(wy)] : null;
+      if (schDrag && schDrag.pan) {
+        const dx = (e.clientX - lastPan.x) / view.zoom;
+        const dy = (e.clientY - lastPan.y) / view.zoom;
+        view.x -= dx; view.y -= dy;
+        lastPan = { x: e.clientX, y: e.clientY };
+      } else if (schDrag && schDrag.symId) {
+        const s = sch.symbols.find(x => x.id === schDrag.symId);
+        if (s) { Sch.moveSymbol(sch, s.id, [snap(wx - schDrag.dx), snap(wy - schDrag.dy)]); }
+      }
+      render();
+      return;
+    }
+
     routeCursor = (tool === 'track' && route) ? [wx, wy] : null;
     if (measureA) measureCur = [wx, wy];
 
@@ -814,6 +1047,22 @@
     const wasDragging = dragging;
     dragging = null; lastPan = null;
 
+    if (mode === 'schematic') {
+      const now2 = Date.now();
+      if (schTool === 'wire' && schWirePts.length >= 2 && now2 - lastTap < 350) {
+        finishSchWire();
+        lastTap = 0;
+        render();
+        return;
+      }
+      lastTap = now2;
+      if (schDrag && schDrag.symId) schPushUndo();
+      schDrag = null;
+      schWireCur = null;
+      render();
+      return;
+    }
+
     const now = Date.now();
     if ((tool === 'track' && route) || ((tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') && gfxStart)) {
       if (now - lastTap < 350) {
@@ -846,9 +1095,100 @@
     render();
   }, { passive: false });
 
+  function schPointerDown(wx, wy) {
+    const sx = snap(wx), sy = snap(wy);
+    if (schTool === 'symbol' && schPlaceName) {
+      schPushUndo();
+      const s = Sch.placeSymbol(sch, schPlaceName, [sx, sy], schAngle);
+      schSelId = s.id;
+      render(); refreshAll();
+      setStatus('Placed ' + s.ref + ' — tap to place more, R rotates');
+      return;
+    }
+    if (schTool === 'wire') {
+      if (!schWirePts.length) {
+        schWirePts = [[sx, sy]];
+        setStatus('Wire: tap to add corner, double-tap to finish');
+      } else {
+        // finish on double-tap (handled in pointerup) or continue
+        const last = schWirePts[schWirePts.length - 1];
+        if (Math.abs(last[0] - sx) > 1e-9 || Math.abs(last[1] - sy) > 1e-9) {
+          schWirePts.push([sx, sy]);
+        }
+        // junction when landing on existing wire/pin
+        maybeJunction(sx, sy);
+      }
+      render();
+      return;
+    }
+    if (schTool === 'label') {
+      const text = prompt('Net label text:');
+      if (text && text.trim()) {
+        schPushUndo();
+        Sch.addLabel(sch, text.trim(), [sx, sy], 0);
+        render(); refreshAll();
+        setStatus('Label ' + text.trim());
+      }
+      return;
+    }
+    if (schTool === 'junction') {
+      schPushUndo();
+      Sch.addJunction(sch, [sx, sy]);
+      render();
+      return;
+    }
+    // select tool
+    const hit = schHitSymbol(wx, wy);
+    if (hit) {
+      schSelId = hit.id;
+      schDrag = { symId: hit.id, dx: wx - hit.at[0], dy: wy - hit.at[1] };
+    } else {
+      schSelId = null;
+      schDrag = { pan: true };
+      lastPan = { x: lastPointerX, y: lastPointerY };
+    }
+    render(); refreshAll();
+  }
+
+  let lastPointerX = 0, lastPointerY = 0;
+  function maybeJunction(x, y) {
+    // add junction if another wire/pin point coincides
+    for (const w of sch.wires) {
+      for (const p of w.pts) {
+        if (Math.hypot(p[0] - x, p[1] - y) < 0.01) { Sch.addJunction(sch, [x, y]); return; }
+      }
+    }
+  }
+
+  function finishSchWire() {
+    if (schWirePts.length < 2) { schWirePts = []; render(); return; }
+    schPushUndo();
+    Sch.addWire(sch, schWirePts);
+    schWirePts = [];
+    render(); refreshAll();
+    setStatus('Wire placed');
+  }
+
   // ---------- keyboard ----------
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (mode === 'schematic') {
+      switch (e.key) {
+        case 's': case 'S': setSchTool('select'); break;
+        case 'w': case 'W': setSchTool('wire'); break;
+        case 'l': case 'L': setSchTool('label'); break;
+        case 'j': case 'J': setSchTool('junction'); break;
+        case 'r': case 'R': schDoRotate(); break;
+        case 'g': case 'G': cycleGrid(); break;
+        case 'Delete': case 'Backspace': e.preventDefault(); schDoDelete(); break;
+        case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
+        case 'Escape':
+          schWirePts = []; schPlaceName = null; setSchTool('select'); break;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? schRedoStep() : schUndoStep(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); schRedoStep(); }
+      return;
+    }
     switch (e.key) {
       case 's': case 'S': setTool('select'); break;
       case 'h': case 'H': setTool('highlight'); break;
@@ -888,6 +1228,13 @@
 
   // ---------- toolbar / rail wiring ----------
   $('tool-select').addEventListener('click', () => setTool('select'));
+  $('sch-select').addEventListener('click', () => setSchTool('select'));
+  $('sch-symbol').addEventListener('click', () => setSchTool('symbol'));
+  $('sch-wire').addEventListener('click', () => setSchTool('wire'));
+  $('sch-label').addEventListener('click', () => setSchTool('label'));
+  $('sch-junction').addEventListener('click', () => setSchTool('junction'));
+  $('launch-sch').addEventListener('click', () => setMode('schematic'));
+  $('launch-pcb').addEventListener('click', () => setMode('pcb'));
   $('tool-highlight').addEventListener('click', () => setTool('highlight'));
   $('tool-footprint').addEventListener('click', () => setTool('footprint'));
   $('tool-track').addEventListener('click', () => setTool('track'));
@@ -897,8 +1244,8 @@
   $('tool-circle').addEventListener('click', () => setTool('circle'));
   $('tool-arc').addEventListener('click', () => setTool('arc'));
   $('tool-measure').addEventListener('click', () => setTool('measure'));
-  $('btn-undo').addEventListener('click', undo);
-  $('btn-redo').addEventListener('click', redo);
+  $('btn-undo').addEventListener('click', () => mode === 'schematic' ? schUndoStep() : undo());
+  $('btn-redo').addEventListener('click', () => mode === 'schematic' ? schRedoStep() : redo());
   $('btn-zoomin').addEventListener('click', () => { view.zoom = Math.min(50, view.zoom * 1.25); render(); });
   $('btn-zoomout').addEventListener('click', () => { view.zoom = Math.max(0.5, view.zoom / 1.25); render(); });
   $('btn-zoomfit').addEventListener('click', zoomFit);
@@ -906,63 +1253,128 @@
   $('btn-rats').addEventListener('click', () => { showRats = !showRats; $('btn-rats').classList.toggle('active', showRats); render(); });
   $('btn-drc').addEventListener('click', () => { runDRC(); render(); });
   $('btn-gerber').addEventListener('click', doGerber);
+  $('btn-drill').addEventListener('click', doDrill);
   $('btn-new').addEventListener('click', () => {
+    if (mode === 'schematic') { schNew(); return; }
     if (board.footprints.length && !confirm('Clear board?')) return;
     pushUndo();
     board = B.makeBoard(); selId = null; hiNet = null; route = null; outlinePts = null;
     render(); refreshAll();
   });
   $('btn-open').addEventListener('click', () => $('file-open').click());
-  $('btn-save').addEventListener('click', doSave);
+  $('btn-save').addEventListener('click', () => mode === 'schematic' ? schSave() : doSave());
   $('btn-import').addEventListener('click', () => $('file-import').click());
-  $('file-open').addEventListener('change', e => { if (e.target.files[0]) doOpen(e.target.files[0]); e.target.value = ''; });
+  $('file-open').addEventListener('change', e => { if (e.target.files[0]) { const f = e.target.files[0]; if (f.name.endsWith('.kicad_sch')) schOpen(f); else doOpen(f); } e.target.value = ''; });
   $('file-import').addEventListener('change', e => { if (e.target.files[0]) doImport(e.target.files[0]); e.target.value = ''; });
 
   // tabs
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
   // ---------- menus ----------
-  const MENUS = {
-    file: [
-      ['New board', () => $('btn-new').click(), ''],
-      ['Open .kicad_pcb…', () => $('btn-open').click(), ''],
-      ['Save .kicad_pcb', doSave, ''],
-      ['Import .kicad_mod/.kicad_sym…', () => $('btn-import').click(), ''],
-      ['Export Gerber', doGerber, '']
-    ],
-    edit: [
-      ['Undo', undo, '⌘Z'],
-      ['Redo', redo, '⌘Y'],
-      ['Delete selection', doDelete, '⌫'],
-      ['Rotate 90°', doRotateSel, 'R']
-    ],
-    view: [
-      ['Zoom in', () => $('btn-zoomin').click(), ''],
-      ['Zoom out', () => $('btn-zoomout').click(), ''],
-      ['Zoom to fit', zoomFit, ''],
-      ['Grid: ' + grid + ' mm', cycleGrid, 'G'],
-      ['Ratsnest: ' + (showRats ? 'on' : 'off'), () => $('btn-rats').click(), 'N'],
-      ['Layer: ' + layer, switchLayer, 'L']
-    ],
-    place: [
-      ['Footprint…', () => { setTab('library'); setTool('footprint'); }, 'F'],
-      ['Track', () => setTool('track'), 'X'],
-      ['Via', () => setTool('via'), 'V']
-    ],
-    route: [
-      ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
-      ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]); }, 'V'],
-      ['Track width: ' + trackWidth + ' mm', () => { trackWidth = TRACK_WIDTHS[(TRACK_WIDTHS.indexOf(trackWidth) + 1) % TRACK_WIDTHS.length]; setStatus('Track width: ' + trackWidth + ' mm'); }, 'W']
-    ],
-    inspect: [
-      ['Run DRC', () => $('btn-drc').click(), ''],
-      ['Measure', () => setTool('measure'), 'M']
-    ],
-    help: [
-      ['How to use', showHelp, ''],
-      ['Shortcuts', showShortcuts, '']
-    ]
-  };
+  function currentMenus() {
+    if (mode === 'schematic') return {
+      file: [
+        ['New schematic', schNew, ''],
+        ['Open .kicad_sch…', () => $('btn-open').click(), ''],
+        ['Save .kicad_sch', schSave, ''],
+        ['Update PCB from Schematic', doUpdatePCB, ''],
+        ['Switch to PCB Editor', () => setMode('pcb'), '']
+      ],
+      edit: [
+        ['Undo', schUndoStep, '⌘Z'],
+        ['Redo', schRedoStep, '⌘Y'],
+        ['Delete selection', schDoDelete, '⌫'],
+        ['Rotate 90°', schDoRotate, 'R']
+      ],
+      view: [
+        ['Zoom in', () => $('btn-zoomin').click(), ''],
+        ['Zoom out', () => $('btn-zoomout').click(), ''],
+        ['Zoom to fit', zoomFit, ''],
+        ['Grid: ' + grid + ' mm', cycleGrid, 'G']
+      ],
+      place: [
+        ['Symbol…', () => { setTab('symbols'); setSchTool('symbol'); }, 'S'],
+        ['Wire', () => setSchTool('wire'), 'W'],
+        ['Net Label', () => setSchTool('label'), 'L'],
+        ['Junction', () => setSchTool('junction'), 'J']
+      ],
+      inspect: [
+        ['Netlist', showSchNetlist, ''],
+        ['Measure', () => setSchTool('select'), 'M']
+      ],
+      tools: [
+        ['Plugin and Content Manager…', showPlugins, ''],
+        ['Switch to PCB Editor', () => setMode('pcb'), '']
+      ],
+      help: [
+        ['How to use', showSchHelp, ''],
+        ['Shortcuts', showShortcuts, '']
+      ]
+    };
+    return {
+      file: [
+        ['New board', () => $('btn-new').click(), ''],
+        ['Open .kicad_pcb…', () => $('btn-open').click(), ''],
+        ['Save .kicad_pcb', doSave, ''],
+        ['Import .kicad_mod/.kicad_sym…', () => $('btn-import').click(), ''],
+        ['Export Gerber', doGerber, ''],
+        ['Export Drill file', doDrill, ''],
+        ['Switch to Schematic Editor', () => setMode('schematic'), '']
+      ],
+      edit: [
+        ['Undo', undo, '⌘Z'],
+        ['Redo', redo, '⌘Y'],
+        ['Delete selection', doDelete, '⌫'],
+        ['Rotate 90°', doRotateSel, 'R']
+      ],
+      view: [
+        ['Zoom in', () => $('btn-zoomin').click(), ''],
+        ['Zoom out', () => $('btn-zoomout').click(), ''],
+        ['Zoom to fit', zoomFit, ''],
+        ['Grid: ' + grid + ' mm', cycleGrid, 'G'],
+        ['Ratsnest: ' + (showRats ? 'on' : 'off'), () => $('btn-rats').click(), 'N'],
+        ['Layer: ' + layer, switchLayer, 'L']
+      ],
+      place: [
+        ['Footprint…', () => { setTab('library'); setTool('footprint'); }, 'F'],
+        ['Track', () => setTool('track'), 'X'],
+        ['Via', () => setTool('via'), 'V']
+      ],
+      route: [
+        ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
+        ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]); }, 'V'],
+        ['Track width: ' + trackWidth + ' mm', () => { trackWidth = TRACK_WIDTHS[(TRACK_WIDTHS.indexOf(trackWidth) + 1) % TRACK_WIDTHS.length]; setStatus('Track width: ' + trackWidth + ' mm'); }, 'W']
+      ],
+      inspect: [
+        ['Run DRC', () => $('btn-drc').click(), ''],
+        ['Measure', () => setTool('measure'), 'M']
+      ],
+      tools: [
+        ['Plugin and Content Manager…', showPlugins, '']
+      ],
+      help: [
+        ['How to use', showHelp, ''],
+        ['Shortcuts', showShortcuts, '']
+      ]
+    };
+  }
+  function showSchNetlist() {
+    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    const nets = Sch.extractNets(sch, Syms.getSymbol);
+    const rows = nets.map(n => `<div class="net-row"><span>${esc(n.name)}</span><span style="margin-left:auto;color:var(--fg-dim)">${n.pins.length} pin${n.pins.length === 1 ? '' : 's'}</span></div>`).join('');
+    showModal('Netlist (' + nets.length + ' nets)', `<div class="plugin-list">${rows}</div>`);
+  }
+  function showSchHelp() {
+    showModal('Kipad — Schematic Editor', `
+      <b>Tools</b><br>
+      ➤ Select — tap symbol to select, drag to move, R rotates, Del deletes<br>
+      ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
+      ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
+      🏷 Label — tap to place a net label (names the net)<br>
+      • Junction — tap to add a wire junction dot<br><br>
+      <b>Flow</b>: place symbols → wire them → add labels → <b>File → Update PCB from Schematic</b> to continue in the PCB editor.
+    `);
+  }
   document.querySelectorAll('.menu').forEach(m => {
     m.addEventListener('click', e => {
       e.stopPropagation();
@@ -971,7 +1383,7 @@
       document.querySelectorAll('.menu').forEach(x => x.classList.remove('open'));
       if (!open) { pop.classList.add('hidden'); return; }
       m.classList.add('open');
-      const items = MENUS[m.dataset.menu] || [];
+      const items = currentMenus()[m.dataset.menu] || [];
       pop.innerHTML = items.map(([label, , kbd]) =>
         `<div class="mi">${label}${kbd ? `<span class="kbd">${kbd}</span>` : ''}</div>`).join('');
       pop.querySelectorAll('.mi').forEach((mi, i) => mi.addEventListener('click', () => {
@@ -1015,6 +1427,18 @@
   $('modal-ok').addEventListener('click', hideModal);
 
   function zoomFit() {
+    if (mode === 'schematic') {
+      if (!sch || !sch.symbols.length) { view = R.makeView(); render(); return; }
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const s of sch.symbols) { x0 = Math.min(x0, s.at[0]); x1 = Math.max(x1, s.at[0]); y0 = Math.min(y0, s.at[1]); y1 = Math.max(y1, s.at[1]); }
+      for (const w of sch.wires) for (const p of w.pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+      if (!isFinite(x0)) { view = R.makeView(); render(); return; }
+      const w = (x1 - x0) || 10, h = (y1 - y0) || 10;
+      view.zoom = Math.max(0.5, Math.min(20, Math.min(canvas.width / w, canvas.height / h) * 0.9));
+      view.x = (x0 + x1) / 2; view.y = (y0 + y1) / 2;
+      render();
+      return;
+    }
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const fp of board.footprints) for (const p of fp.pads) {
       x0 = Math.min(x0, p.at[0]); x1 = Math.max(x1, p.at[0]);
@@ -1036,16 +1460,37 @@
   }
 
   // ---------- library loading ----------
+  async function fetchJSON(url) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const type = r.headers.get('content-type') || '';
+      if (url.endsWith('.gz')) {
+        const buf = await r.arrayBuffer();
+        const ds = new DecompressionStream('gzip');
+        const stream = new Blob([buf]).stream().pipeThrough(ds);
+        const text = await new Response(stream).text();
+        return JSON.parse(text);
+      }
+      return await r.json();
+    } catch (e) { return null; }
+  }
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetch('lib/footprints.json').then(r => r.ok ? r.json() : null).then(data => {
-        if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); }
+      jobs.push(fetchJSON('lib/footprints.json.gz').then(data => {
+        if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
+        return fetchJSON('lib/footprints.json').then(d2 => {
+          if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
+        });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetch('lib/symbols.json').then(r => r.ok ? r.json() : null).then(data => {
-        if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); }
+      jobs.push(fetchJSON('lib/symbols.json.gz').then(data => {
+        if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
+        return fetchJSON('lib/symbols.json').then(d2 => {
+          if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
+        });
       }).catch(() => {}));
     }
     Promise.all(jobs).then(() => { refreshLibrary(); refreshSymbols(); });
@@ -1060,6 +1505,10 @@
   resize();
   render();
   loadLibraries();
+  loadPlugins();
+
+  // start in launcher mode
+  setMode('launcher');
 
   setInterval(saveLocal, 3000);
   window.addEventListener('beforeunload', saveLocal);
