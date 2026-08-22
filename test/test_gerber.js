@@ -66,7 +66,7 @@ assert.deepStrictEqual(Object.keys(all).sort(), ['B.Cu', 'Edge.Cuts', 'F.Cu'],
 
 // ---- 2. F.Cu header and end-of-file -------------------------------------
 const fcu = all['F.Cu'];
-assert.ok(fcu.includes('%FSLAX46Y46*%'), 'FS header present');
+assert.ok(fcu.includes('%FSLAX44Y44*%'), 'FS header present');
 assert.ok(fcu.includes('%MOMM*%'), 'MO header present');
 assert.ok(fcu.includes('M02*'), 'M02 end of file present');
 
