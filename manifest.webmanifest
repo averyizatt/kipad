@@ -1,13 +1,13 @@
 {
-  "name": "FrogSchem — Schematic Editor",
-  "short_name": "FrogSchem",
-  "description": "Touch-first electrical schematic editor for iPad. Draw circuit diagrams with your fingers or Apple Pencil.",
+  "name": "Kipad — PCB Layout Editor",
+  "short_name": "Kipad",
+  "description": "KiCad-like PCB layout editor for iPad. Place footprints, route traces, vias, DRC, Gerber export, open/save .kicad_pcb.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#242424",
+  "theme_color": "#242424",
   "categories": ["utilities", "productivity", "education"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>FrogSchem — Schematic Editor</title>
-<meta name="description" content="Touch-first electrical schematic editor for iPad. Draw circuit diagrams with your fingers or Apple Pencil.">
-<meta name="theme-color" content="#0f172a">
+<title>Kipad — PCB Layout Editor</title>
+<meta name="description" content="KiCad-like PCB layout editor for iPad. Place footprints, route traces, vias, DRC, Gerber export, open/save .kicad_pcb.">
+<meta name="theme-color" content="#242424">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="FrogSchem">
+<meta name="apple-mobile-web-app-title" content="Kipad">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -20,51 +20,56 @@
   <header id="toolbar">
     <div class="brand">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M3 17h4l2-4 3 8 3-12 2 8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 12h4l2-3 3 6 3-9 2 6h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>FrogSchem</span>
+      <span>Kipad</span>
     </div>
     <div class="tools" id="tools">
-      <button id="tool-select" class="tool active" title="Select / Move (V)">&#9654;</button>
-      <button id="tool-wire" class="tool" title="Wire (W)">&#8270;</button>
-      <button id="tool-pan" class="tool" title="Pan (H)">&#9998;</button>
+      <button id="tool-select" class="tool active" title="Select / Move (V)">⭣</button>
+      <button id="tool-footprint" class="tool" title="Place footprint (F)">▣</button>
+      <button id="tool-track" class="tool" title="Route track (X)">╱</button>
+      <button id="tool-via" class="tool" title="Place via (V)">◎</button>
+      <button id="tool-outline" class="tool" title="Draw board outline (B)">▢</button>
       <span class="divider"></span>
-      <button id="btn-undo" class="tool" title="Undo (Ctrl+Z)">&#8630;</button>
-      <button id="btn-redo" class="tool" title="Redo (Ctrl+Y)">&#8631;</button>
+      <button id="btn-undo" class="tool" title="Undo">↶</button>
+      <button id="btn-redo" class="tool" title="Redo">↷</button>
       <span class="divider"></span>
-      <button id="btn-zoomfit" class="tool" title="Zoom to fit (0)">&#9711;</button>
+      <button id="btn-layer" class="tool layerbtn" title="Switch layer (L)"><span id="layer-label">F.Cu</span></button>
+      <button id="btn-zoomfit" class="tool" title="Zoom to fit (0)">⌂</button>
     </div>
     <div class="actions">
-      <button id="btn-new" class="btn">New</button>
       <button id="btn-open" class="btn">Open</button>
       <button id="btn-save" class="btn">Save</button>
-      <button id="btn-export" class="btn primary">Export</button>
+      <button id="btn-gerber" class="btn">Gerber</button>
+      <button id="btn-drc" class="btn">DRC</button>
+      <button id="btn-new" class="btn">New</button>
       <button id="btn-help" class="btn" title="Help">?</button>
     </div>
   </header>
 
   <div id="main">
-    <aside id="palette">
-      <div class="palette-title">Components</div>
-      <div id="palette-grid"></div>
+    <aside id="sidebar">
+      <div class="side-title">Footprints</div>
+      <div id="fp-list" class="side-list"></div>
+      <div class="side-title">Nets</div>
+      <div id="net-list" class="side-list"></div>
     </aside>
     <section id="canvas-wrap">
       <canvas id="canvas"></canvas>
       <div id="hud">
-        <span id="hud-pos">0, 0</span>
+        <span id="hud-pos">0.000, 0.000 mm</span>
         <span id="hud-zoom">100%</span>
+        <span id="hud-tool">Select</span>
       </div>
+      <div id="drc-panel" class="hidden"></div>
       <div id="tooltip" class="hidden"></div>
     </section>
   </div>
 
-  <div id="propsbar" class="hidden">
-    <label>Ref</label><input id="prop-name" type="text" spellcheck="false">
-    <label>Value</label><input id="prop-value" type="text" spellcheck="false">
-    <button id="prop-rotate" class="btn">&#8635; Rotate</button>
-    <button id="prop-dupe" class="btn">&#10010; Copy</button>
-    <button id="prop-del" class="btn danger">&#10005; Delete</button>
-    <button id="prop-done" class="btn primary">Done</button>
+  <div id="statusbar">
+    <span id="status">Ready</span>
+    <span id="status-net">Net: —</span>
+    <span id="status-layer">Layer: F.Cu</span>
   </div>
 </div>
 
@@ -79,6 +84,12 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="js/sexpr.js"></script>
+<script src="js/footprints.js"></script>
+<script src="js/kicad_pcb.js"></script>
+<script src="js/gerber.js"></script>
+<script src="js/board.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>

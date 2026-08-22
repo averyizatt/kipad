@@ -1,11 +1,17 @@
-/* FrogSchem service worker — offline-first PWA */
-const CACHE = 'frogschem-v1';
+/* Kipad service worker — offline-first PWA */
+const CACHE = 'kipad-v1';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
-  './app.js',
   './manifest.webmanifest',
+  './js/sexpr.js',
+  './js/footprints.js',
+  './js/kicad_pcb.js',
+  './js/gerber.js',
+  './js/board.js',
+  './js/render.js',
+  './js/app.js',
   './icon-192.png',
   './icon-512.png',
   './icon-180.png'

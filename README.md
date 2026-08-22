@@ -1,54 +1,63 @@
-# FrogSchem 🐸⚡
+# Kipad 🐸🔧
 
-Touch-first electrical schematic editor that runs in the browser — built for iPad (and anything else with a screen).
+KiCad-like PCB layout editor that runs in the browser — built for iPad (and anything with a screen).
 
-Draw circuit diagrams with your fingers or Apple Pencil, then export them as SVG/PNG or JSON. Works offline, installs to your home screen like a native app.
+Place footprints, draw the board outline, route traces, drop vias, run a clearance DRC, and export Gerbers — all touch-first, offline-capable, installable to your home screen like a native app.
 
-## Try it
+**Live:** https://averyizatt.github.io/kipad/
 
-Open `index.html` in any browser, or host the folder on any static server. On iPad:
+## Features (v0.1)
 
-1. Open the site in Safari
-2. Tap **Share → Add to Home Screen**
-3. Launch FrogSchem fullscreen, works offline
+- **PCB editing** — 2-layer boards (F.Cu / B.Cu)
+- **Footprints** — built-in KiCad-style library (0603/0805/1206 passives, LED, SOT-23, SOIC-8, DIP-8, pin headers); place, move, rotate
+- **Board outline** — draw Edge.Cuts polygons
+- **Routing** — interactive trace routing with grid snap, net-aware (start on a pad, it routes that net), vias + layer switch mid-route (V)
+- **Net highlighting** — tap a pad to highlight its net; nets panel
+- **DRC** — basic copper clearance checks (0.2mm default)
+- **Files** — open and save `.kicad_pcb` (KiCad 6/7/8 style S-expressions)
+- **Gerber export** — RS-274X for F.Cu, B.Cu, Edge.Cuts
+- **PWA** — offline via service worker, installable, dark theme, Apple Pencil friendly
 
-## Features
+## Install on iPad
 
-- **Components**: resistor, capacitor (polarized), inductor, diode, LED, zener, NPN/PNP BJT, op-amp, voltage/current sources, ground, VCC, switch, labels
-- **Wire tool**: tap to place points, double-tap to finish; junction dots at every vertex
-- **Pan/zoom**: one-finger pan, pinch zoom (touch), scroll-wheel zoom + middle-drag (desktop)
-- **Edit**: move, rotate (90°), duplicate, delete; edit ref designator + value in the bottom bar
-- **Undo/redo** (Ctrl+Z / Ctrl+Y)
-- **Persistence**: autosaves to localStorage every 3s
-- **Export**: SVG, PNG, or JSON project files (Save/Open)
-- **PWA**: installable, offline via service worker, dark theme
+1. Open https://averyizatt.github.io/kipad/ in Safari
+2. Share → **Add to Home Screen**
+3. Launch fullscreen, works offline
 
-## Keyboard shortcuts
+## Controls
 
-| Key | Action |
-|-----|--------|
-| `V` | Select tool |
-| `W` | Wire tool |
-| `H` | Pan tool |
-| `R` | Rotate selected |
-| `Del` | Delete selected |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
-| `Enter` | Finish wire |
-| `Esc` | Cancel |
+| Tool | Action |
+|------|--------|
+| ⭣ Select | tap pad/footprint to select (tap pad = highlight net), drag to move |
+| ▣ Footprint | pick from left list, tap board to place, R rotates |
+| ╱ Route | tap pad to start on its net, tap corners, double-tap/Enter finishes, V = via + layer |
+| ◎ Via | tap to place via (on highlighted net) |
+| ▢ Outline | tap corners, double-tap/Enter closes (Edge.Cuts) |
 
-## Project structure
+Keyboard: `S` select · `F` footprint · `X` route · `V` via · `B` outline · `L` layer · `R` rotate · `W` track width · `Del` delete · `Ctrl+Z/Y` undo/redo
 
-- `index.html` — app shell
-- `style.css` — dark theme, safe-area aware
-- `app.js` — the whole editor (no dependencies)
-- `manifest.webmanifest` + `sw.js` — PWA/offline
-- `make_icons.py` — regenerates the PNG icons (stdlib only)
+## Architecture
+
+```
+index.html / style.css     app shell + KiCad-dark theme
+js/sexpr.js                S-expression parser/serializer (KiCad format)
+js/kicad_pcb.js            .kicad_pcb parse/serialize → Board model
+js/footprints.js           built-in footprint library
+js/gerber.js               RS-274X exporter (F.Cu, B.Cu, Edge.Cuts)
+js/board.js                board model, nets, geometry, DRC engine
+js/render.js               canvas renderer
+js/app.js                  editor: tools, gestures, routing, save/open/export
+manifest + sw.js            PWA / offline
+test/                      node tests (sexpr, kicad_pcb, gerber, footprints)
+```
 
 ## Roadmap
 
-- Real schematic symbol rendering for SVG export (currently boxes + labels)
-- SPICE netlist export
-- More components (MOSFETs, transformers, ICs)
-- Multi-page schematics
+- Footprint editor + custom footprint import (.kicad_mod)
+- Copper pours / zones, filled zones in Gerber
+- Silkscreen layer editing
+- More DRC rules (annular ring, hole-to-copper, net class clearances)
+- Ratsnest after routing (auto-connect remaining pins)
+- Multi-layer (4+) and board stackup
 
 MIT License
