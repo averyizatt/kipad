@@ -50,25 +50,50 @@
     <button id="btn-grid" class="tb" title="Toggle grid (G)">▦</button>
     <button id="btn-rats" class="tb active" title="Show ratsnest (N)">🕸</button>
     <button id="btn-gerber" class="tb" title="Export Gerber">⛭</button>
+    <button id="btn-drill" class="tb" title="Export drill file (.drl)">⊚</button>
     <button id="btn-drc" class="tb" title="Run DRC">✓</button>
     <button id="btn-import" class="tb" title="Import .kicad_mod / .kicad_sym">⇪</button>
   </div>
 
   <div id="main">
     <nav id="rail" title="Tools">
-      <button id="tool-select" class="tool active" title="Select / Move (S)">➤</button>
-      <button id="tool-highlight" class="tool" title="Net highlight (H)">⌁</button>
-      <button id="tool-footprint" class="tool" title="Add footprint (F)">▣</button>
-      <button id="tool-track" class="tool" title="Route track (X)">╱</button>
-      <button id="tool-via" class="tool" title="Add via (V)">◎</button>
-      <button id="tool-line" class="tool" title="Draw line (L)">╲</button>
-      <button id="tool-rect" class="tool" title="Draw rectangle">▭</button>
-      <button id="tool-circle" class="tool" title="Draw circle">◯</button>
-      <button id="tool-arc" class="tool" title="Draw arc">◠</button>
-      <button id="tool-measure" class="tool" title="Measure (M)">📏</button>
+      <!-- PCB tools -->
+      <button id="tool-select" class="tool pcb-only active" title="Select / Move (S)">➤</button>
+      <button id="tool-highlight" class="tool pcb-only" title="Net highlight (H)">⌁</button>
+      <button id="tool-footprint" class="tool pcb-only" title="Add footprint (F)">▣</button>
+      <button id="tool-track" class="tool pcb-only" title="Route track (X)">╱</button>
+      <button id="tool-via" class="tool pcb-only" title="Add via (V)">◎</button>
+      <button id="tool-line" class="tool pcb-only" title="Draw line (L)">╲</button>
+      <button id="tool-rect" class="tool pcb-only" title="Draw rectangle">▭</button>
+      <button id="tool-circle" class="tool pcb-only" title="Draw circle">◯</button>
+      <button id="tool-arc" class="tool pcb-only" title="Draw arc">◠</button>
+      <button id="tool-measure" class="tool pcb-only" title="Measure (M)">📏</button>
+      <!-- Schematic tools -->
+      <button id="sch-select" class="tool sch-only hidden" title="Select (S)">➤</button>
+      <button id="sch-symbol" class="tool sch-only hidden" title="Place symbol">▤</button>
+      <button id="sch-wire" class="tool sch-only hidden" title="Wire (W)">╱</button>
+      <button id="sch-label" class="tool sch-only hidden" title="Net label (L)">🏷</button>
+      <button id="sch-junction" class="tool sch-only hidden" title="Junction (J)">•</button>
     </nav>
 
     <section id="canvas-wrap">
+      <div id="launcher" class="launcher">
+        <h1>Kipad</h1>
+        <p class="desc">KiCad-style electronics design for iPad</p>
+        <div class="launcher-grid">
+          <button class="launcher-app" id="launch-sch">
+            <span class="launcher-icon">📐</span>
+            <b>Schematic Editor</b>
+            <span class="desc">Draw circuits (Eeschema)</span>
+          </button>
+          <button class="launcher-app" id="launch-pcb">
+            <span class="launcher-icon">🧩</span>
+            <b>PCB Editor</b>
+            <span class="desc">Layout the board (Pcbnew)</span>
+          </button>
+        </div>
+        <p class="desc">Tip: draw a schematic first, then <b>Update PCB from Schematic</b>.</p>
+      </div>
       <canvas id="canvas"></canvas>
       <div id="hud">
         <span id="hud-pos">0.000, 0.000 mm</span>
@@ -116,18 +141,20 @@
   </div>
 </div>
 
-<input type="file" id="file-open" accept=".kicad_pcb,text/plain" class="hidden">
+<input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
 <script src="js/sexpr.js"></script>
 <script src="js/footprints.js"></script>
 <script src="js/kicad_pcb.js"></script>
 <script src="js/gerber.js"></script>
+<script src="js/drill.js"></script>
 <script src="js/board.js"></script>
 <script src="js/render.js"></script>
 <script src="js/kicad_mod.js"></script>
 <script src="js/kicad_sym.js"></script>
 <script src="js/symbols.js"></script>
+<script src="js/schematic.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
