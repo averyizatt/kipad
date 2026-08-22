@@ -2,8 +2,9 @@
 
 /* Kipad Gerber RS-274X exporter.
  *
- * Unit: mm, format 4.6 (header %FSLAX46Y46*%). Coordinates are emitted as
- * plain integers in 1e-4 mm units (mm * 10000, rounded to integer).
+ * Unit: mm, format 4.4 (header %FSLAX44Y44*%). Coordinates are emitted as
+ * plain integers in 1e-4 mm units (mm * 10000, rounded to integer), which
+ * matches the declared 4.4 format (4 integer + 4 decimal digits).
  *
  * Works as a browser <script> (global `KipadGerber`) and as a Node module.
  */
@@ -29,7 +30,7 @@
     return String(Math.round(mm * COORD_SCALE));
   }
 
-  // aperture sizes are written with the declared 6-decimal precision
+  // aperture sizes are written as plain decimal numbers (not format-constrained)
   function fmtApertureSize(mm) {
     return mm.toFixed(6);
   }
@@ -146,7 +147,7 @@
     var out = [];
 
     // header
-    out.push('%FSLAX46Y46*%');
+    out.push('%FSLAX44Y44*%');
     out.push('%MOMM*%');
     out.push('%LPD*%');
 

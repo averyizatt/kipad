@@ -198,14 +198,66 @@
       outline: []
     };
 
-    var netsById = new Map(); // net id -> name (ids not in the table get added)
-    function noteNet(id, name) {
-      id = Math.round(id);
-      if (netsById.has(id)) {
-        if (name && !netsById.get(id)) netsById.set(id, name);
-      } else {
-        netsById.set(id, name || '');
+    // ---- net table: supports BOTH legacy numeric ids ((nets N (net 1 "GND")))
+    // and KiCad 10 named nets ((net "GND") without any (nets) block) ----
+    var idToName = new Map(); // numeric id -> name
+    var nameToId = new Map(); // name -> numeric id
+    nameToId.set('', 0);
+    var autoNetId = 1;
+
+    function regName(name) {
+      if (name === '') return 0;
+      if (nameToId.has(name)) return nameToId.get(name);
+      var id = autoNetId++;
+      nameToId.set(name, id);
+      idToName.set(id, name);
+      return id;
+    }
+
+    function scanForNets(node) {
+      if (!isList(node)) return;
+      if (tag(node) === 'net' && node.length >= 2) {
+        var first = node[1];
+        if (first !== null && typeof first === 'object' && typeof first.q === 'string') {
+          // KiCad 10 named style: (net "GND")
+          regName(first.q);
+        } else {
+          // legacy: (net 1 "GND") or (net 1)
+          var nid = Math.round(num(first));
+          var nm = node.length >= 3 ? atom(node[2]) : (idToName.get(nid) || '');
+          if (nm) { idToName.set(nid, nm); nameToId.set(nm, nid); }
+          else if (!nameToId.has('')) nameToId.set('', nid);
+        }
+        return; // do not recurse into (net ...) contents
       }
+      for (var i = 1; i < node.length; i++) scanForNets(node[i]);
+    }
+    scanForNets(tree);
+
+    function resolveNetId(netNode) {
+      if (!netNode || netNode.length < 2) return 0;
+      var first = netNode[1];
+      if (first !== null && typeof first === 'object' && typeof first.q === 'string') {
+        return regName(first.q);
+      }
+      var id = Math.round(num(first));
+      var nm = netNode.length >= 3 ? atom(netNode[2]) : (idToName.get(id) || '');
+      if (nm) { idToName.set(id, nm); nameToId.set(nm, id); }
+      return id;
+    }
+
+    // wildcard layer expansion (KiCad 10: (layers "*.Cu" "*.Mask"))
+    function expandLayers(list) {
+      var out = [];
+      for (var i = 0; i < list.length; i++) {
+        var l = list[i];
+        if (l === '*.Cu') { out.push('F.Cu', 'B.Cu'); }
+        else if (l === '*.Mask') { out.push('F.Mask', 'B.Mask'); }
+        else if (l === '*.Paste') { out.push('F.Paste', 'B.Paste'); }
+        else if (l === '*.SilkS') { out.push('F.SilkS', 'B.SilkS'); }
+        else out.push(l);
+      }
+      return out;
     }
 
     var edgeSegs = []; // {a:[x,y], b:[x,y]} pairs on Edge.Cuts
@@ -254,14 +306,13 @@
             break;
           }
           case 'layers':
-            layers = c.slice(1).map(atom);
+            layers = expandLayers(c.slice(1).map(atom));
             break;
           case 'roundrect_rratio':
             rratio = num(c[1]);
             break;
           case 'net':
-            netId = Math.round(num(c[1]));
-            if (c.length > 2) noteNet(netId, atom(c[2]));
+            netId = resolveNetId(c);
             break;
         }
       }
@@ -350,7 +401,7 @@
           case 'end': end = [num(c[1]), num(c[2])]; break;
           case 'width': width = num(c[1]); break;
           case 'layer': layer = atom(c[1]); break;
-          case 'net': netId = Math.round(num(c[1])); break;
+          case 'net': netId = resolveNetId(c); break;
         }
       }
       if (!start || !end) return null;
@@ -376,7 +427,7 @@
           case 'at': at = [num(c[1]), num(c[2])]; break;
           case 'size': size = num(c[1]); break;
           case 'drill': drill = num(c[1]); break;
-          case 'net': netId = Math.round(num(c[1])); break;
+          case 'net': netId = resolveNetId(c); break;
         }
       }
       if (!at) return null;
@@ -399,13 +450,7 @@
           break;
 
         case 'nets': {
-          // (nets N (net id "name") ...) — N is the count, skip it
-          for (var ni = 1; ni < child.length; ni++) {
-            var net = child[ni];
-            if (isList(net) && tag(net) === 'net' && net.length >= 2) {
-              netsById.set(Math.round(num(net[1])), net.length >= 3 ? atom(net[2]) : '');
-            }
-          }
+          // (nets N (net id "name") ...) — already handled by scanForNets
           break;
         }
 
@@ -510,8 +555,8 @@
       }
     }
 
-    if (!netsById.has(0)) netsById.set(0, '');
-    board.nets = Array.from(netsById.entries())
+    if (!idToName.has(0)) idToName.set(0, '');
+    board.nets = Array.from(idToName.entries())
       .sort(function (a, b) { return a[0] - b[0]; })
       .map(function (e) { return { id: e[0], name: e[1] }; });
 
