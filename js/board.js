@@ -1,0 +1,293 @@
+/* Kipad — board model, geometry, nets, DRC. Pure logic (no DOM). */
+'use strict';
+
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
+  else root.KipadBoard = factory();
+})(typeof self !== 'undefined' ? self : this, function (root) {
+  // root may be undefined in the CommonJS path; fall back to globalThis
+  root = root || (typeof globalThis !== 'undefined' ? globalThis : this);
+
+  const CLEARANCE_DEFAULT = 0.2; // mm
+
+  // ---------- geometry ----------
+  function rot(x, y, deg) {
+    const r = deg * Math.PI / 180;
+    const c = Math.cos(r), s = Math.sin(r);
+    return [x * c - y * s, x * s + y * c];
+  }
+  function dist2(x1, y1, x2, y2) { const dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy; }
+  function segSegDist(ax, ay, bx, by, cx, cy, dx, dy) {
+    // distance between segments ab and cd
+    const EPS = 1e-9;
+    const r = [bx - ax, by - ay], s = [dx - cx, dy - cy];
+    const rxs = r[0] * s[1] - r[1] * s[0];
+    const qp = [cx - ax, cy - ay];
+    if (Math.abs(rxs) < EPS) {
+      // parallel: min of endpoint distances to other segment
+      return Math.min(
+        pointSegDist(ax, ay, cx, cy, dx, dy),
+        pointSegDist(bx, by, cx, cy, dx, dy),
+        pointSegDist(cx, cy, ax, ay, bx, by),
+        pointSegDist(dx, dy, ax, ay, bx, by)
+      );
+    }
+    const t = (qp[0] * s[1] - qp[1] * s[0]) / rxs;
+    const u = (qp[0] * r[1] - qp[1] * r[0]) / rxs;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return 0;
+    return Math.min(
+      pointSegDist(ax, ay, cx, cy, dx, dy),
+      pointSegDist(bx, by, cx, cy, dx, dy),
+      pointSegDist(cx, cy, ax, ay, bx, by),
+      pointSegDist(dx, dy, ax, ay, bx, by)
+    );
+  }
+  function pointSegDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const L2 = dx * dx + dy * dy;
+    let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.sqrt(dist2(px, py, ax + t * dx, ay + t * dy));
+  }
+
+  // ---------- board factory ----------
+  function makeBoard() {
+    return {
+      version: '20240108',
+      nets: [{ id: 0, name: '' }],
+      footprints: [],
+      tracks: [],
+      vias: [],
+      outline: []
+    };
+  }
+
+  let _idc = 1;
+  function newId(prefix) { return prefix + (_idc++); }
+
+  // ---------- nets ----------
+  function getNet(board, id) { return board.nets.find(n => n.id === id); }
+  function netName(board, id) { const n = getNet(board, id); return n ? n.name : ''; }
+  function addNet(board, name) {
+    let n = board.nets.find(x => x.name === name && name !== '');
+    if (n) return n.id;
+    const id = board.nets.length;
+    board.nets.push({ id, name });
+    return id;
+  }
+  function ensureNet(board, name) { return addNet(board, name); }
+
+  // ---------- footprints ----------
+  function fpPadLocal(fpDef) {
+    // fpDef from KipadFootprints.getFootprint: {pads:[{number,type,shape,at,size,drill,radius,layers}]}
+    return fpDef.pads.map(p => ({ ...p }));
+  }
+
+  function placeFootprint(board, libName, at, angle, layer, refOverride) {
+    const lib = (root.KipadFootprints || (typeof require !== 'undefined' ? require('./footprints.js') : null));
+    if (!lib) throw new Error('KipadFootprints not loaded');
+    const def = lib.getFootprint(libName);
+    if (!def) throw new Error('Unknown footprint: ' + libName);
+
+    // designator: count existing refs with same prefix
+    const prefix = refOverride || def.ref || 'U';
+    let n = 1;
+    const used = new Set(board.footprints.map(f => f.ref));
+    while (used.has(prefix + n)) n++;
+
+    const fp = {
+      id: newId('F'),
+      lib: libName,
+      ref: prefix + n,
+      value: def.value || '',
+      at: [at[0], at[1]],
+      angle: angle || 0,
+      layer: layer || 'F.Cu',
+      pads: []
+    };
+    for (const p of def.pads) {
+      const [lx, ly] = rot(p.at[0], p.at[1], fp.angle);
+      fp.pads.push({
+        number: p.number,
+        type: p.type,
+        shape: p.shape,
+        at: [fp.at[0] + lx, fp.at[1] + ly],
+        angle: (fp.angle + (p.angle || 0)) % 360,
+        size: [p.size[0], p.size[1]],
+        drill: p.drill != null ? p.drill : null,
+        radius: p.radius != null ? p.radius : null,
+        layers: p.layers.slice(),
+        netId: 0
+      });
+    }
+    board.footprints.push(fp);
+    return fp;
+  }
+
+  function moveFootprint(board, fpId, at) {
+    const fp = board.footprints.find(f => f.id === fpId);
+    if (!fp) return;
+    const dx = at[0] - fp.at[0], dy = at[1] - fp.at[1];
+    fp.at = [at[0], at[1]];
+    for (const p of fp.pads) { p.at = [p.at[0] + dx, p.at[1] + dy]; }
+  }
+
+  function rotateFootprint(board, fpId, deltaDeg) {
+    const fp = board.footprints.find(f => f.id === fpId);
+    if (!fp) return;
+    const na = (fp.angle + deltaDeg) % 360;
+    for (const p of fp.pads) {
+      const [lx, ly] = rot(p.at[0] - fp.at[0], p.at[1] - fp.at[1], deltaDeg);
+      p.at = [fp.at[0] + lx, fp.at[1] + ly];
+      p.angle = (p.angle + deltaDeg) % 360;
+    }
+    fp.angle = na;
+  }
+
+  // ---------- tracks / vias ----------
+  function addTrack(board, start, end, width, layer, netId) {
+    const t = { id: newId('T'), start: [start[0], start[1]], end: [end[0], end[1]], width, layer, netId };
+    board.tracks.push(t);
+    return t;
+  }
+  function addVia(board, at, size, drill, netId) {
+    const v = { id: newId('V'), at: [at[0], at[1]], size, drill, netId };
+    board.vias.push(v);
+    return v;
+  }
+
+  // ---------- hit testing (in mm) ----------
+  function hitPad(board, x, y, tol) {
+    for (const fp of board.footprints)
+      for (const p of fp.pads) {
+        const r = Math.max(p.size[0], p.size[1]) / 2 + tol;
+        if (dist2(x, y, p.at[0], p.at[1]) <= r * r) return { fp, pad: p };
+      }
+    return null;
+  }
+  function hitFootprint(board, x, y, tol) {
+    for (const fp of board.footprints) {
+      // test any pad
+      for (const p of fp.pads) {
+        const r = Math.max(p.size[0], p.size[1]) / 2 + tol;
+        if (dist2(x, y, p.at[0], p.at[1]) <= r * r) return fp;
+      }
+      // also test courtyard-ish box (fp origin area)
+      const r0 = 1.5;
+      if (dist2(x, y, fp.at[0], fp.at[1]) <= r0 * r0) return fp;
+    }
+    return null;
+  }
+  function hitTrack(board, x, y, tol) {
+    for (const t of board.tracks) {
+      if (pointSegDist(x, y, t.start[0], t.start[1], t.end[0], t.end[1]) <= t.width / 2 + tol) return t;
+    }
+    return null;
+  }
+  function hitVia(board, x, y, tol) {
+    for (const v of board.vias) {
+      if (Math.sqrt(dist2(x, y, v.at[0], v.at[1])) <= v.size / 2 + tol) return v;
+    }
+    return null;
+  }
+
+  // ---------- ratsnest ----------
+  // Minimal spanning-ish: for each net, connect unconnected pad centers
+  // (pads with no track on that net) using greedy nearest neighbor.
+  function ratsnest(board) {
+    const lines = [];
+    const byNet = {};
+    for (const fp of board.footprints)
+      for (const p of fp.pads) {
+        if (!byNet[p.netId]) byNet[p.netId] = [];
+        byNet[p.netId].push(p);
+      }
+    for (const [netId, pads] of Object.entries(byNet)) {
+      const id = Number(netId);
+      if (id === 0 || pads.length < 2) continue;
+      // has any track on this net?
+      const routed = board.tracks.some(t => t.netId === id) || board.vias.some(v => v.netId === id);
+      if (routed) continue;
+      const pts = pads.map(p => p.at);
+      const visited = new Array(pts.length).fill(false);
+      visited[0] = true;
+      let count = 1;
+      while (count < pts.length) {
+        let bestD = Infinity, bestI = -1, bestJ = -1;
+        for (let i = 0; i < pts.length; i++) {
+          if (!visited[i]) continue;
+          for (let j = 0; j < pts.length; j++) {
+            if (visited[j]) continue;
+            const d = dist2(pts[i][0], pts[i][1], pts[j][0], pts[j][1]);
+            if (d < bestD) { bestD = d; bestI = i; bestJ = j; }
+          }
+        }
+        if (bestJ < 0) break;
+        visited[bestJ] = true; count++;
+        lines.push({ a: pts[bestI], b: pts[bestJ], netId: id });
+      }
+    }
+    return lines;
+  }
+
+  // ---------- DRC ----------
+  function copperItems(board, layer) {
+    // returns [{kind, x?, y?, seg?, r?, netId, layer}]
+    const items = [];
+    for (const fp of board.footprints) {
+      if (fp.layer !== layer) continue;
+      for (const p of fp.pads) {
+        if (p.layers[0] !== layer) continue;
+        items.push({ kind: 'pad', x: p.at[0], y: p.at[1], r: Math.max(p.size[0], p.size[1]) / 2, netId: p.netId, layer });
+      }
+    }
+    for (const t of board.tracks) {
+      if (t.layer !== layer) continue;
+      items.push({ kind: 'track', seg: [t.start, t.end], r: t.width / 2, netId: t.netId, layer });
+    }
+    for (const v of board.vias) {
+      // via copper on both layers
+      items.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.size / 2, netId: v.netId, layer });
+    }
+    return items;
+  }
+  function itemDist(a, b) {
+    if (a.seg && b.seg) return segSegDist(a.seg[0][0], a.seg[0][1], a.seg[1][0], a.seg[1][1], b.seg[0][0], b.seg[0][1], b.seg[1][0], b.seg[1][1]) - a.r - b.r;
+    if (a.seg) return pointSegDist(b.x, b.y, a.seg[0][0], a.seg[0][1], a.seg[1][0], a.seg[1][1]) - a.r - b.r;
+    if (b.seg) return pointSegDist(a.x, a.y, b.seg[0][0], b.seg[0][1], b.seg[1][0], b.seg[1][1]) - a.r - b.r;
+    return Math.sqrt(dist2(a.x, a.y, b.x, b.y)) - a.r - b.r;
+  }
+  function runDRC(board, clearance = CLEARANCE_DEFAULT) {
+    const violations = [];
+    for (const layer of ['F.Cu', 'B.Cu']) {
+      const items = copperItems(board, layer);
+      for (let i = 0; i < items.length; i++)
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i], b = items[j];
+          if (a.netId !== 0 && a.netId === b.netId) continue; // same net OK
+          const d = itemDist(a, b);
+          if (d < clearance) {
+            const mx = a.x != null ? a.x : (a.seg ? (a.seg[0][0] + a.seg[1][0]) / 2 : 0);
+            const my = a.y != null ? a.y : (a.seg ? (a.seg[0][1] + a.seg[1][1]) / 2 : 0);
+            violations.push({
+              type: `${a.kind}-${b.kind}`,
+              netA: netName(board, a.netId), netB: netName(board, b.netId),
+              dist: Math.round(d * 1000) / 1000,
+              clearance,
+              layer,
+              x: Math.round(mx * 1000) / 1000,
+              y: Math.round(my * 1000) / 1000
+            });
+          }
+        }
+    }
+    return violations;
+  }
+
+  return {
+    CLEARANCE_DEFAULT, makeBoard, getNet, netName, addNet, ensureNet,
+    placeFootprint, moveFootprint, rotateFootprint,
+    addTrack, addVia, hitPad, hitFootprint, hitTrack, hitVia,
+    ratsnest, runDRC, rot, segSegDist, pointSegDist
+  };
+});
