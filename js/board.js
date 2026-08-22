@@ -18,13 +18,11 @@
   }
   function dist2(x1, y1, x2, y2) { const dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy; }
   function segSegDist(ax, ay, bx, by, cx, cy, dx, dy) {
-    // distance between segments ab and cd
     const EPS = 1e-9;
     const r = [bx - ax, by - ay], s = [dx - cx, dy - cy];
     const rxs = r[0] * s[1] - r[1] * s[0];
     const qp = [cx - ax, cy - ay];
     if (Math.abs(rxs) < EPS) {
-      // parallel: min of endpoint distances to other segment
       return Math.min(
         pointSegDist(ax, ay, cx, cy, dx, dy),
         pointSegDist(bx, by, cx, cy, dx, dy),
@@ -79,7 +77,6 @@
 
   // ---------- footprints ----------
   function fpPadLocal(fpDef) {
-    // fpDef from KipadFootprints.getFootprint: {pads:[{number,type,shape,at,size,drill,radius,layers}]}
     return fpDef.pads.map(p => ({ ...p }));
   }
 
@@ -89,7 +86,6 @@
     const def = lib.getFootprint(libName);
     if (!def) throw new Error('Unknown footprint: ' + libName);
 
-    // designator: count existing refs with same prefix
     const prefix = refOverride || def.ref || 'U';
     let n = 1;
     const used = new Set(board.footprints.map(f => f.ref));
@@ -167,12 +163,10 @@
   }
   function hitFootprint(board, x, y, tol) {
     for (const fp of board.footprints) {
-      // test any pad
       for (const p of fp.pads) {
         const r = Math.max(p.size[0], p.size[1]) / 2 + tol;
         if (dist2(x, y, p.at[0], p.at[1]) <= r * r) return fp;
       }
-      // also test courtyard-ish box (fp origin area)
       const r0 = 1.5;
       if (dist2(x, y, fp.at[0], fp.at[1]) <= r0 * r0) return fp;
     }
@@ -192,8 +186,6 @@
   }
 
   // ---------- ratsnest ----------
-  // Minimal spanning-ish: for each net, connect unconnected pad centers
-  // (pads with no track on that net) using greedy nearest neighbor.
   function ratsnest(board) {
     const lines = [];
     const byNet = {};
@@ -205,7 +197,6 @@
     for (const [netId, pads] of Object.entries(byNet)) {
       const id = Number(netId);
       if (id === 0 || pads.length < 2) continue;
-      // has any track on this net?
       const routed = board.tracks.some(t => t.netId === id) || board.vias.some(v => v.netId === id);
       if (routed) continue;
       const pts = pads.map(p => p.at);
@@ -232,7 +223,6 @@
 
   // ---------- DRC ----------
   function copperItems(board, layer) {
-    // returns [{kind, x?, y?, seg?, r?, netId, layer}]
     const items = [];
     for (const fp of board.footprints) {
       if (fp.layer !== layer) continue;
@@ -246,7 +236,6 @@
       items.push({ kind: 'track', seg: [t.start, t.end], r: t.width / 2, netId: t.netId, layer });
     }
     for (const v of board.vias) {
-      // via copper on both layers
       items.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.size / 2, netId: v.netId, layer });
     }
     return items;
@@ -264,7 +253,7 @@
       for (let i = 0; i < items.length; i++)
         for (let j = i + 1; j < items.length; j++) {
           const a = items[i], b = items[j];
-          if (a.netId !== 0 && a.netId === b.netId) continue; // same net OK
+          if (a.netId !== 0 && a.netId === b.netId) continue;
           const d = itemDist(a, b);
           if (d < clearance) {
             const mx = a.x != null ? a.x : (a.seg ? (a.seg[0][0] + a.seg[1][0]) / 2 : 0);
