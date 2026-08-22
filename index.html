@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Kipad — PCB Layout Editor</title>
-<meta name="description" content="KiCad-like PCB layout editor for iPad. Place footprints, route traces, vias, DRC, Gerber export, open/save .kicad_pcb.">
-<meta name="theme-color" content="#242424">
+<meta name="description" content="KiCad-like PCB layout editor for iPad. Real KiCad footprints and symbols, 2-layer boards, interactive routing, DRC, Gerber export.">
+<meta name="theme-color" content="#1e1e1e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,43 +17,57 @@
 </head>
 <body>
 <div id="app">
-  <header id="toolbar">
-    <div class="brand">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+
+  <header id="menubar">
+    <span class="brand">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path d="M3 12h4l2-3 3 6 3-9 2 6h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span>Kipad</span>
-    </div>
-    <div class="tools" id="tools">
-      <button id="tool-select" class="tool active" title="Select / Move (V)">⭣</button>
-      <button id="tool-footprint" class="tool" title="Place footprint (F)">▣</button>
-      <button id="tool-track" class="tool" title="Route track (X)">╱</button>
-      <button id="tool-via" class="tool" title="Place via (V)">◎</button>
-      <button id="tool-outline" class="tool" title="Draw board outline (B)">▢</button>
-      <span class="divider"></span>
-      <button id="btn-undo" class="tool" title="Undo">↶</button>
-      <button id="btn-redo" class="tool" title="Redo">↷</button>
-      <span class="divider"></span>
-      <button id="btn-layer" class="tool layerbtn" title="Switch layer (L)"><span id="layer-label">F.Cu</span></button>
-      <button id="btn-zoomfit" class="tool" title="Zoom to fit (0)">⌂</button>
-    </div>
-    <div class="actions">
-      <button id="btn-open" class="btn">Open</button>
-      <button id="btn-save" class="btn">Save</button>
-      <button id="btn-gerber" class="btn">Gerber</button>
-      <button id="btn-drc" class="btn">DRC</button>
-      <button id="btn-new" class="btn">New</button>
-      <button id="btn-help" class="btn" title="Help">?</button>
-    </div>
+    </span>
+    <span class="menu" data-menu="file">File</span>
+    <span class="menu" data-menu="edit">Edit</span>
+    <span class="menu" data-menu="view">View</span>
+    <span class="menu" data-menu="place">Place</span>
+    <span class="menu" data-menu="route">Route</span>
+    <span class="menu" data-menu="inspect">Inspect</span>
+    <span class="menu" data-menu="help">Help</span>
+    <div id="menu-popup" class="hidden"></div>
   </header>
 
+  <div id="toolbar">
+    <button id="btn-new" class="tb" title="New board">🗋</button>
+    <button id="btn-open" class="tb" title="Open .kicad_pcb">🗀</button>
+    <button id="btn-save" class="tb" title="Save .kicad_pcb">💾</button>
+    <span class="sep"></span>
+    <button id="btn-undo" class="tb" title="Undo">↶</button>
+    <button id="btn-redo" class="tb" title="Redo">↷</button>
+    <span class="sep"></span>
+    <button id="btn-zoomin" class="tb" title="Zoom in">＋</button>
+    <button id="btn-zoomout" class="tb" title="Zoom out">－</button>
+    <button id="btn-zoomfit" class="tb" title="Zoom to fit">⤢</button>
+    <span class="sep"></span>
+    <button id="btn-grid" class="tb" title="Toggle grid (G)">▦</button>
+    <button id="btn-rats" class="tb active" title="Show ratsnest (N)">🕸</button>
+    <button id="btn-gerber" class="tb" title="Export Gerber">⛭</button>
+    <button id="btn-drc" class="tb" title="Run DRC">✓</button>
+    <button id="btn-import" class="tb" title="Import .kicad_mod / .kicad_sym">⇪</button>
+  </div>
+
   <div id="main">
-    <aside id="sidebar">
-      <div class="side-title">Footprints</div>
-      <div id="fp-list" class="side-list"></div>
-      <div class="side-title">Nets</div>
-      <div id="net-list" class="side-list"></div>
-    </aside>
+    <nav id="rail" title="Tools">
+      <button id="tool-select" class="tool active" title="Select / Move (S)">➤</button>
+      <button id="tool-highlight" class="tool" title="Net highlight (H)">⌁</button>
+      <button id="tool-footprint" class="tool" title="Add footprint (F)">▣</button>
+      <button id="tool-track" class="tool" title="Route track (X)">╱</button>
+      <button id="tool-via" class="tool" title="Add via (V)">◎</button>
+      <button id="tool-line" class="tool" title="Draw line (L)">╲</button>
+      <button id="tool-rect" class="tool" title="Draw rectangle">▭</button>
+      <button id="tool-circle" class="tool" title="Draw circle">◯</button>
+      <button id="tool-arc" class="tool" title="Draw arc">◠</button>
+      <button id="tool-measure" class="tool" title="Measure (M)">📏</button>
+    </nav>
+
     <section id="canvas-wrap">
       <canvas id="canvas"></canvas>
       <div id="hud">
@@ -64,13 +78,31 @@
       <div id="drc-panel" class="hidden"></div>
       <div id="tooltip" class="hidden"></div>
     </section>
+
+    <aside id="panel">
+      <div id="tabs">
+        <button class="tab active" data-tab="layers">Layers</button>
+        <button class="tab" data-tab="library">Library</button>
+        <button class="tab" data-tab="symbols">Symbols</button>
+        <button class="tab" data-tab="nets">Nets</button>
+        <button class="tab" data-tab="props">Properties</button>
+      </div>
+      <div id="tab-layers" class="tabpane"></div>
+      <div id="tab-library" class="tabpane hidden"></div>
+      <div id="tab-symbols" class="tabpane hidden"></div>
+      <div id="tab-nets" class="tabpane hidden"></div>
+      <div id="tab-props" class="tabpane hidden"></div>
+    </aside>
   </div>
 
-  <div id="statusbar">
-    <span id="status">Ready</span>
-    <span id="status-net">Net: —</span>
-    <span id="status-layer">Layer: F.Cu</span>
-  </div>
+  <footer id="statusbar">
+    <span id="st-pos">X: 0.000 Y: 0.000 mm</span>
+    <span id="st-grid">Grid: 0.25</span>
+    <span id="st-zoom">Zoom: 100%</span>
+    <span id="st-tool">Select</span>
+    <span id="st-layer">F.Cu</span>
+    <span id="st-msg">Ready</span>
+  </footer>
 </div>
 
 <div id="modal" class="hidden">
@@ -84,12 +116,18 @@
   </div>
 </div>
 
+<input type="file" id="file-open" accept=".kicad_pcb,text/plain" class="hidden">
+<input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
+
 <script src="js/sexpr.js"></script>
 <script src="js/footprints.js"></script>
 <script src="js/kicad_pcb.js"></script>
 <script src="js/gerber.js"></script>
 <script src="js/board.js"></script>
 <script src="js/render.js"></script>
+<script src="js/kicad_mod.js"></script>
+<script src="js/kicad_sym.js"></script>
+<script src="js/symbols.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
