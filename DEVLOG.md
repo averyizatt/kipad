@@ -15,7 +15,16 @@ Chronological log of iterations. Newest at the bottom.
 - `render.js`: KiCad colors (F.Cu red, B.Cu blue, Edge.Cuts yellow, silk/fab/courtyard), dot grid, crosshair, layer visibility + active-layer dimming, measure overlay.
 - `app.js`: all 10 tools, layer panel with visibility toggles + active layer, library panel (search/place/import .kicad_mod), symbols panel (search/preview/import .kicad_sym), nets panel (highlight/add), properties panel (edit ref/value/pos/rot/layer, track width, via size), menus, keyboard shortcuts.
 - `footprints.js`: added `addFootprint`, `loadLibrary`, `searchFootprints` + normalization; builtins kept as fallback.
-- `kicad_pcb.js`: added KiCad 10 named-net support (no (nets) block, (net "NAME"), *.Cu wildcard layers) — verified against real 643KB KiCad 10 demo board (63 footprints, 370 tracks, 6 vias, 112 nets).
-- `gerber.js`: fixed format header %FSLAX44Y44*% (coordinates are 1e-4 mm integers) for real-parser interop.
-- Tests: 7 suites green (sexpr/kicadpcb, gerber, footprints, kicad_sym, kicad_mod, kicad10, integration).
-- Pending: push to GitHub, verify Pages, continue with next TODO items.
+- Pending: sw.js asset list update, manifest, README, integration tests, push.
+
+### Iteration 3 — Drill export + push orchestration
+- `js/drill.js` (KipadDrill): Excellon .drl exporter — collects THT pad + via drills, dedupes sizes, tool table, G90/G05/M30. `test/test_drill.js` green.
+- Wired into UI: toolbar button (⊚), File menu item, script tag, sw.js cache.
+- Push strategy: small file contents passed inline via ClawLink for commits 1-4; the two big generated lib JSONs (footprints.json 266KB, symbols.json 177KB) delegated to a subagent (kipad-push) to avoid blowing session context.
+
+### Iteration 4 — Schematic editor (Eeschema) + launcher + plugin manager + gz libs
+- `js/schematic.js` (KipadSchematic): schematic model (symbols/wires/labels/junctions), pin position math from registry, union-find netlist extraction (labels on wire segments, power symbols name nets), `.kicad_sch` KiCad-8 serialize/parse round-trip, `updatePCB()` bridge (symbols → footprints via footprint property + ref-prefix fallback, pad nets from netlist). `test/test_schematic.js` green.
+- `render.js`: added `renderSchematic` / `drawSchematicSymbol` — draws symbols from registry graphics (rect/polyline/circle/arc/text), pins with connection dots, wires, junctions, labels, in-progress wire preview, crosshair.
+- `app.js`: mode system (launcher | schematic | pcb), launcher screen (Schematic Editor / PCB Editor), schematic tool rail (select/symbol/wire/label/junction), schematic keyboard shortcuts, per-mode menubar (File→Update PCB from Schematic, Tools→Plugin and Content Manager), netlist modal, schematic save/open (.kicad_sch), zoomFit for schematic. Drill export wired (toolbar ⊚ + File menu).
+- `index.html`/`style.css`: launcher UI, schematic rail buttons, plugin manager modal styles, `.kicad_sch` file-open accept, script tag.
+- Library delivery switched to gzipped bundles: `lib/footprints.json.gz` (20,961 B) + `lib/symbols.json.gz` (15,849 B), fetched with DecompressionStream('gzip') in app.js, plain .json kept as fallback + sw.js cache. Reason: the plain 266KB footprints.json repeatedly blew subagent context when pushing via ClawLink (3 failed attempts); gz is 13× smaller and faster on iPad.

@@ -22,12 +22,16 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] KiCad-style UI: menubar, toolbar, left tool rail, right panel tabs, status bar — 2026-08-22
 - [x] Import .kicad_mod / .kicad_sym files at runtime — 2026-08-22
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
+- [x] Drill/position file export (.drl, Excellon) — 2026-08-22
+- [x] Schematic editor (Eeschema): symbols, wires, labels, junctions, netlist, .kicad_sch save/open — 2026-08-22
+- [x] Update PCB from Schematic (symbol→footprint, netlist→nets) — 2026-08-22
+- [x] Launcher / project manager + mode switching (Schematic ↔ PCB) — 2026-08-22
+- [x] Plugin and Content Manager (built-in modules + custom .js install hook) — 2026-08-22
 - [ ] Net class / clearance settings UI (currently fixed 0.2mm)
 - [ ] Copper zones / pours (KiCad zone fills)
 - [ ] Silkscreen text editing on board
 - [ ] More DRC checks (track-to-pad hole, outline-to-copper, silkscreen overlap)
 - [ ] .kicad_pcb round-trip fidelity check against real KiCad files
-- [ ] Drill/position file export (.drl)
 - [ ] Keyboard: more KiCad shortcuts parity
 - [ ] iPad polish: haptics, Apple Pencil tilt/eraser, two-finger tap undo
 

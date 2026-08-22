@@ -232,3 +232,31 @@ html, body {
 .btn.primary { background: var(--accent); color: #062033; border-color: #66c6ff; }
 .btn.danger { background: var(--danger); color: #3d0a0a; }
 input[type="file"].hidden { display: none; }
+
+/* ---------- launcher (KiCad project manager style) ---------- */
+.launcher {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; background: #1e1e1e; z-index: 5;
+  text-align: center;
+}
+.launcher h1 { margin: 0; font-size: 28px; color: #fff; letter-spacing: 0.5px; }
+.launcher .desc { color: var(--fg-dim); margin: 0; }
+.launcher-grid { display: flex; gap: 24px; margin: 16px 0; flex-wrap: wrap; justify-content: center; }
+.launcher-app {
+  width: 150px; padding: 20px 12px; border-radius: 10px;
+  background: #2b2b2b; border: 1px solid #3a3a3a; color: #fff;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.launcher-app:hover { background: #333; border-color: #009eff; }
+.launcher-icon { font-size: 34px; }
+
+/* ---------- plugin manager ---------- */
+.plugin-list { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.plugin-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: 6px; padding: 8px 10px;
+}
+.plugin-row b { color: #fff; }
+.plugin-row .btn { white-space: nowrap; }
