@@ -1677,7 +1677,7 @@
       const r = await fetch(url);
       if (!r.ok) return null;
       const type = r.headers.get('content-type') || '';
-      if (url.endsWith('.gz')) {
+      if (url.split('?')[0].endsWith('.gz')) {
         const buf = await r.arrayBuffer();
         const ds = new DecompressionStream('gzip');
         const stream = new Blob([buf]).stream().pipeThrough(ds);
