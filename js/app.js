@@ -30,7 +30,6 @@
   let placeLib = null;        // footprint lib name being placed
   let placeAngle = 0;
   let trackWidth = 0.25;
-  let viaSize = 0.6, viaDrill = 0.3;
   let grid = 0.25;
   let showRats = true;
   let layerVis = {};          // layer -> bool (undefined = visible)
@@ -71,13 +70,17 @@
   // ---------- persistence ----------
   const LS_KEY = 'kipad.board.v1';
   function saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, trackWidth, grid })); } catch (e) {}
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, grid })); } catch (e) {}
   }
   function loadLocal() {
     try {
       const d = JSON.parse(localStorage.getItem(LS_KEY));
-      if (d && d.board) { board = d.board; view = d.view || view; layer = d.layer || layer; trackWidth = d.trackWidth || trackWidth; grid = d.grid || grid; }
+      if (d && d.board) { board = d.board; view = d.view || view; layer = d.layer || layer; grid = d.grid || grid; }
     } catch (e) {}
+    B.ensureNetClasses(board);
+    // the net class of the default net is the source of truth for the
+    // starting track width (W still cycles from there)
+    trackWidth = B.netClassOfNet(board, 0).trackWidth;
   }
 
   // ---------- coords ----------
@@ -95,6 +98,7 @@
   }
   function restore(s) {
     board = JSON.parse(s);
+    B.ensureNetClasses(board);
     selId = null; selKind = null; hiNet = null; route = null; outlinePts = null;
   }
   function undo() {
@@ -258,12 +262,15 @@
 
   function refreshNets() {
     const el = $('tab-nets');
-    let html = `<div class="net-add"><input id="net-name" placeholder="New net name…"><button class="btn" id="net-add">+</button></div>`;
+    B.ensureNetClasses(board);
+    let html = `<div class="net-add"><input id="net-name" placeholder="New net name…"><button class="btn" id="net-add">+</button></div>
+      <div class="lib-actions"><button class="btn" id="net-classes">Net Classes…</button></div>`;
     for (const n of board.nets) {
       if (n.id === 0) continue;
       let count = 0;
       for (const fp of board.footprints) for (const p of fp.pads) if (p.netId === n.id) count++;
-      html += `<div class="net-row${hiNet === n.id ? ' hi' : ''}" data-id="${n.id}"><span>${esc(n.name)}</span><span style="margin-left:auto;color:var(--fg-dim)">${count} pad${count === 1 ? '' : 's'}</span></div>`;
+      const cls = B.netClassOfNet(board, n.id);
+      html += `<div class="net-row${hiNet === n.id ? ' hi' : ''}" data-id="${n.id}"><span>${esc(n.name)}</span><span class="net-class">${esc(cls.name)}</span><span style="margin-left:auto;color:var(--fg-dim)">${count} pad${count === 1 ? '' : 's'}</span></div>`;
     }
     el.innerHTML = html || '<div class="prop-empty">No nets yet</div>';
     el.querySelectorAll('.net-row').forEach(r => r.addEventListener('click', () => {
@@ -278,6 +285,84 @@
       if (name) { B.addNet(board, name); refreshNets(); }
       inp.value = '';
     });
+    const nc = $('net-classes');
+    if (nc) nc.addEventListener('click', showNetClasses);
+  }
+
+  // ---------- net classes modal (KiCad "Edit Net Classes" dialog) ----------
+  function buildNetClassesBody() {
+    B.ensureNetClasses(board);
+    const nets = board.nets.filter(n => n.id !== 0);
+    let html = `<div class="netclass-list">`;
+    for (const c of board.netClasses) {
+      const inClass = nets.filter(n => B.netClassOfNet(board, n.id).id === c.id);
+      const avail = nets.filter(n => B.netClassOfNet(board, n.id).id !== c.id);
+      const chips = inClass.map(n =>
+        `<span class="nc-chip" data-nid="${n.id}" title="Tap to move to Default">${esc(n.name || '—')} ✕</span>`).join('') || '<span class="desc">No nets assigned</span>';
+      const opts = avail.map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join('');
+      html += `<div class="prop-group netclass-card" data-cid="${c.id}">
+        <h5>${c.id === 0 ? 'Default Class' : 'Class ' + c.id}${c.id === 0 ? ' <span class="desc">(always present)</span>' : ''}</h5>
+        <div class="prop-row"><label>Name</label><input class="nc-name" value="${esc(c.name)}"></div>
+        <div class="prop-row"><label>Track W</label><input class="nc-tw" type="number" step="0.05" min="0.01" value="${c.trackWidth}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Clearance</label><input class="nc-cl" type="number" step="0.05" min="0" value="${c.clearance}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Via size</label><input class="nc-vs" type="number" step="0.1" min="0.1" value="${c.viaSize}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Via drill</label><input class="nc-vd" type="number" step="0.05" min="0.05" value="${c.viaDrill}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Nets</label>
+          <span class="nc-nets">${chips}</span>
+          <select class="nc-add" ${avail.length ? '' : 'disabled'}><option value="">Add net…</option>${opts}</select>
+        </div>
+        <div class="lib-actions">${c.id === 0 ? '<span class="desc">Nets with no class use Default</span>' : '<button class="btn danger nc-rm">Remove class</button>'}</div>
+      </div>`;
+    }
+    html += `</div><div class="lib-actions"><button class="btn primary" id="nc-add-class">+ Add Class</button></div>`;
+    return html;
+  }
+  function rebuildNetClasses() {
+    const body = $('modal-body');
+    if (body) { body.innerHTML = buildNetClassesBody(); wireNetClasses(); }
+    refreshNets();
+  }
+  function wireNetClasses() {
+    const body = $('modal-body');
+    if (!body) return;
+    const upd = (el, fn) => { if (el) el.addEventListener('input', () => fn(el)); };
+    body.querySelectorAll('.netclass-card').forEach(card => {
+      const cid = Number(card.dataset.cid);
+      const cls = B.getNetClass(board, cid);
+      const num = (el, fallback) => { const v = parseFloat(el.value); return isNaN(v) ? fallback : v; };
+      upd(card.querySelector('.nc-name'), el => { B.renameNetClass(board, cid, el.value); });
+      upd(card.querySelector('.nc-tw'), el => { cls.trackWidth = Math.max(0.01, num(el, cls.trackWidth)); });
+      upd(card.querySelector('.nc-cl'), el => { cls.clearance = Math.max(0, num(el, cls.clearance)); });
+      upd(card.querySelector('.nc-vs'), el => { cls.viaSize = Math.max(0.1, num(el, cls.viaSize)); });
+      upd(card.querySelector('.nc-vd'), el => { cls.viaDrill = Math.max(0.05, num(el, cls.viaDrill)); });
+      const add = card.querySelector('.nc-add');
+      if (add) add.addEventListener('change', () => {
+        const nid = Number(add.value);
+        if (nid) { B.setNetClass(board, nid, cid); setStatus('Net "' + B.netName(board, nid) + '" → class ' + cls.name); rebuildNetClasses(); }
+        add.value = '';
+      });
+      card.querySelectorAll('.nc-chip').forEach(chip => chip.addEventListener('click', () => {
+        const nid = Number(chip.dataset.nid);
+        B.setNetClass(board, nid, 0);
+        setStatus('Net "' + B.netName(board, nid) + '" → Default');
+        rebuildNetClasses();
+      }));
+      const rm = card.querySelector('.nc-rm');
+      if (rm) rm.addEventListener('click', () => {
+        if (B.removeNetClass(board, cid)) { setStatus('Class removed — nets moved to Default'); rebuildNetClasses(); }
+      });
+    });
+    const addCls = $('nc-add-class');
+    if (addCls) addCls.addEventListener('click', () => {
+      const id = B.addNetClass(board, '');
+      setStatus('Added class "' + B.getNetClass(board, id).name + '"');
+      rebuildNetClasses();
+    });
+  }
+  function showNetClasses() {
+    B.ensureNetClasses(board);
+    showModal('Net Classes', buildNetClassesBody());
+    wireNetClasses();
   }
 
   function refreshProps() {
@@ -538,6 +623,8 @@
     let netId = 0;
     if (hit) netId = hit.pad.netId;
     else if (hiNet != null) netId = hiNet;
+    // default width comes from the net's class (W still cycles from there)
+    trackWidth = B.netClassOfNet(board, netId).trackWidth;
     route = { pts: [[snap(x), snap(y)]], netId, layer, width: trackWidth };
     if (hit) route.pts = [[hit.pad.at[0], hit.pad.at[1]]];
     setStatus('Routing net "' + B.netName(board, netId) + '" — tap points, double-tap/Enter to finish, V = via+layer');
@@ -561,10 +648,21 @@
   function addViaHere(x, y) {
     pushUndo();
     const netId = route ? route.netId : (hiNet != null ? hiNet : 0);
-    const v = B.addVia(board, [snap(x), snap(y)], viaSize, viaDrill, netId);
+    // vias take size/drill from the net's class
+    const cls = B.netClassOfNet(board, netId);
+    const v = B.addVia(board, [snap(x), snap(y)], cls.viaSize, cls.viaDrill, netId);
     if (route) route.layer = route.layer === 'F.Cu' ? 'B.Cu' : 'F.Cu';
     render(); refreshAll();
     return v;
+  }
+  function cycleTrackWidth() {
+    const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
+    const widths = [];
+    for (const w of [cls.trackWidth].concat(TRACK_WIDTHS)) if (widths.indexOf(w) < 0) widths.push(w);
+    trackWidth = widths[(widths.indexOf(trackWidth) + 1) % widths.length];
+    if (route) route.width = trackWidth;
+    setStatus('Track width: ' + trackWidth + ' mm');
+    render();
   }
 
   // outline graphics (line/rect/circle/arc → Edge.Cuts polylines)
@@ -653,7 +751,7 @@
     } else {
       panel.innerHTML = '<h4>DRC — ' + viol.length + ' violation(s)</h4>' +
         viol.slice(0, 40).map(v =>
-          `<div class="drc-item">${v.type} <b>${v.netA}↔${v.netB}</b> gap ${v.dist}mm (min ${v.clearance}) @${v.x},${v.y} ${v.layer}</div>`
+          `<div class="drc-item">${v.type} <b>${v.netA}↔${v.netB}</b> gap ${v.dist}mm (min ${v.clearance}mm ${v.classA}↔${v.classB}) @${v.x},${v.y} ${v.layer}</div>`
         ).join('');
     }
   }
@@ -672,6 +770,7 @@
       try {
         pushUndo();
         board = Pcb.parseBoard(r.result);
+        B.ensureNetClasses(board);
         selId = null; hiNet = null; route = null; outlinePts = null;
         render(); refreshAll(); setStatus('Opened ' + file.name);
       } catch (e) { setStatus('Open failed: ' + e.message); }
@@ -829,6 +928,7 @@
       if (!board2.footprints.length) { setStatus('No footprints could be resolved from schematic'); return; }
       pushUndo();
       board = board2;
+      B.ensureNetClasses(board);
       selId = null; hiNet = null; route = null;
       setMode('pcb');
       zoomFit();
@@ -876,7 +976,7 @@
     localStorage.setItem(PLUGINS_KEY, JSON.stringify(plugins));
   }
   const BUILTIN_PLUGINS = [
-    { name: 'netclasses', label: 'Net Classes & Clearance', desc: 'Per-net track width and clearance control (planned)' },
+    // net classes are built in now (Nets panel → "Net Classes…")
     { name: 'zones', label: 'Copper Zones / Pours', desc: 'Filled copper zones (planned)' },
     { name: 'silkscreen-text', label: 'Silkscreen Text Editing', desc: 'Edit text on the board (planned)' },
     { name: 'erc', label: 'ERC (schematic checks)', desc: 'Electrical rules check for schematics (planned)' }
@@ -1385,9 +1485,7 @@
       case 'Escape':
         route = null; outlinePts = null; gfxStart = null; placeLib = null; measureA = null; measureB = null;
         setTool('select'); break;
-      case 'w':
-        trackWidth = TRACK_WIDTHS[(TRACK_WIDTHS.indexOf(trackWidth) + 1) % TRACK_WIDTHS.length];
-        setStatus('Track width: ' + trackWidth + ' mm'); break;
+      case 'w': cycleTrackWidth(); break;
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
@@ -1549,7 +1647,7 @@
       route: [
         ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
         ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]); }, 'V'],
-        ['Track width: ' + trackWidth + ' mm', () => { trackWidth = TRACK_WIDTHS[(TRACK_WIDTHS.indexOf(trackWidth) + 1) % TRACK_WIDTHS.length]; setStatus('Track width: ' + trackWidth + ' mm'); }, 'W']
+        ['Track width: ' + trackWidth + ' mm', cycleTrackWidth, 'W']
       ],
       inspect: [
         ['Run DRC', () => $('btn-drc').click(), ''],
@@ -1622,7 +1720,7 @@
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
       <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
-      <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance (0.2mm)<br>
+      <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = per-net-class clearance (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
     `);
   }
@@ -1690,17 +1788,17 @@
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetchJSON('lib/footprints.json.gz?v=9').then(data => {
+      jobs.push(fetchJSON('lib/footprints.json.gz?v=10').then(data => {
         if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
-        return fetchJSON('lib/footprints.json?v=9').then(d2 => {
+        return fetchJSON('lib/footprints.json?v=10').then(d2 => {
           if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
         });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetchJSON('lib/symbols.json.gz?v=9').then(data => {
+      jobs.push(fetchJSON('lib/symbols.json.gz?v=10').then(data => {
         if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
-        return fetchJSON('lib/symbols.json?v=9').then(d2 => {
+        return fetchJSON('lib/symbols.json?v=10').then(d2 => {
           if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
         });
       }).catch(() => {}));
