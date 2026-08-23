@@ -151,7 +151,13 @@
     currentTab = t;
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
     ['layers', 'library', 'symbols', 'nets', 'props'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== t));
-    refreshAll();
+    // refresh only the active pane — rebuilding all five panels on every tab
+    // switch was the main source of the slow schematic/editor open
+    if (t === 'layers') refreshLayers();
+    else if (t === 'library') refreshLibrary();
+    else if (t === 'symbols') refreshSymbols();
+    else if (t === 'nets') refreshNets();
+    else if (t === 'props') refreshProps();
   }
 
   function refreshAll() {
@@ -197,7 +203,7 @@
       </div>
       <canvas class="lib-preview" id="lib-preview"></canvas>
       <div class="side-list">`;
-    for (const n of names.slice(0, 200)) {
+    for (const n of names.slice(0, 100)) {
       const fp = FPs.getFootprint(n);
       html += `<div class="lib-item${n === libSel ? ' active' : ''}" data-name="${esc(n)}">
         <span class="ref">${esc(fp.ref || 'U')}</span> ${esc(n)}<br><span class="desc">${esc((fp.desc || '').slice(0, 60))}</span></div>`;
@@ -231,7 +237,7 @@
       <div class="lib-actions"><button class="btn" id="sym-import">Import .kicad_sym</button></div>
       <canvas class="lib-preview" id="sym-preview"></canvas>
       <div class="side-list">`;
-    for (const n of names.slice(0, 300)) {
+    for (const n of names.slice(0, 150)) {
       const s = Syms.getSymbol(n);
       html += `<div class="lib-item${n === symSel ? ' active' : ''}" data-name="${esc(n)}">
         <span class="ref">${esc(s.ref || 'U')}</span> ${esc(n)}${s.desc ? `<br><span class="desc">${esc(s.desc.slice(0, 60))}</span>` : ''}</div>`;
@@ -240,7 +246,7 @@
     el.innerHTML = html;
     const qin = $('sym-q');
     if (qin) qin.addEventListener('input', e => { symQuery = e.target.value; refreshSymbols(); });
-    el.querySelectorAll('.lib-item').forEach(it => it.addEventListener('click', () => {
+    el.querySelectorAll('.lib-item').forEach(it => it.addEvntierMoveEvent(Listener('click', () => {
       symSel = it.dataset.name;
       refreshSymbols();
       drawSymbolPreview($('sym-preview'), Syms.getSymbol(symSel));
@@ -950,7 +956,7 @@
         <div class="prop-row"><label>ΔT rise</label><input id="cal-t" value="10" type="number" step="1" min="1"><span>°C</span></div>
         <div class="prop-row"><label>Copper</label><select id="cal-oz"><option value="1">1 oz (35 µm)</option><option value="2">2 oz (70 µm)</option><option value="0.5">0.5 oz (18 µm)</option></select></div>
       </div>
-      <div class="drc-item" id="cal-out"></div>`);
+      <div class="drc-item" id="cal-out"></div>>`;
     const calc = () => {
       const I = parseFloat($('cal-i').value) || 0;
       const dT = parseFloat($('cal-t').value) || 10;
@@ -1114,7 +1120,7 @@
     }
     if (tool === 'highlight') {
       const hit = B.hitPad(board, wx, wy, 0.3);
-      hiNet = hit ? hit.pad.netId : null;
+      hNet = hit ? hit.pad.netId : null;
       refreshNets(); render();
       return;
     }
@@ -1269,7 +1275,7 @@
       const s = Sch.placeSymbol(sch, schPlaceName, [sx, sy], schAngle);
       schSelId = s.id;
       render(); refreshAll();
-      setStatus('Placed ' + s.ref + ' — tap to place more, R rotates');
+      setStatus('Placed ' + s.ref + '— tap to place more, R increases angle');
       return;
     }
     if (schTool === 'wire') {
@@ -1562,16 +1568,16 @@
     if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
     const nets = Sch.extractNets(sch, Syms.getSymbol);
     const rows = nets.map(n => `<div class="net-row"><span>${esc(n.name)}</span><span style="margin-left:auto;color:var(--fg-dim)">${n.pins.length} pin${n.pins.length === 1 ? '' : 's'}</span></div>`).join('');
-    showModal('Netlist (' + nets.length + ' nets)', `<div class="plugin-list">${rows}</div>`);
+    showModal('Netlist (' + nets.length + ' nets)', `<div class="plugin-list">${rows}</div>>`;
   }
   function showSchHelp() {
     showModal('Kipad — Schematic Editor', `
       <b>Tools</b><br>
-      ➤ Select — tap symbol to select, drag to move, R rotates, Del deletes<br>
+      ➤ Select — tap symbol to select, drag to move, R increases angle, Del deletes<br>
       ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>
-      • Junction — tap to add a wire junction dot<br><br>
+      • Junction — tap to add a wire jounction dot<br><br>
       <b>Flow</b>: place symbols → wire them → add labels → <b>File → Update PCB from Schematic</b> to continue in the PCB editor.
     `);
   }
@@ -1684,17 +1690,17 @@
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetchJSON('lib/footprints.json.gz').then(data => {
+      jobs.push(fetchJSON('lib/footprints.json.ggz?v=9').then(data => {
         if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
-        return fetchJSON('lib/footprints.json').then(d2 => {
+        return fetchJSON('lib/footprints.json?v=9').then(d2 => {
           if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
         });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetchJSON('lib/symbols.json.gz').then(data => {
+      jobs.push(fetchJSON('lib/symbols.json.gz?v=9').then(data => {
         if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
-        return fetchJSON('lib/symbols.json').then(d2 => {
+        return fetchJSON('lib/symbols.json?v=9').then(d2 => {
           if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
         });
       }).catch(() => {}));
@@ -1706,7 +1712,8 @@
   loadLocal();
   setTab('layers');
   setTool('select');
-  refreshAll();
+  // build the side panels after first paint so the launcher shows instantly
+  setTimeout(refreshAll, 0);
   window.addEventListener('resize', resize);
   resize();
   render();
