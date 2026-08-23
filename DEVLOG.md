@@ -41,3 +41,16 @@ Chronological log of iterations. Newest at the bottom.
 - `render.js`: real KiCad default layer colors + light-paper schematic rendering (green wires, dark red pins, teal refs).
 - `app.js`: `setMode` toggles editor chrome in/out of launcher mode; launcher menu branch; PM toolbar/tree/card wiring (`pm-new/pm-open/pm-save/pm-refresh`, `data-open` cards, Gerber/Calculator/Bitmap placeholders, PCM); `#menu-popup` now `position:fixed` positioned from the clicked menu.
 - `sw.js`: cache bump `kipad-v2` → `kipad-v3`, 50 icons precached.
+
+### 2026-08-23 — gz-vs-cache-bust fix (commit 15cad007)
+- Real-browser evidence: despite correct `.gz` bundles on the server, the app loaded only 400 symbols / 13 footprints — silent fallback to stale plain JSON.
+- Root cause: `fetchJSON()` tested `url.endsWith('.gz')`, but URLs are `lib/symbols.json.gz?v=9`; the query string defeated the check, so gzip bytes went to `r.json()`, parse failed, and the catch fell back to plain JSON.
+- Fix: `if (url.split('?')[0].endsWith('.gz'))`. Byte-exact push (md5 `02e2e2f1…`); live diff IDENTICAL. Browser verify: `LIB_SYMBOLS=600 LIB_FOOTPRINTS=159 RENDERED_ITEMS=150 ERRORS=[]`, and the request log shows only the `.gz?v=9` URLs — no plain fallback.
+- Browser sandbox note: Chromium needed 6 extra noble libs (libharfbuzz0b, libpixman-1-0, libthai0, libxcb-render0, libdatrie1, libgraphite2-3) extracted into `/tmp/kiptest/pb/libs`; `ldd` now shows 0 missing.
+
+### 2026-08-23 — Net Classes & Clearance UI (subagent iteration)
+- `js/board.js`: net class model — `board.netClasses[]` (`{id, name, trackWidth, clearance, viaSize, viaDrill}`), Default class is always id 0; `B.ensureNetClasses` (seeds Default on legacy/localStorage/parsed boards), `addNetClass`, `getNetClass`, `netClassOfNet` (Default fallback), `setNetClass` (stores `net.classId` on the net), `renameNetClass`, `removeNetClass` (nets fall back to Default). Persists automatically via the existing localStorage JSON save; kicad_pcb.js untouched (safe option — round-trip tests unaffected).
+- DRC (`B.runDRC`): hardcoded 0.2mm replaced with per-net-class clearance — required clearance between two items = **max of the two nets' class clearances** (KiCad rule). Optional explicit clearance param kept for backward compat. Violations now carry `classA`/`classB` names.
+- `js/app.js`: Nets tab shows a class pill per net + "Net Classes…" button → KiCad-style "Edit Net Classes" modal: per-class editable Name / Track W / Clearance / Via size / Via drill (live `input` updates), assigned-net chips (tap ✕ → move to Default), "Add net…" dropdown per class, Remove class / + Add Class buttons. Routing: starting a track defaults width to the net's class trackWidth (W cycles from it, updates in-progress route), vias take size/drill from the net's class. DRC panel shows `(min Xmm ClassA↔ClassB)`. PCM entry for netclasses removed (feature is built in). `loadLocal`/`restore`/`doOpen`/`doUpdatePCB` call `B.ensureNetClasses`.
+- `style.css`: `.net-class` pill, `.netclass-card`, `.nc-chip`, `.nc-nets`, `.nc-add` styles.
+- `test/test_netclasses.js` (new, 11 checks): default class, add/get/set/rename/remove, fallback, per-class DRC (0.4 → violation / 0.05 → clean on 0.1mm gap), max-of-two-classes rule, same-net exemption, clearance override, JSON round-trip persistence, legacy-board seeding. All 11 suites green.

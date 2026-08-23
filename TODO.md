@@ -23,7 +23,7 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Import .kicad_mod / .kicad_sym files at runtime — 2026-08-22
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
 - [x] Drill/position file export (.drl, Excellon) — 2026-08-22
-- [ ] Net class / clearance settings UI (currently fixed 0.2mm)
+- [x] Net class / clearance settings UI (Nets panel → Net Classes…, per-class DRC) — 2026-08-23
 - [ ] Copper zones / pours (KiCad zone fills)
 - [ ] Silkscreen text editing on board
 - [ ] More DRC checks (track-to-pad hole, outline-to-copper, silkscreen overlap)
@@ -49,3 +49,13 @@ Project state file. Update after every iteration. Completed items are checked of
 - [ ] Schematic canvas grid/labels to match KiCad precisely (labels are currently black, KiCad uses dark red global labels)
 - [ ] Gerber viewer launcher card (placeholder now)
 - [ ] PCB Calculator launcher card (placeholder now)
+
+## Session 2026-08-23 (evening) — library load fix + net classes
+- [x] Fix fetchJSON `.gz` detection with `?v=N` cache-busted URLs — `url.split('?')[0].endsWith('.gz')` — pushed 15cad007, live-verified in real Chromium: 600 symbols / 159 footprints / zero errors (was silently falling back to stale plain JSON: 400/13)
+- [x] index.html local copy synced to live (Symbols (600) / Footprints (159) labels)
+- [x] Net classes & clearance UI (PCB side)
+  - [x] Board model: `board.netClasses` (id/name/trackWidth/clearance/viaSize/viaDrill, Default = id 0) + `B.ensureNetClasses/addNetClass/getNetClass/netClassOfNet/setNetClass/renameNetClass/removeNetClass` — 2026-08-23
+  - [x] DRC uses per-net-class clearance (max of the two classes), class names in violations — 2026-08-23
+  - [x] Nets panel: class column + "Net Classes…" modal editor (KiCad Edit Net Classes dialog: editable fields, add/remove class, net chips + Add net dropdown, touch-friendly) — 2026-08-23
+  - [x] Routing: new track width defaults to net's class width (W cycles from it), vias use class via size/drill — 2026-08-23
+  - [x] test/test_netclasses.js (11 checks) — 2026-08-23
