@@ -10,10 +10,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kipad">
-<link rel="manifest" href="manifest.webmanifest?v=7">
-<link rel="icon" href="icon.svg?v=7" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-180.png?v=7">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="manifest" href="manifest.webmanifest?v=8">
+<link rel="icon" href="icon.svg?v=8" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=8">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div id="app">
@@ -108,7 +108,7 @@
     <span class="menu" data-menu="edit">Edit</span>
     <span class="menu" data-menu="view">View</span>
     <span class="menu" data-menu="place">Place</span>
-    <span class="menu" data-menu="route">Route</span>
+    <span class="menu pcb-only" data-menu="route">Route</span>
     <span class="menu" data-menu="inspect">Inspect</span>
     <span class="menu" data-menu="tools">Tools</span>
     <span class="menu" data-menu="help">Help</span>
@@ -127,11 +127,11 @@
     <button id="btn-zoomfit" class="tb" title="Zoom to fit"><img src="icons/zoom_fit.png" alt="Zoom to fit"></button>
     <span class="sep"></span>
     <button id="btn-grid" class="tb" title="Toggle grid (G)"><img src="icons/grid.png" alt="Grid"></button>
-    <button id="btn-rats" class="tb active" title="Show ratsnest (N)"><img src="icons/ratsnest.png" alt="Ratsnest"></button>
-    <button id="btn-gerber" class="tb" title="Export Gerber"><img src="icons/gerber.png" alt="Gerber"></button>
-    <button id="btn-drill" class="tb" title="Export drill file (.drl)"><img src="icons/drill.png" alt="Drill"></button>
-    <button id="btn-drc" class="tb" title="Run DRC"><img src="icons/drc.png" alt="DRC"></button>
-    <button id="btn-import" class="tb" title="Import .kicad_mod / .kicad_sym"><img src="icons/import.png" alt="Import"></button>
+    <button id="btn-rats" class="tb active pcb-only" title="Show ratsnest (N)"><img src="icons/ratsnest.png" alt="Ratsnest"></button>
+    <button id="btn-gerber" class="tb pcb-only" title="Export Gerber"><img src="icons/gerber.png" alt="Gerber"></button>
+    <button id="btn-drill" class="tb pcb-only" title="Export drill file (.drl)"><img src="icons/drill.png" alt="Drill"></button>
+    <button id="btn-drc" class="tb pcb-only" title="Run DRC"><img src="icons/drc.png" alt="DRC"></button>
+    <button id="btn-import" class="tb pcb-only" title="Import .kicad_mod / .kicad_sym"><img src="icons/import.png" alt="Import"></button>
   </div>
 
   <div id="main">
@@ -169,11 +169,11 @@
 
     <aside id="panel">
       <div id="tabs">
-        <button class="tab active" data-tab="layers">Layers</button>
-        <button class="tab" data-tab="library">Library</button>
-        <button class="tab" data-tab="symbols">Symbols</button>
-        <button class="tab" data-tab="nets">Nets</button>
-        <button class="tab" data-tab="props">Properties</button>
+        <button class="tab active pcb-only" data-tab="layers">Layers</button>
+        <button class="tab pcb-only" data-tab="library">Library</button>
+        <button class="tab sch-only" data-tab="symbols">Symbols</button>
+        <button class="tab pcb-only" data-tab="nets">Nets</button>
+        <button class="tab pcb-only" data-tab="props">Properties</button>
       </div>
       <div id="tab-layers" class="tabpane"></div>
       <div id="tab-library" class="tabpane hidden"></div>
@@ -209,17 +209,17 @@
 <input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
-<script src="js/sexpr.js?v=7"></script>
-<script src="js/footprints.js?v=7"></script>
-<script src="js/kicad_pcb.js?v=7"></script>
-<script src="js/gerber.js?v=7"></script>
-<script src="js/drill.js?v=7"></script>
-<script src="js/board.js?v=7"></script>
-<script src="js/render.js?v=7"></script>
-<script src="js/kicad_mod.js?v=7"></script>
-<script src="js/kicad_sym.js?v=7"></script>
-<script src="js/symbols.js?v=7"></script>
-<script src="js/schematic.js?v=7"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/sexpr.js?v=8"></script>
+<script src="js/footprints.js?v=8"></script>
+<script src="js/kicad_pcb.js?v=8"></script>
+<script src="js/gerber.js?v=8"></script>
+<script src="js/drill.js?v=8"></script>
+<script src="js/board.js?v=8"></script>
+<script src="js/render.js?v=8"></script>
+<script src="js/kicad_mod.js?v=8"></script>
+<script src="js/kicad_sym.js?v=8"></script>
+<script src="js/symbols.js?v=8"></script>
+<script src="js/schematic.js?v=8"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>
