@@ -49,6 +49,7 @@
 
   // ---------- mode + schematic state ----------
   const Sch = window.KipadSchematic;
+  const Erc = window.KipadErc || null;
   let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
   let sch = null;               // schematic model
   let schTool = 'select';       // select | symbol | wire | label | junction
@@ -59,6 +60,8 @@
   let schUndo = [], schRedo = [];
   let schDrag = null;           // {symId, dx, dy}
   let schWireCur = null;
+  let ercViolations = [];       // cached ERC results (recomputed on change)
+  let ercDirty = true;
   const PLUGINS_KEY = 'kipad.plugins.v1';
   let plugins = {};             // name -> {name, enabled}
   let installedPlugins = [];    // {name, fn} loaded from files
@@ -756,6 +759,60 @@
     }
   }
 
+  // ---------- ERC (schematic electrical rules check) ----------
+  function refreshErc() {
+    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol) : [];
+    ercDirty = false;
+    updateErcStatus();
+  }
+  function updateErcStatus() {
+    const el = $('st-erc');
+    if (!el || !Erc) return;
+    const c = Erc.counts(ercViolations);
+    el.textContent = 'ERC: ' + c.errors + ' error' + (c.errors === 1 ? '' : 's') + ', ' +
+      c.warnings + ' warning' + (c.warnings === 1 ? '' : 's');
+    el.classList.toggle('clean', c.errors === 0 && c.warnings === 0);
+    el.classList.toggle('dirty', c.errors + c.warnings > 0);
+  }
+  // centre the canvas on a violation and select its symbol (if any)
+  function ercLocate(v) {
+    if (!v) return;
+    if (v.symbolId) schSelId = v.symbolId;
+    view.x = v.x; view.y = v.y;    // w2s puts view.x/view.y at canvas centre
+    render(); refreshAll();
+    setStatus(v.code + ': ' + v.message);
+  }
+  function showErc() {
+    refreshErc();
+    const panel = $('erc-panel');
+    if (!panel || !Erc) return;
+    panel.classList.remove('hidden');
+    const c = Erc.counts(ercViolations);
+    if (!ercViolations.length) {
+      panel.innerHTML = '<div class="erc-head"><h4>ERC — Electrical Rules Check</h4><button class="erc-close" title="Close">✕</button></div>' +
+        '<div class="erc-summary">✓ No ERC violations</div>';
+    } else {
+      let html = '<div class="erc-head"><h4>ERC — Electrical Rules Check</h4><button class="erc-close" title="Close">✕</button></div>' +
+        '<div class="erc-summary">' + c.errors + ' error' + (c.errors === 1 ? '' : 's') + ', ' +
+        c.warnings + ' warning' + (c.warnings === 1 ? '' : 's') + '</div>';
+      let startedErr = false, startedWarn = false;
+      ercViolations.forEach((v, i) => {
+        if (v.severity === 'error' && !startedErr) { html += '<div class="erc-group-title">Errors</div>'; startedErr = true; }
+        if (v.severity === 'warning' && !startedWarn) { html += '<div class="erc-group-title">Warnings</div>'; startedWarn = true; }
+        html += `<div class="erc-item ${v.severity}" data-idx="${i}"><span class="erc-code">${v.code}</span><span class="erc-msg">${esc(v.message)}</span></div>`;
+      });
+      panel.innerHTML = html;
+      panel.querySelectorAll('.erc-item').forEach(row => row.addEventListener('click', () => {
+        const v = ercViolations[Number(row.dataset.idx)];
+        ercLocate(v);
+        panel.querySelectorAll('.erc-item').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+      }));
+    }
+    const close = panel.querySelector('.erc-close');
+    if (close) close.addEventListener('click', () => panel.classList.add('hidden'));
+  }
+
   // ---------- save/open/export ----------
   function doSave() {
     if (!Pcb) { setStatus('kicad_pcb module not loaded'); return; }
@@ -842,13 +899,18 @@
     document.querySelectorAll('.pcb-only').forEach(el => el.classList.toggle('hidden', m !== 'pcb'));
     document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
     if (m === 'schematic' && !sch) { sch = Sch.makeSchematic(); schTool = 'select'; }
-    if (m === 'schematic') { setTab('symbols'); }
+    if (m === 'schematic') { setTab('symbols'); ercDirty = true; }
     if (m === 'pcb') { setTab('layers'); }
+    const ercPanel = $('erc-panel');
+    if (ercPanel && m !== 'schematic') ercPanel.classList.add('hidden');
     setTool('select');
     resize();
   }
 
   function renderSchematicView() {
+    // ERC results are cached; recompute only after a schematic change
+    // (schPushUndo / undo / redo / open / new mark ercDirty).
+    if (ercDirty) refreshErc();
     const state = {
       dpr: window.devicePixelRatio || 1,
       grid,
@@ -876,17 +938,19 @@
   }
 
   function schSnapshot() { return JSON.stringify(sch); }
-  function schPushUndo() { schUndo.push(schSnapshot()); if (schUndo.length > 50) schUndo.shift(); schRedo = []; }
+  function schPushUndo() { schUndo.push(schSnapshot()); if (schUndo.length > 50) schUndo.shift(); schRedo = []; ercDirty = true; }
   function schUndoStep() {
     if (!schUndo.length) return;
     schRedo.push(schSnapshot());
     sch = JSON.parse(schUndo.pop());
+    ercDirty = true;
     render(); refreshAll();
   }
   function schRedoStep() {
     if (!schRedo.length) return;
     schUndo.push(schSnapshot());
     sch = JSON.parse(schRedo.pop());
+    ercDirty = true;
     render(); refreshAll();
   }
 
@@ -976,10 +1040,10 @@
     localStorage.setItem(PLUGINS_KEY, JSON.stringify(plugins));
   }
   const BUILTIN_PLUGINS = [
-    // net classes are built in now (Nets panel → "Net Classes…")
+    // net classes and ERC are built in now (Nets panel → "Net Classes…",
+    // schematic Inspect → Electrical Rules Check…)
     { name: 'zones', label: 'Copper Zones / Pours', desc: 'Filled copper zones (planned)' },
-    { name: 'silkscreen-text', label: 'Silkscreen Text Editing', desc: 'Edit text on the board (planned)' },
-    { name: 'erc', label: 'ERC (schematic checks)', desc: 'Electrical rules check for schematics (planned)' }
+    { name: 'silkscreen-text', label: 'Silkscreen Text Editing', desc: 'Edit text on the board (planned)' }
   ];
   function showPlugins() {
     loadPlugins();
@@ -1537,6 +1601,7 @@
   $('btn-grid').addEventListener('click', cycleGrid);
   $('btn-rats').addEventListener('click', () => { showRats = !showRats; $('btn-rats').classList.toggle('active', showRats); render(); });
   $('btn-drc').addEventListener('click', () => { runDRC(); render(); });
+  $('btn-erc').addEventListener('click', () => { showErc(); render(); });
   $('btn-gerber').addEventListener('click', doGerber);
   $('btn-drill').addEventListener('click', doDrill);
   $('btn-new').addEventListener('click', () => {
@@ -1603,6 +1668,7 @@
         ['Junction', () => setSchTool('junction'), 'J']
       ],
       inspect: [
+        ['Electrical Rules Check…', showErc, ''],
         ['Netlist', showSchNetlist, ''],
         ['Measure', () => setSchTool('select'), 'M']
       ],
@@ -1676,7 +1742,7 @@
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>
       • Junction — tap to add a wire junction dot<br><br>
-      <b>Flow</b>: place symbols → wire them → add labels → <b>File → Update PCB from Schematic</b> to continue in the PCB editor.
+      <b>Flow</b>: place symbols → wire them → add labels → <b>Inspect → Electrical Rules Check…</b> to find unconnected pins, duplicate refs, label conflicts and more, then <b>File → Update PCB from Schematic</b> to continue in the PCB editor.
     `);
   }
   document.querySelectorAll('.menu').forEach(m => {
@@ -1788,17 +1854,17 @@
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetchJSON('lib/footprints.json.gz?v=10').then(data => {
+      jobs.push(fetchJSON('lib/footprints.json.gz?v=11').then(data => {
         if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
-        return fetchJSON('lib/footprints.json?v=10').then(d2 => {
+        return fetchJSON('lib/footprints.json?v=11').then(d2 => {
           if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
         });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetchJSON('lib/symbols.json.gz?v=10').then(data => {
+      jobs.push(fetchJSON('lib/symbols.json.gz?v=11').then(data => {
         if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
-        return fetchJSON('lib/symbols.json?v=10').then(d2 => {
+        return fetchJSON('lib/symbols.json?v=11').then(d2 => {
           if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
         });
       }).catch(() => {}));
