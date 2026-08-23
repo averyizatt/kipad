@@ -58,6 +58,7 @@
       nets: [{ id: 0, name: '' }],
       netClasses: [defaultNetClass()],
       zones: [],
+      texts: [],
       footprints: [],
       tracks: [],
       vias: [],
@@ -241,6 +242,48 @@
     return (board.zones || []).filter(z => z.layer === layer);
   }
 
+  // ---------- board text (silkscreen) ----------
+  function addText(board, opts) {
+    if (!Array.isArray(board.texts)) board.texts = [];
+    opts = opts || {};
+    const t = {
+      id: newId('TXT'),
+      text: String(opts.text == null ? 'Text' : opts.text),
+      at: Array.isArray(opts.at) ? [opts.at[0], opts.at[1]] : [0, 0],
+      layer: opts.layer === 'B.SilkS' ? 'B.SilkS' : 'F.SilkS',
+      size: Math.max(0.1, Number(opts.size) || 1.5),
+      thickness: Math.max(0.01, Number(opts.thickness) || 0.3),
+      angle: ((Number(opts.angle) || 0) % 360 + 360) % 360,
+      justify: opts.justify === 'left' || opts.justify === 'right' ? opts.justify : 'center'
+    };
+    board.texts.push(t);
+    return t;
+  }
+  function removeText(board, textId) {
+    if (!Array.isArray(board.texts)) return false;
+    const i = board.texts.findIndex(t => t.id === textId);
+    if (i < 0) return false;
+    board.texts.splice(i, 1);
+    return true;
+  }
+  function moveText(board, textId, at) {
+    const t = (board.texts || []).find(x => x.id === textId);
+    if (!t) return false;
+    t.at = [at[0], at[1]];
+    return true;
+  }
+  function hitText(board, x, y, tol) {
+    const texts = board.texts || [];
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const t = texts[i];
+      const w = Math.max(t.size, String(t.text).length * t.size * 0.62) / 2 + (tol || 0);
+      const h = t.size / 2 + (tol || 0);
+      const p = rot(x - t.at[0], y - t.at[1], -(t.angle || 0));
+      if (Math.abs(p[0]) <= w && Math.abs(p[1]) <= h) return t;
+    }
+    return null;
+  }
+
   // ---------- tracks / vias ----------
   function addTrack(board, start, end, width, layer, netId) {
     const t = { id: newId('T'), start: [start[0], start[1]], end: [end[0], end[1]], width, layer, netId };
@@ -396,7 +439,7 @@
     CLEARANCE_DEFAULT, NETCLASS_DEFAULTS, makeBoard, getNet, netName, addNet, ensureNet,
     ensureNetClasses, defaultNetClass, addNetClass, getNetClass, netClassOfNet,
     setNetClass, renameNetClass, removeNetClass,
-    addZone, removeZone, zonesOn,
+    addZone, removeZone, zonesOn, addText, removeText, moveText, hitText,
     placeFootprint, moveFootprint, rotateFootprint,
     addTrack, addVia, hitPad, hitFootprint, hitTrack, hitVia,
     ratsnest, runDRC, rot, segSegDist, pointSegDist

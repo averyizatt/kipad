@@ -167,6 +167,40 @@
       }
     }
 
+    // ---- free board text (F/B silkscreen) ----
+    for (const t of board.texts || []) {
+      if (!isVisible(state, t.layer)) continue;
+      const [tx, ty] = w2s(view, t.at[0], t.at[1], cw, ch);
+      const selected = state.selKind === 'text' && state.selId === t.id;
+      const sizePx = Math.max(6, (t.size || 1.5) * view.zoom);
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate((t.angle || 0) * Math.PI / 180);
+      ctx.fillStyle = selected ? SEL : (LAYER_COLOR[t.layer] || '#f2eda1');
+      ctx.font = `500 ${sizePx}px -apple-system, sans-serif`;
+      ctx.textAlign = t.justify || 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(t.text, 0, 0);
+      if (selected) {
+        const w = Math.max(sizePx, ctx.measureText(t.text).width);
+        ctx.strokeStyle = SEL; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
+        const x0 = t.justify === 'left' ? 0 : (t.justify === 'right' ? -w : -w / 2);
+        ctx.strokeRect(x0 - 3, -sizePx * 0.65, w + 6, sizePx * 1.3);
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
+    if (state.textPreview) {
+      const t = state.textPreview;
+      const [tx, ty] = w2s(view, t.at[0], t.at[1], cw, ch);
+      ctx.save(); ctx.translate(tx, ty); ctx.rotate((t.angle || 0) * Math.PI / 180);
+      ctx.globalAlpha = 0.65; ctx.fillStyle = LAYER_COLOR[t.layer] || '#f2eda1';
+      ctx.font = `500 ${Math.max(6, (t.size || 1.5) * view.zoom)}px -apple-system, sans-serif`;
+      ctx.textAlign = t.justify || 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.text, 0, 0);
+      ctx.restore();
+    }
+
     // ---- footprints ----
     for (const fp of board.footprints) {
       const isSel = state.selId === fp.id;

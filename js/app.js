@@ -11,6 +11,7 @@
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
   const Syms = window.KipadSymbols || null;
+  const Z = window.KipadZones || null;
 
   // ---------- DOM ----------
   const $ = id => document.getElementById(id);
@@ -20,13 +21,18 @@
   // ---------- State ----------
   let board = B.makeBoard();
   let view = R.makeView();
-  let tool = 'select';        // select | highlight | footprint | track | via | line | rect | circle | arc | measure
+  let tool = 'select';        // select | highlight | footprint | track | via | zone | text | line | rect | circle | arc | measure
   let layer = 'F.Cu';         // active copper layer
   let selId = null;           // selected footprint id
   let selKind = null;         // 'footprint' | 'track' | 'via'
   let hiNet = null;           // highlighted net id
   let route = null;           // {pts, netId, layer, width}
   let outlinePts = null;      // current outline polyline being drawn
+  let zonePts = null;         // copper zone outline being placed {pts, netId}
+  const zoneFills = new Map(); // zone.id -> KipadZones fill result (not saved)
+  let zonesDirty = true;      // refill needed before fills are trustworthy
+  let zoneTimer = null;
+  let textPlace = null;       // board text preview/settings while placing
   let placeLib = null;        // footprint lib name being placed
   let placeAngle = 0;
   let trackWidth = 0.25;
@@ -84,6 +90,9 @@
     // the net class of the default net is the source of truth for the
     // starting track width (W still cycles from there)
     trackWidth = B.netClassOfNet(board, 0).trackWidth;
+    if (!Array.isArray(board.zones)) board.zones = [];
+    if (!Array.isArray(board.texts)) board.texts = [];
+    markZonesDirty(true);
   }
 
   // ---------- coords ----------
@@ -98,11 +107,14 @@
     undoStack.push(snapshot());
     if (undoStack.length > 100) undoStack.shift();
     redoStack = [];
+    markZonesDirty();   // any board mutation may change copper connectivity
   }
   function restore(s) {
     board = JSON.parse(s);
     B.ensureNetClasses(board);
     selId = null; selKind = null; hiNet = null; route = null; outlinePts = null;
+    zonePts = null;
+    markZonesDirty(true);
   }
   function undo() {
     if (!undoStack.length) return;
@@ -121,12 +133,16 @@
   function render() {
     if (mode === 'schematic') { renderSchematicView(); return; }
     const state = {
-      selId, hiNet, showRats, layerVis,
+      selId, selKind, hiNet, showRats, layerVis,
       activeLayer: layer,
       crosshair: crosshair,
       grid,
       route: route ? { ...route, cursor: routeCursor } : null,
-      measure: measureA ? { a: measureA, b: measureB, cur: measureCur } : null
+      measure: measureA ? { a: measureA, b: measureB, cur: measureCur } : null,
+      zoneDraft: (tool === 'zone' && zonePts) ? zonePts.pts : null,
+      zoneFills,
+      textPreview: (tool === 'text' && textPlace && crosshair)
+        ? { ...textPlace, at: [snap(crosshair[0]), snap(crosshair[1])] } : null
     };
     R.render(ctx, cw, ch, board, view, state);
     $('hud-pos').textContent = fmt(view.x) + ', ' + fmt(view.y) + ' mm';
@@ -137,10 +153,11 @@
     $('st-zoom').textContent = 'Zoom: ' + Math.round(view.zoom * 100 / 3) + '%';
     $('st-tool').textContent = toolName();
     $('st-layer').textContent = layer;
+    $('st-zones').textContent = 'Zones: ' + ((board.zones || []).length);
   }
   let routeCursor = null, measureB = null, measureCur = null;
   function toolName() {
-    const m = { select: 'Select', highlight: 'Net Highlight', footprint: 'Footprint', track: 'Route Track', via: 'Via', line: 'Draw Line', rect: 'Draw Rectangle', circle: 'Draw Circle', arc: 'Draw Arc', measure: 'Measure' };
+    const m = { select: 'Select', highlight: 'Net Highlight', footprint: 'Footprint', track: 'Route Track', via: 'Via', zone: 'Add Zone', text: 'Add Text', line: 'Draw Line', rect: 'Draw Rectangle', circle: 'Draw Circle', arc: 'Draw Arc', measure: 'Measure' };
     return m[tool] || tool;
   }
   function fmt(n) { return (Math.round(n * 1000) / 1000).toString(); }
@@ -371,7 +388,7 @@
   function refreshProps() {
     const el = $('tab-props');
     if (!selId) {
-      el.innerHTML = '<div class="prop-empty">Select a footprint, track or via</div>';
+      el.innerHTML = '<div class="prop-empty">Select a footprint, track, via, zone or text</div>';
       return;
     }
     const fp = board.footprints.find(f => f.id === selId);
@@ -457,6 +474,53 @@
       if (d) d.addEventListener('change', apply);
       const db = $('p-del-btn');
       if (db) db.addEventListener('click', () => { pushUndo(); board.vias = board.vias.filter(v => v.id !== selId); selId = null; selKind = null; refreshProps(); render(); });
+      return;
+    }
+    const txt = (board.texts || []).find(t => t.id === selId);
+    if (txt) {
+      el.innerHTML = `<div class="prop-group"><h5>Board Text</h5>
+        <div class="prop-row"><label>Text</label><input id="p-txt" value="${esc(txt.text)}"></div>
+        <div class="prop-row"><label>Layer</label><select id="p-tlayer"><option ${txt.layer==='F.SilkS'?'selected':''}>F.SilkS</option><option ${txt.layer==='B.SilkS'?'selected':''}>B.SilkS</option></select></div>
+        <div class="prop-row"><label>Height</label><input id="p-tsize" type="number" step="0.1" min="0.1" value="${txt.size}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Thickness</label><input id="p-tth" type="number" step="0.05" min="0.01" value="${txt.thickness}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Rotation</label><input id="p-tangle" type="number" step="1" value="${txt.angle}"><span class="u">°</span></div>
+        <div class="prop-row"><label>Align</label><select id="p-tjust"><option ${txt.justify==='left'?'selected':''}>left</option><option ${txt.justify==='center'?'selected':''}>center</option><option ${txt.justify==='right'?'selected':''}>right</option></select></div>
+        <div class="lib-actions"><button class="btn" id="p-rot-btn">Rotate 90°</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const updateText = () => {
+        pushUndo();
+        txt.text = $('p-txt').value;
+        txt.layer = $('p-tlayer').value;
+        txt.size = Math.max(0.1, parseFloat($('p-tsize').value) || txt.size);
+        txt.thickness = Math.max(0.01, parseFloat($('p-tth').value) || txt.thickness);
+        txt.angle = ((parseFloat($('p-tangle').value) || 0) % 360 + 360) % 360;
+        txt.justify = $('p-tjust').value;
+        render();
+      };
+      ['p-txt','p-tlayer','p-tsize','p-tth','p-tangle','p-tjust'].forEach(id => $(id).addEventListener('change', updateText));
+      $('p-rot-btn').addEventListener('click', () => { pushUndo(); txt.angle = (txt.angle + 90) % 360; refreshProps(); render(); });
+      $('p-del-btn').addEventListener('click', doDelete);
+      return;
+    }
+    const zn = (board.zones || []).find(z => z.id === selId);
+    if (zn) {
+      const fill = zoneFills.get(zn.id);
+      el.innerHTML = `<div class="prop-group"><h5>Zone</h5>
+        <div class="prop-row"><label>Net</label><span>${esc(zn.net || '—')}</span></div>
+        <div class="prop-row"><label>Layer</label><span>${zn.layer}</span></div>
+        <div class="prop-row"><label>Clearance</label><input id="p-zcl" type="number" step="0.05" min="0" value="${zn.clearance != null ? zn.clearance : ''}" placeholder="net class"></div>
+        <div class="prop-row"><label>Filled area</label><span>${fill ? fill.area.toFixed(1) + ' mm²' : '—'}</span></div>
+        <div class="lib-actions"><button class="btn" id="p-zrefill">Refill</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const zcl = $('p-zcl');
+      if (zcl) zcl.addEventListener('change', e => {
+        pushUndo();
+        const v = parseFloat(e.target.value);
+        if (isNaN(v)) delete zn.clearance; else zn.clearance = Math.max(0, v);
+        markZonesDirty(true);
+      });
+      const zr = $('p-zrefill');
+      if (zr) zr.addEventListener('click', () => { markZonesDirty(true); setStatus('Zones refilled'); });
+      const db = $('p-del-btn');
+      if (db) db.addEventListener('click', () => { pushUndo(); B.removeZone(board, zn.id); selId = null; selKind = null; refreshProps(); render(); });
     }
   }
 
@@ -575,11 +639,24 @@
   function setTool(t) {
     tool = t;
     route = null; outlinePts = null; routeCursor = null;
+    if (t !== 'zone') zonePts = null;
+    if (t !== 'text') textPlace = null;
     if (t !== 'footprint') placeLib = null;
     document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
-    const map = { select: 'tool-select', highlight: 'tool-highlight', footprint: 'tool-footprint', track: 'tool-track', via: 'tool-via', line: 'tool-line', rect: 'tool-rect', circle: 'tool-circle', arc: 'tool-arc', measure: 'tool-measure' };
+    const map = { select: 'tool-select', highlight: 'tool-highlight', footprint: 'tool-footprint', track: 'tool-track', via: 'tool-via', zone: 'tool-zone', text: 'tool-text', line: 'tool-line', rect: 'tool-rect', circle: 'tool-circle', arc: 'tool-arc', measure: 'tool-measure' };
     if (map[t]) $(map[t]).classList.add('active');
     if (t === 'measure') { measureA = null; measureB = null; measureCur = null; }
+    render();
+  }
+
+  function startTextTool() {
+    const value = prompt('Board text:', textPlace ? textPlace.text : 'Text');
+    if (value == null || !value.trim()) return;
+    textPlace = { text: value.trim(), layer: layer === 'B.Cu' ? 'B.SilkS' : 'F.SilkS', size: 1.5, thickness: 0.3, angle: 0, justify: 'center' };
+    setTool('text');
+    // setTool clears textPlace when switching away only; restore after the switch
+    textPlace = { text: value.trim(), layer: layer === 'B.Cu' ? 'B.SilkS' : 'F.SilkS', size: 1.5, thickness: 0.3, angle: 0, justify: 'center' };
+    setStatus('Tap board to place “' + value.trim() + '” — edit size/layer in Properties');
     render();
   }
 
@@ -598,6 +675,69 @@
     render();
   }
 
+  // ---------- copper zones ----------
+  // Build the pure-geometry context KipadZones.fillZone expects from the
+  // live board (pads/tracks/vias with net names + class clearance lookup).
+  function zoneCtx() {
+    B.ensureNetClasses(board);
+    const pads = [], tracks = [], vias = [];
+    for (const fp of board.footprints) for (const p of fp.pads) {
+      pads.push({ x: p.at[0] - p.size[0] / 2, y: p.at[1] - p.size[1] / 2, w: p.size[0], h: p.size[1], net: B.netName(board, p.netId) });
+    }
+    for (const t of board.tracks) {
+      tracks.push({ ax: t.start[0], ay: t.start[1], bx: t.end[0], by: t.end[1], r: t.width / 2, net: B.netName(board, t.netId) });
+    }
+    for (const v of board.vias) {
+      vias.push({ x: v.at[0], y: v.at[1], r: v.size / 2, net: B.netName(board, v.netId) });
+    }
+    const netClassOf = name => B.netClassOfNet(board, (board.nets.find(n => n.name === name) || { id: 0 }).id);
+    return { pads, tracks, vias, netClassOf };
+  }
+  function refillZones() {
+    zonesDirty = false;
+    if (!Z) return;
+    if (!board.zones || !board.zones.length) { zoneFills.clear(); render(); return; }
+    const c = zoneCtx();
+    for (const z of board.zones) {
+      const others = board.zones.filter(o => o !== z && o.layer === z.layer)
+        .map(o => ({ outline: o.outline, net: o.net }));
+      try {
+        zoneFills.set(z.id, Z.fillZone(z, { pads: c.pads, tracks: c.tracks, vias: c.vias, netClassOf: c.netClassOf, zones: others }));
+      } catch (e) { zoneFills.delete(z.id); }
+    }
+    render();
+    if (selKind === 'zone') refreshProps();   // keep area/fill info fresh
+  }
+  // auto-refill after any copper-affecting edit (debounced so drags that
+  // touch many items only recompute once)
+  function markZonesDirty(immediate) {
+    zonesDirty = true;
+    if (zoneTimer) clearTimeout(zoneTimer);
+    zoneTimer = setTimeout(() => { zoneTimer = null; if (zonesDirty) refillZones(); }, immediate ? 0 : 150);
+  }
+  function hitZone(x, y) {
+    if (!Z || !board.zones || !board.zones.length) return null;
+    for (let i = board.zones.length - 1; i >= 0; i--) {
+      const z = board.zones[i];
+      if (z.layer !== layer) continue;
+      if (Z.pointInPolygon(x, y, z.outline)) return z;
+    }
+    return null;
+  }
+  function finishZone() {
+    if (!zonePts || zonePts.pts.length < 3) { zonePts = null; render(); return; }
+    pushUndo();
+    const z = B.addZone(board, {
+      net: B.netName(board, zonePts.netId),
+      layer,
+      outline: zonePts.pts.map(p => ({ x: p[0], y: p[1] }))
+    });
+    selId = z.id; selKind = 'zone';
+    zonePts = null;
+    refillZones(); refreshAll();
+    setStatus('Zone added on ' + layer + ' — net "' + (z.net || '—') + '"');
+  }
+
   // ---------- actions ----------
   function doDelete() {
     if (selId) {
@@ -606,13 +746,20 @@
       if (fp) board.footprints = board.footprints.filter(f => f.id !== selId);
       else if (board.tracks.find(t => t.id === selId)) board.tracks = board.tracks.filter(t => t.id !== selId);
       else if (board.vias.find(v => v.id === selId)) board.vias = board.vias.filter(v => v.id !== selId);
+      else if ((board.texts || []).find(t => t.id === selId)) B.removeText(board, selId);
+      else B.removeZone(board, selId);
       selId = null; selKind = null;
       render(); refreshAll();
     }
   }
   function doRotateSel() {
-    if (selId) { pushUndo(); B.rotateFootprint(board, selId, 90); render(); refreshProps(); }
+    if (selKind === 'text' && selId) {
+      const t = board.texts.find(x => x.id === selId);
+      if (t) { pushUndo(); t.angle = (t.angle + 90) % 360; render(); refreshProps(); }
+    }
+    else if (selId) { pushUndo(); B.rotateFootprint(board, selId, 90); render(); refreshProps(); }
     else if (tool === 'footprint') { placeAngle = (placeAngle + 90) % 360; render(); }
+    else if (tool === 'text' && textPlace) { textPlace.angle = (textPlace.angle + 90) % 360; render(); }
   }
   function switchLayer() {
     layer = layer === 'F.Cu' ? 'B.Cu' : 'F.Cu';
@@ -828,7 +975,10 @@
         pushUndo();
         board = Pcb.parseBoard(r.result);
         B.ensureNetClasses(board);
+        if (!Array.isArray(board.zones)) board.zones = [];
+        if (!Array.isArray(board.texts)) board.texts = [];
         selId = null; hiNet = null; route = null; outlinePts = null;
+        markZonesDirty(true);
         render(); refreshAll(); setStatus('Opened ' + file.name);
       } catch (e) { setStatus('Open failed: ' + e.message); }
     };
@@ -994,6 +1144,7 @@
       board = board2;
       B.ensureNetClasses(board);
       selId = null; hiNet = null; route = null;
+      markZonesDirty(true);
       setMode('pcb');
       zoomFit();
       refreshAll();
@@ -1039,12 +1190,7 @@
   function savePlugins() {
     localStorage.setItem(PLUGINS_KEY, JSON.stringify(plugins));
   }
-  const BUILTIN_PLUGINS = [
-    // net classes and ERC are built in now (Nets panel → "Net Classes…",
-    // schematic Inspect → Electrical Rules Check…)
-    { name: 'zones', label: 'Copper Zones / Pours', desc: 'Filled copper zones (planned)' },
-    { name: 'silkscreen-text', label: 'Silkscreen Text Editing', desc: 'Edit text on the board (planned)' }
-  ];
+  const BUILTIN_PLUGINS = [];
   function showPlugins() {
     loadPlugins();
     const rows = BUILTIN_PLUGINS.map(p => {
@@ -1220,7 +1366,7 @@
       const now = Date.now();
       const drawing = mode === 'schematic'
         ? (schTool === 'wire' && schWirePts.length > 0) || schTool === 'symbol'
-        : tool === 'track' ? !!route : !!(gfxStart || measureA) || tool === 'footprint';
+        : tool === 'track' ? !!route : !!(gfxStart || measureA) || tool === 'footprint' || (tool === 'zone' && !!zonePts);
       if (now - lastPenTap < 350 && !drawing) {
         lastPenTap = 0;
         if (mode === 'schematic') { if (schTool !== 'select') { setSchTool('select'); setStatus('Pencil double-tap → Select'); } }
@@ -1263,6 +1409,36 @@
       addViaHere(wx, wy);
       return;
     }
+    if (tool === 'text' && textPlace) {
+      pushUndo();
+      const t = B.addText(board, { ...textPlace, at: [snap(wx), snap(wy)] });
+      selId = t.id; selKind = 'text';
+      textPlace = null;
+      setTool('select');
+      refreshAll(); render();
+      setStatus('Text placed — edit it in Properties');
+      return;
+    }
+    if (tool === 'zone') {
+      const p = [snap(wx), snap(wy)];
+      if (!zonePts) {
+        // same net assignment flow as routing: pad under the start point,
+        // else the highlighted net
+        let netId = 0;
+        const hit = B.hitPad(board, wx, wy, 0.3);
+        if (hit) netId = hit.pad.netId;
+        else if (hiNet != null) netId = hiNet;
+        zonePts = { pts: [p], netId };
+        setStatus('Zone on ' + layer + ' net "' + B.netName(board, netId) + '" — tap points, tap near the ring / double-tap to close');
+      } else if (zonePts.pts.length >= 3 && Math.hypot(p[0] - zonePts.pts[0][0], p[1] - zonePts.pts[0][1]) < Math.max(0.5, grid)) {
+        finishZone();
+      } else {
+        const last = zonePts.pts[zonePts.pts.length - 1];
+        if (last[0] !== p[0] || last[1] !== p[1]) zonePts.pts.push(p);
+      }
+      render();
+      return;
+    }
     if (tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') {
       if (!gfxStart) startGfx(wx, wy);
       else extendGfx(wx, wy);
@@ -1294,13 +1470,14 @@
     const fpHit = B.hitFootprint(board, wx, wy, 0.3);
     const trHit = B.hitTrack(board, wx, wy, 0.2);
     const viaHit = B.hitVia(board, wx, wy, 0.2);
+    const textHit = B.hitText(board, wx, wy, 0.25);
     if (padHit) {
       selId = padHit.fp.id; selKind = 'footprint';
       hiNet = padHit.pad.netId;
-      dragging = { fpId: padHit.fp.id, dx: wx - padHit.fp.at[0], dy: wy - padHit.fp.at[1] };
+      dragging = { fpId: padHit.fp.id, dx: wx - padHit.fp.at[0], dy: wy - padHit.fp.at[1], moved: false };
     } else if (fpHit) {
       selId = fpHit.id; selKind = 'footprint';
-      dragging = { fpId: fpHit.id, dx: wx - fpHit.at[0], dy: wy - fpHit.at[1] };
+      dragging = { fpId: fpHit.id, dx: wx - fpHit.at[0], dy: wy - fpHit.at[1], moved: false };
     } else if (trHit) {
       selId = trHit.id; selKind = 'track';
       dragging = { pan: true };
@@ -1309,10 +1486,20 @@
       selId = viaHit.id; selKind = 'via';
       dragging = { pan: true };
       lastPan = { x: e.clientX, y: e.clientY };
+    } else if (textHit) {
+      selId = textHit.id; selKind = 'text';
+      dragging = { textId: textHit.id, dx: wx - textHit.at[0], dy: wy - textHit.at[1], moved: false };
     } else {
-      selId = null; selKind = null; hiNet = null;
-      dragging = { pan: true };
-      lastPan = { x: e.clientX, y: e.clientY };
+      const zHit = hitZone(wx, wy);
+      if (zHit) {
+        selId = zHit.id; selKind = 'zone';
+        dragging = { pan: true };
+        lastPan = { x: e.clientX, y: e.clientY };
+      } else {
+        selId = null; selKind = null; hiNet = null;
+        dragging = { pan: true };
+        lastPan = { x: e.clientX, y: e.clientY };
+      }
     }
     render(); refreshAll();
   });
@@ -1368,9 +1555,14 @@
     if (dragging && dragging.fpId) {
       const fp = board.footprints.find(f => f.id === dragging.fpId);
       if (fp) {
+        if (!dragging.moved) { pushUndo(); dragging.moved = true; }
         B.moveFootprint(board, fp.id, [snap(wx - dragging.dx), snap(wy - dragging.dy)]);
         render();
       }
+    } else if (dragging && dragging.textId) {
+      if (!dragging.moved) { pushUndo(); dragging.moved = true; }
+      B.moveText(board, dragging.textId, [snap(wx - dragging.dx), snap(wy - dragging.dy)]);
+      render();
     } else {
       render();
     }
@@ -1400,16 +1592,16 @@
     }
 
     const now = Date.now();
-    if ((tool === 'track' && route) || ((tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') && gfxStart)) {
+    if ((tool === 'track' && route) || ((tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') && gfxStart) || (tool === 'zone' && zonePts && zonePts.pts.length >= 3)) {
       if (now - lastTap < 350) {
         if (tool === 'track') finishRoute();
+        else if (tool === 'zone') finishZone();
         else { outlinePts = null; gfxStart = null; render(); }
         lastTap = 0;
         return;
       }
     }
     lastTap = now;
-    if (wasDragging && wasDragging.fpId) pushUndo();
   });
 
   canvas.addEventListener('pointercancel', e => {
@@ -1536,6 +1728,8 @@
           addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]);
         } else setTool('via');
         break;
+      case 'z': case 'Z': setTool('zone'); break;
+      case 't': case 'T': startTextTool(); break;
       case 'l': case 'L': setTool('line'); break;
       case 'm': case 'M': setTool('measure'); break;
       case 'g': case 'G': cycleGrid(); break;
@@ -1544,10 +1738,11 @@
       case 'Delete': case 'Backspace': e.preventDefault(); doDelete(); break;
       case 'Enter':
         if (tool === 'track') finishRoute();
+        else if (tool === 'zone' && zonePts) finishZone();
         else if (tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') { outlinePts = null; gfxStart = null; render(); }
         break;
       case 'Escape':
-        route = null; outlinePts = null; gfxStart = null; placeLib = null; measureA = null; measureB = null;
+        route = null; outlinePts = null; gfxStart = null; placeLib = null; measureA = null; measureB = null; zonePts = null;
         setTool('select'); break;
       case 'w': cycleTrackWidth(); break;
     }
@@ -1588,6 +1783,8 @@
   $('tool-footprint').addEventListener('click', () => setTool('footprint'));
   $('tool-track').addEventListener('click', () => setTool('track'));
   $('tool-via').addEventListener('click', () => setTool('via'));
+  $('tool-zone').addEventListener('click', () => setTool('zone'));
+  $('tool-text').addEventListener('click', startTextTool);
   $('tool-line').addEventListener('click', () => setTool('line'));
   $('tool-rect').addEventListener('click', () => setTool('rect'));
   $('tool-circle').addEventListener('click', () => setTool('circle'));
@@ -1609,6 +1806,7 @@
     if (board.footprints.length && !confirm('Clear board?')) return;
     pushUndo();
     board = B.makeBoard(); selId = null; hiNet = null; route = null; outlinePts = null;
+    zoneFills.clear(); markZonesDirty(true);
     render(); refreshAll();
   });
   $('btn-open').addEventListener('click', () => $('file-open').click());
@@ -1708,7 +1906,9 @@
       place: [
         ['Footprint…', () => { setTab('library'); setTool('footprint'); }, 'F'],
         ['Track', () => setTool('track'), 'X'],
-        ['Via', () => setTool('via'), 'V']
+        ['Via', () => setTool('via'), 'V'],
+        ['Zone', () => setTool('zone'), 'Z'],
+        ['Add Text…', startTextTool, 'T']
       ],
       route: [
         ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
@@ -1781,10 +1981,12 @@
       ▣ Footprint — pick from Library panel, tap board to place, R rotates<br>
       ╱ Route Track — tap pad to start (uses its net), tap for corners, double-tap/Enter to finish, V = via + layer<br>
       ◎ Via — tap to place a via<br>
+      ⬟ Zone — draw a copper pour: tap points on the active layer/net, tap near the start ring / double-tap / Enter to close; fills only where it reaches same-net copper, keeps clearance from other nets, auto-refills after edits; select it to delete or override clearance (Properties)<br>
+      T Text — place editable text on F.SilkS/B.SilkS; select it to edit content, size, stroke, rotation, alignment or layer<br>
       ╲ ▭ ◯ ◠ — draw line / rectangle / circle / arc on the board outline (Edge.Cuts)<br>
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
-      <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
+      <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = per-net-class clearance (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
@@ -1792,7 +1994,7 @@
   }
   function showShortcuts() {
     showModal('Shortcuts', `
-      S select · H net highlight · F footprint · X route · V via · L line · M measure<br>
+      S select · H net highlight · F footprint · X route · V via · Z zone · T text · L line · M measure<br>
       G grid cycle · N ratsnest · R rotate · W track width · Del delete<br>
       Enter finish · Esc cancel · Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo<br>
       Pinch to zoom · drag empty area to pan<br>
@@ -1854,17 +2056,17 @@
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetchJSON('lib/footprints.json.gz?v=11').then(data => {
+      jobs.push(fetchJSON('lib/footprints.json.gz?v=13').then(data => {
         if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
-        return fetchJSON('lib/footprints.json?v=11').then(d2 => {
+        return fetchJSON('lib/footprints.json?v=13').then(d2 => {
           if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
         });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetchJSON('lib/symbols.json.gz?v=11').then(data => {
+      jobs.push(fetchJSON('lib/symbols.json.gz?v=13').then(data => {
         if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
-        return fetchJSON('lib/symbols.json?v=11').then(d2 => {
+        return fetchJSON('lib/symbols.json?v=13').then(d2 => {
           if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
         });
       }).catch(() => {}));

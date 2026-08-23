@@ -30,8 +30,16 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
 - [x] Drill/position file export (.drl, Excellon) — 2026-08-22
 - [x] Net class / clearance settings UI (Nets panel → Net Classes…, per-class DRC) — 2026-08-23
-- [ ] Copper zones / pours (KiCad zone fills)
-- [ ] Silkscreen text editing on board
+- [x] Copper zones / pours (KiCad zone fills) — 2026-08-23
+  - [x] Model: `board.zones[]` `{id, net (name), layer 'F.Cu'|'B.Cu', outline [{x,y}] closed ring, clearance? override, minArea?}` + `B.addZone/removeZone/zonesOn`; persists via the existing localStorage JSON save; kicad_pcb.js sexpr serialization untouched — 2026-08-23
+  - [x] Engine: `js/zones.js` (KipadZones, UMD, pure) — raster flood fill at configurable resolution (default 0.25 mm): cells inside outline, blocked within class clearance of opposite-net copper (pads/track segments/vias/other zones), flooded from cells touching same-net copper → disconnected islands stay unfilled (KiCad behaviour); returns run-length geometry for render + area
+  - [x] Render: fills under tracks/pads at layer color alpha 0.6 + subtle outline, inactive-layer zones skipped, dashed draft preview while placing, KiCad-green highlight when selected — 2026-08-23
+  - [x] UI: left-rail zone tool (`tool-zone`, real KiCad add_zone_24.png icon), polygon placement (tap points, tap near first-point ring / double-tap / Enter to close, Esc cancels, Z shortcut), net assignment same flow as routing (pad under start point → highlighted net); zone selection + Del/Properties delete, clearance override + Refill button in Properties, status-bar "Zones: N", debounced auto-refill after any copper edit (undo/redo/open/update included), Place menu + help/shortcuts text updated — 2026-08-23
+  - [x] test/test_zones.js (point-in-polygon, track↔pad connectivity, island unfilled, clearance bands incl. override + vias + foreign zones, layer coexistence, removeZone, JSON round-trip, refill determinism, board-level end-to-end) — 2026-08-23
+- [x] Silkscreen text editing on board — 2026-08-23
+  - [x] Place editable F.SilkS/B.SilkS text with T shortcut / KiCad text tool; live preview, selection, drag, rotate and delete — 2026-08-23
+  - [x] Properties editing for content, layer, height, thickness, rotation and alignment — 2026-08-23
+  - [x] KiCad `gr_text` parse/serialize round-trip + test/test_text.js — 2026-08-23
 - [ ] More DRC checks (track-to-pad hole, outline-to-copper, silkscreen overlap)
 - [ ] More ERC checks: no-connect flag placement tool, cross-sheet global label conflicts, power-pin conflicts, missing footprint
 - [ ] ERC violation markers drawn on the schematic canvas (KiCad-style arrows)
@@ -61,7 +69,7 @@ Project state file. Update after every iteration. Completed items are checked of
 ## Session 2026-08-23 (evening) — library load fix + net classes
 - [x] Fix fetchJSON `.gz` detection with `?v=N` cache-busted URLs — `url.split('?')[0].endsWith('.gz')` — pushed 15cad007, live-verified in real Chromium: 600 symbols / 159 footprints / zero errors (was silently falling back to stale plain JSON: 400/13)
 - [x] index.html local copy synced to live (Symbols (600) / Footprints (159) labels)
-- [x] Net classes & clearance UI (PCB side)
+- [ ] Net classes & clearance UI (PCB side) — DELEGATED to subagent
   - [x] Board model: `board.netClasses` (id/name/trackWidth/clearance/viaSize/viaDrill, Default = id 0) + `B.ensureNetClasses/addNetClass/getNetClass/netClassOfNet/setNetClass/renameNetClass/removeNetClass` — 2026-08-23
   - [x] DRC uses per-net-class clearance (max of the two classes), class names in violations — 2026-08-23
   - [x] Nets panel: class column + "Net Classes…" modal editor (KiCad Edit Net Classes dialog: editable fields, add/remove class, net chips + Add net dropdown, touch-friendly) — 2026-08-23

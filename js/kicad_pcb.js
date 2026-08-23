@@ -195,6 +195,7 @@
       footprints: [],
       tracks: [],
       vias: [],
+      texts: [],
       outline: []
     };
 
@@ -264,6 +265,7 @@
     var fpSeq = 0;
     var trSeq = 0;
     var viaSeq = 0;
+    var textSeq = 0;
 
     function childLayer(node) {
       var l = node.find(function (c) { return isList(c) && tag(c) === 'layer'; });
@@ -440,6 +442,39 @@
       };
     }
 
+    function parseText(node) {
+      var value = node.length > 1 ? atom(node[1]) : '';
+      var at = [0, 0], angle = 0, layer = 'F.SilkS';
+      var size = 1.5, thickness = 0.3, justify = 'center';
+      for (var ci = 2; ci < node.length; ci++) {
+        var c = node[ci];
+        if (!isList(c)) continue;
+        if (tag(c) === 'at') {
+          at = [num(c[1]), num(c[2])];
+          if (c.length > 3) angle = num(c[3]);
+        } else if (tag(c) === 'layer') layer = atom(c[1]);
+        else if (tag(c) === 'effects') {
+          for (var ei = 1; ei < c.length; ei++) {
+            var e = c[ei];
+            if (!isList(e)) continue;
+            if (tag(e) === 'font') {
+              for (var fi = 1; fi < e.length; fi++) {
+                var f = e[fi];
+                if (isList(f) && tag(f) === 'size') size = num(f[1]) || size;
+                if (isList(f) && tag(f) === 'thickness') thickness = num(f[1]) || thickness;
+              }
+            } else if (tag(e) === 'justify') {
+              if (e.slice(1).map(atom).indexOf('left') >= 0) justify = 'left';
+              else if (e.slice(1).map(atom).indexOf('right') >= 0) justify = 'right';
+            }
+          }
+        }
+      }
+      if (layer !== 'F.SilkS' && layer !== 'B.SilkS') return null;
+      return { id: 'TXT' + (++textSeq), text: value, at: at, angle: normAngle(angle), layer: layer,
+        size: size, thickness: thickness, justify: justify };
+    }
+
     // ---- top level ----
     for (var i = 1; i < tree.length; i++) {
       var child = tree[i];
@@ -469,6 +504,12 @@
         case 'via': {
           var v = parseVia(child);
           if (v) board.vias.push(v);
+          break;
+        }
+
+        case 'gr_text': {
+          var txt = parseText(child);
+          if (txt) board.texts.push(txt);
           break;
         }
 
@@ -639,6 +680,8 @@
       ['layers',
         ['0', { q: 'F.Cu' }, 'signal'],
         ['31', { q: 'B.Cu' }, 'signal'],
+        ['36', { q: 'B.SilkS' }, 'user', { q: 'b.Silkscreen' }],
+        ['37', { q: 'F.SilkS' }, 'user', { q: 'f.Silkscreen' }],
         ['44', { q: 'Edge.Cuts' }, 'user']
       ],
       ['nets', String(nets.length)].concat(nets.map(function (n) {
@@ -670,6 +713,16 @@
         ['layers', { q: 'F.Cu' }, { q: 'B.Cu' }],
         ['net', String(v.netId)]
       ]);
+    }
+    for (var xi = 0; xi < (board.texts || []).length; xi++) {
+      var tx = board.texts[xi];
+      var txAt = ['at', r4str(tx.at[0]), r4str(tx.at[1])];
+      if (r4(tx.angle || 0)) txAt.push(r4str(tx.angle));
+      var effects = ['effects', ['font', ['size', r4str(tx.size || 1.5), r4str(tx.size || 1.5)],
+        ['thickness', r4str(tx.thickness || 0.3)]]];
+      if (tx.justify === 'left' || tx.justify === 'right') effects.push(['justify', tx.justify]);
+      root.push(['gr_text', { q: str(tx.text) }, txAt,
+        ['layer', { q: str(tx.layer === 'B.SilkS' ? 'B.SilkS' : 'F.SilkS') }], effects]);
     }
     for (var oi = 0; oi < (board.outline || []).length; oi++) {
       var poly = board.outline[oi];
