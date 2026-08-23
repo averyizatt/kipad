@@ -39,6 +39,8 @@
   let pinchDist = null;
   let panning = false, lastPan = null;
   let pointers = new Map();
+  let penDown = null;       // active Apple Pencil pointerId (for palm rejection)
+  let lastPenTap = 0;       // for pencil double-tap → Select
   let lastTap = 0;
   let measureA = null;
   let crosshair = null;
@@ -1041,6 +1043,25 @@
 
   // ---------- pointer handling ----------
   canvas.addEventListener('pointerdown', e => {
+    const penHud = $('hud-pen');
+    if (e.pointerType === 'pen') {
+      penDown = e.pointerId;
+      if (penHud) penHud.classList.remove('hidden');
+      const now = Date.now();
+      const drawing = mode === 'schematic'
+        ? (schTool === 'wire' && schWirePts.length > 0) || schTool === 'symbol'
+        : tool === 'track' ? !!route : !!(gfxStart || measureA) || tool === 'footprint';
+      if (now - lastPenTap < 350 && !drawing) {
+        lastPenTap = 0;
+        if (mode === 'schematic') { if (schTool !== 'select') { setSchTool('select'); setStatus('Pencil double-tap → Select'); } }
+        else if (tool !== 'select') { setTool('select'); setStatus('Pencil double-tap → Select'); }
+        render(); refreshAll();
+        return;
+      }
+      lastPenTap = now;
+    }
+    // palm rejection: ignore fingers while the pencil is down
+    if (e.pointerType === 'touch' && penDown !== null) return;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(e.clientX, e.clientY);
@@ -1186,6 +1207,7 @@
   });
 
   canvas.addEventListener('pointerup', e => {
+    if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     const wasDragging = dragging;
@@ -1221,12 +1243,13 @@
   });
 
   canvas.addEventListener('pointercancel', e => {
+    if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     dragging = null; lastPan = null;
   });
 
-  canvas.addEventListener('pointerleave', () => { crosshair = null; });
+  canvas.addEventListener('pointerleave', () => { crosshair = null; if (penDown !== null) { const h = $('hud-pen'); if (h) h.classList.add('hidden'); } });
 
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
@@ -1592,6 +1615,7 @@
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
       <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
+      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance (0.2mm)<br>
       Works offline. Add to Home Screen for fullscreen.
     `);
@@ -1601,7 +1625,8 @@
       S select · H net highlight · F footprint · X route · V via · L line · M measure<br>
       G grid cycle · N ratsnest · R rotate · W track width · Del delete<br>
       Enter finish · Esc cancel · Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo<br>
-      Pinch to zoom · drag empty area to pan
+      Pinch to zoom · drag empty area to pan<br>
+      Pencil: double-tap → Select · palm rejection active
     `);
   }
   $('modal-cancel').addEventListener('click', hideModal);
