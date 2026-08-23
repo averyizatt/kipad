@@ -257,6 +257,7 @@ html, body {
   background: rgba(0,16,35,.75); padding: 3px 8px; border-radius: 5px;
   pointer-events: none; z-index: 15;
 }
+#hud-pen { color: #04ff43; font-weight: 600; }
 #tooltip {
   position: absolute; background: var(--panel); border: 1px solid var(--border);
   color: var(--fg); padding: 4px 8px; border-radius: 5px; font-size: 12px;
