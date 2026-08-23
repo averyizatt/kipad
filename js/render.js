@@ -108,6 +108,65 @@
       ctx.stroke();
     }
 
+    // ---- copper zones (solid fills, drawn under tracks/pads) ----
+    // state.zoneFills: Map(zone.id -> KipadZones.fillZone result). Zones on
+    // the inactive copper layer are skipped, like KiCad's layer focus.
+    if (board.zones && board.zones.length) {
+      for (const z of board.zones) {
+        if (z.layer !== (state.activeLayer || 'F.Cu')) continue;
+        if (!isVisible(state, z.layer)) continue;
+        const zc = LAYER_COLOR[z.layer] || '#888';
+        const sel = state.selKind === 'zone' && state.selId === z.id;
+        const fill = state.zoneFills ? state.zoneFills.get(z.id) : null;
+        if (fill && fill.runs && fill.runs.length) {
+          ctx.fillStyle = hexA(zc, 0.6);
+          ctx.beginPath();
+          for (const run of fill.runs) {
+            const x0 = fill.ox + run[1] * fill.cellSize;
+            const y0 = fill.oy + run[0] * fill.cellSize;
+            const w = (run[2] - run[1] + 1) * fill.cellSize;
+            const [rx, ry] = w2s(view, x0, y0, cw, ch);
+            ctx.rect(rx, ry, Math.max(1, w * view.zoom), Math.max(1, fill.cellSize * view.zoom));
+          }
+          ctx.fill();
+        }
+        // subtle outline (+ KiCad-green highlight when selected)
+        ctx.strokeStyle = sel ? SEL : hexA(zc, 0.8);
+        ctx.lineWidth = sel ? 2 : 1;
+        ctx.beginPath();
+        for (let i = 0; i < z.outline.length; i++) {
+          const [px, py] = w2s(view, z.outline[i].x, z.outline[i].y, cw, ch);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+
+    // ---- zone placement in progress ----
+    if (state.zoneDraft && state.zoneDraft.length > 1) {
+      const pts = state.zoneDraft;
+      ctx.strokeStyle = SEL;
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const [sx, sy] = w2s(view, pts[i][0], pts[i][1], cw, ch);
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // first-point marker (tap near it to close) + vertex dots
+      const [fx, fy] = w2s(view, pts[0][0], pts[0][1], cw, ch);
+      ctx.strokeStyle = SEL;
+      ctx.beginPath(); ctx.arc(fx, fy, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = SEL;
+      for (const p of pts) {
+        const [sx, sy] = w2s(view, p[0], p[1], cw, ch);
+        ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      }
+    }
+
     // ---- footprints ----
     for (const fp of board.footprints) {
       const isSel = state.selId === fp.id;
