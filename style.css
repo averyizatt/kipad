@@ -235,6 +235,23 @@ html, body {
   flex: 1; padding: 6px 7px; background: #fff; color: var(--fg);
   border: 1px solid var(--border); border-radius: 5px; font-size: 12px;
 }
+.net-class {
+  font-size: 10px; color: var(--fg-dim); background: var(--panel2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 1px 7px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px;
+}
+
+/* Net Classes modal */
+.netclass-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.netclass-card h5 { display: flex; align-items: center; gap: 6px; }
+.prop-row .u { font-size: 10px; color: var(--fg-dim); }
+.nc-nets { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.nc-chip {
+  font-size: 11px; padding: 2px 7px; border-radius: 10px; cursor: pointer;
+  background: var(--accent); color: #fff; white-space: nowrap;
+}
+.nc-chip:active { opacity: .7; }
+.nc-add { flex: 0 0 auto; font-size: 11px; padding: 3px 4px; max-width: 110px; }
 
 /* Properties */
 .prop-group { margin-bottom: 10px; }
