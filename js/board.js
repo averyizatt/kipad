@@ -57,6 +57,7 @@
       version: '20240108',
       nets: [{ id: 0, name: '' }],
       netClasses: [defaultNetClass()],
+      zones: [],
       footprints: [],
       tracks: [],
       vias: [],
@@ -209,6 +210,35 @@
       p.angle = (p.angle + deltaDeg) % 360;
     }
     fp.angle = na;
+  }
+
+  // ---------- zones (copper pours) ----------
+  // v1 solid fill: the outline is a closed polygon of {x,y} points in world
+  // mm; `net` is the net NAME, layer is 'F.Cu'|'B.Cu'. Fill geometry lives
+  // outside the board model (KipadZones.fillZone), so undo snapshots and
+  // localStorage JSON stay small.
+  function addZone(board, opts) {
+    if (!Array.isArray(board.zones)) board.zones = [];
+    const z = {
+      id: newId('Z'),
+      net: (opts && opts.net) || '',
+      layer: opts && opts.layer === 'B.Cu' ? 'B.Cu' : 'F.Cu',
+      outline: ((opts && opts.outline) || []).map(p => Array.isArray(p) ? { x: p[0], y: p[1] } : { x: p.x, y: p.y })
+    };
+    if (opts && opts.clearance != null) z.clearance = opts.clearance;
+    if (opts && opts.minArea != null) z.minArea = opts.minArea;
+    board.zones.push(z);
+    return z;
+  }
+  function removeZone(board, zoneId) {
+    if (!Array.isArray(board.zones)) return false;
+    const i = board.zones.findIndex(z => z.id === zoneId);
+    if (i < 0) return false;
+    board.zones.splice(i, 1);
+    return true;
+  }
+  function zonesOn(board, layer) {
+    return (board.zones || []).filter(z => z.layer === layer);
   }
 
   // ---------- tracks / vias ----------
@@ -366,6 +396,7 @@
     CLEARANCE_DEFAULT, NETCLASS_DEFAULTS, makeBoard, getNet, netName, addNet, ensureNet,
     ensureNetClasses, defaultNetClass, addNetClass, getNetClass, netClassOfNet,
     setNetClass, renameNetClass, removeNetClass,
+    addZone, removeZone, zonesOn,
     placeFootprint, moveFootprint, rotateFootprint,
     addTrack, addVia, hitPad, hitFootprint, hitTrack, hitVia,
     ratsnest, runDRC, rot, segSegDist, pointSegDist
