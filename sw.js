@@ -1,5 +1,5 @@
 /* Kipad service worker — offline-first PWA */
-const CACHE = 'kipad-v5';
+const CACHE = 'kipad-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   './js/symbols.js',
   './js/schematic.js',
   './js/erc.js',
+  './js/zones.js',
   './js/app.js',
   './lib/footprints.json.gz',
   './lib/footprints.json',
@@ -29,7 +30,7 @@ const ASSETS = [
 // KiCad source icons (GPL-3.0, from KiCad kicad-source-mirror resources/bitmaps_png)
 const ICONS = [
   'arc','bitmap2comp','calculator','circle','component','cursor','cvpcb','drc','drill','eeschema',
-  'erc','exit','gerbview','glabel','help','highlight','import','junction','kicad','measure','module_editor',
+  'add_zone','erc','exit','gerbview','glabel','help','highlight','import','junction','kicad','measure','module_editor',
   'netlist','new_project','open_project','pcbnew','ratsnest','redo','refresh','save','symbol','tracks',
   'undo','via','zoom_fit','zoom_in','zoom_out',
   'gerber','grid','line','pcm','rect',

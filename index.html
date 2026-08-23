@@ -10,10 +10,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kipad">
-<link rel="manifest" href="manifest.webmanifest?v=11">
-<link rel="icon" href="icon.svg?v=11" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-180.png?v=11">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="manifest" href="manifest.webmanifest?v=12">
+<link rel="icon" href="icon.svg?v=12" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=12">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <div id="app">
@@ -143,6 +143,7 @@
       <button id="tool-footprint" class="tool pcb-only" title="Add footprint (F)"><img src="icons/module_editor.png" alt="Footprint"></button>
       <button id="tool-track" class="tool pcb-only" title="Route track (X)"><img src="icons/tracks.png" alt="Track"></button>
       <button id="tool-via" class="tool pcb-only" title="Add via (V)"><img src="icons/via.png" alt="Via"></button>
+      <button id="tool-zone" class="tool pcb-only" title="Add copper zone / pour (Z)"><img src="icons/add_zone.png" alt="Zone"></button>
       <button id="tool-line" class="tool pcb-only" title="Draw line (L)"><img src="icons/line.png" alt="Line"></button>
       <button id="tool-rect" class="tool pcb-only" title="Draw rectangle"><img src="icons/rect.png" alt="Rectangle"></button>
       <button id="tool-circle" class="tool pcb-only" title="Draw circle"><img src="icons/circle.png" alt="Circle"></button>
@@ -191,6 +192,7 @@
     <span id="st-zoom">Zoom: 100%</span>
     <span id="st-tool">Select</span>
     <span id="st-layer">F.Cu</span>
+    <span id="st-zones" class="pcb-only hidden"></span>
     <span id="st-erc" class="sch-only"></span>
     <span id="st-msg">Ready</span>
   </footer>
@@ -212,18 +214,19 @@
 <input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
-<script src="js/sexpr.js?v=11"></script>
-<script src="js/footprints.js?v=11"></script>
-<script src="js/kicad_pcb.js?v=11"></script>
-<script src="js/gerber.js?v=11"></script>
-<script src="js/drill.js?v=11"></script>
-<script src="js/board.js?v=11"></script>
-<script src="js/render.js?v=11"></script>
-<script src="js/kicad_mod.js?v=11"></script>
-<script src="js/kicad_sym.js?v=11"></script>
-<script src="js/symbols.js?v=11"></script>
-<script src="js/schematic.js?v=11"></script>
-<script src="js/erc.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/sexpr.js?v=12"></script>
+<script src="js/footprints.js?v=12"></script>
+<script src="js/kicad_pcb.js?v=12"></script>
+<script src="js/gerber.js?v=12"></script>
+<script src="js/drill.js?v=12"></script>
+<script src="js/board.js?v=12"></script>
+<script src="js/render.js?v=12"></script>
+<script src="js/kicad_mod.js?v=12"></script>
+<script src="js/kicad_sym.js?v=12"></script>
+<script src="js/symbols.js?v=12"></script>
+<script src="js/schematic.js?v=12"></script>
+<script src="js/erc.js?v=12"></script>
+<script src="js/zones.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>
