@@ -290,6 +290,57 @@ html, body {
 #drc-panel .drc-item { padding: 2px 0; border-bottom: 1px solid var(--border); }
 #drc-panel .drc-clear { color: var(--ok); }
 
+/* ERC panel (schematic mode) — same floating panel family as DRC */
+#erc-panel {
+  position: absolute; right: 8px; top: 8px; width: min(340px, 62vw);
+  max-height: 55%; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px; font-size: 12px; z-index: 25; box-shadow: var(--shadow); color: var(--fg);
+}
+#erc-panel .erc-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 4px;
+}
+#erc-panel h4 { margin: 0; color: var(--fg); font-size: 12px; }
+#erc-panel .erc-close {
+  min-width: 30px; height: 30px;
+  border: 1px solid var(--border); border-radius: 5px; background: #fff;
+  color: var(--fg-dim); font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+#erc-panel .erc-close:active { background: var(--panel2); }
+#erc-panel .erc-summary {
+  font-weight: 600; padding: 4px 6px 6px; border-bottom: 1px solid var(--border);
+  margin-bottom: 4px; color: var(--fg);
+}
+#erc-panel .erc-group-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--fg-dim); padding: 6px 2px 3px;
+}
+#erc-panel .erc-item {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 7px 6px; border-radius: 5px; cursor: pointer;
+  border-left: 3px solid transparent; color: var(--fg);
+}
+#erc-panel .erc-item:hover { background: var(--panel2); }
+#erc-panel .erc-item.active { background: #d4e3f5; }
+#erc-panel .erc-item.error { border-left-color: var(--danger); }
+#erc-panel .erc-item.warning { border-left-color: var(--warn); }
+#erc-panel .erc-item .erc-code {
+  flex: 0 0 auto; font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  color: var(--fg-dim); padding: 1px 5px; border-radius: 8px;
+  background: var(--panel2); border: 1px solid var(--border);
+}
+#erc-panel .erc-item.error .erc-code { color: var(--danger); border-color: var(--danger); }
+#erc-panel .erc-item.warning .erc-code { color: #9a7410; border-color: var(--warn); }
+#erc-panel .erc-item .erc-msg { min-width: 0; }
+#erc-panel .erc-clear { color: var(--ok); padding: 4px 2px; }
+
+/* ERC status-bar indicator */
+#st-erc { font-weight: 600; }
+#st-erc.clean { color: var(--ok); }
+#st-erc.dirty { color: var(--danger); }
+
 /* Status bar */
 #statusbar {
   display: flex; gap: 12px; align-items: center;

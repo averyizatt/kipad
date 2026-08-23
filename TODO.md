@@ -4,6 +4,12 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Milestones
 
+- [x] ERC (Electrical Rules Check) for the schematic editor — 2026-08-23
+  - [x] Model: `js/erc.js` (KipadErc) — 7 checks: UNCONNECTED_PIN, SINGLE_PIN_NET, DUPLICATE_REF, MISSING_REF, MISSING_VALUE, LABEL_CONFLICT, DANGLING_WIRE; power-pin (GND/VCC) + no_connect exemptions; topology shared with netlist via `KipadSchematic.connectivity()` — 2026-08-23
+  - [x] UI: Inspect → Electrical Rules Check… + toolbar ERC button, floating panel grouped by severity with counts, tap row to locate (centre + select symbol), status-bar "ERC: N errors, M warnings" indicator in schematic mode — 2026-08-23
+  - [x] test/test_erc.js (clean case + every check + exemptions + counts) — 2026-08-23
+  - [x] PCM "erc" plugin entry removed (feature is built in) — 2026-08-23
+
 - [x] Project structure (PWA: index.html, style.css, js/*, manifest, service worker) — 2026-08-22
 - [x] Zoomable/panable PCB canvas (pinch zoom, drag pan, wheel) — 2026-08-22
 - [x] Board data model (nets, footprints, pads, tracks, vias, outline) — 2026-08-22
@@ -27,6 +33,8 @@ Project state file. Update after every iteration. Completed items are checked of
 - [ ] Copper zones / pours (KiCad zone fills)
 - [ ] Silkscreen text editing on board
 - [ ] More DRC checks (track-to-pad hole, outline-to-copper, silkscreen overlap)
+- [ ] More ERC checks: no-connect flag placement tool, cross-sheet global label conflicts, power-pin conflicts, missing footprint
+- [ ] ERC violation markers drawn on the schematic canvas (KiCad-style arrows)
 - [ ] .kicad_pcb round-trip fidelity check against real KiCad files
 - [ ] Keyboard: more KiCad shortcuts parity
 - [ ] iPad polish: haptics, Apple Pencil tilt/eraser, two-finger tap undo

@@ -10,10 +10,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kipad">
-<link rel="manifest" href="manifest.webmanifest?v=10">
-<link rel="icon" href="icon.svg?v=10" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-180.png?v=10">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="manifest" href="manifest.webmanifest?v=11">
+<link rel="icon" href="icon.svg?v=11" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=11">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <div id="app">
@@ -131,6 +131,7 @@
     <button id="btn-gerber" class="tb pcb-only" title="Export Gerber"><img src="icons/gerber.png" alt="Gerber"></button>
     <button id="btn-drill" class="tb pcb-only" title="Export drill file (.drl)"><img src="icons/drill.png" alt="Drill"></button>
     <button id="btn-drc" class="tb pcb-only" title="Run DRC"><img src="icons/drc.png" alt="DRC"></button>
+    <button id="btn-erc" class="tb sch-only hidden" title="Run ERC (schematic)"><img src="icons/erc.png" alt="ERC"></button>
     <button id="btn-import" class="tb pcb-only" title="Import .kicad_mod / .kicad_sym"><img src="icons/import.png" alt="Import"></button>
   </div>
 
@@ -164,6 +165,7 @@
         <span id="hud-pen" class="hidden">✏️</span>
       </div>
       <div id="drc-panel" class="hidden"></div>
+      <div id="erc-panel" class="hidden"></div>
       <div id="tooltip" class="hidden"></div>
     </section>
 
@@ -189,6 +191,7 @@
     <span id="st-zoom">Zoom: 100%</span>
     <span id="st-tool">Select</span>
     <span id="st-layer">F.Cu</span>
+    <span id="st-erc" class="sch-only"></span>
     <span id="st-msg">Ready</span>
   </footer>
 </div>
@@ -209,17 +212,18 @@
 <input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
-<script src="js/sexpr.js?v=10"></script>
-<script src="js/footprints.js?v=10"></script>
-<script src="js/kicad_pcb.js?v=10"></script>
-<script src="js/gerber.js?v=10"></script>
-<script src="js/drill.js?v=10"></script>
-<script src="js/board.js?v=10"></script>
-<script src="js/render.js?v=10"></script>
-<script src="js/kicad_mod.js?v=10"></script>
-<script src="js/kicad_sym.js?v=10"></script>
-<script src="js/symbols.js?v=10"></script>
-<script src="js/schematic.js?v=10"></script>
-<script src="js/app.js?v=10"></script>
+<script src="js/sexpr.js?v=11"></script>
+<script src="js/footprints.js?v=11"></script>
+<script src="js/kicad_pcb.js?v=11"></script>
+<script src="js/gerber.js?v=11"></script>
+<script src="js/drill.js?v=11"></script>
+<script src="js/board.js?v=11"></script>
+<script src="js/render.js?v=11"></script>
+<script src="js/kicad_mod.js?v=11"></script>
+<script src="js/kicad_sym.js?v=11"></script>
+<script src="js/symbols.js?v=11"></script>
+<script src="js/schematic.js?v=11"></script>
+<script src="js/erc.js?v=11"></script>
+<script src="js/app.js?v=11"></script>
 </body>
 </html>
