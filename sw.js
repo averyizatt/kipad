@@ -1,5 +1,5 @@
 /* Kipad service worker — offline-first PWA */
-const CACHE = 'kipad-v2';
+const CACHE = 'kipad-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -25,6 +25,17 @@ const ASSETS = [
   './icon-512.png',
   './icon-180.png'
 ];
+// KiCad source icons (GPL-3.0, from KiCad kicad-source-mirror resources/bitmaps_png)
+const ICONS = [
+  'arc','bitmap2comp','calculator','circle','component','cursor','cvpcb','drc','drill','eeschema',
+  'erc','exit','gerbview','glabel','help','highlight','import','junction','kicad','measure','module_editor',
+  'netlist','new_project','open_project','pcbnew','ratsnest','redo','refresh','save','symbol','tracks',
+  'undo','via','zoom_fit','zoom_in','zoom_out',
+  'gerber','grid','line','pcm','rect',
+  'icon_cvpcb_128','icon_eeschema_128','icon_gerbview_128','icon_kicad_128','icon_libedit_128',
+  'icon_modedit_128','icon_pcbcalculator_128','icon_pcbnew_128','icon_pcm_128'
+].map(n => './icons/' + n + '.png');
+ASSETS.push(...ICONS);
 
 self.addEventListener('install', e => {
   e.waitUntil(

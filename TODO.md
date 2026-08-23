@@ -23,10 +23,6 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Import .kicad_mod / .kicad_sym files at runtime — 2026-08-22
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
 - [x] Drill/position file export (.drl, Excellon) — 2026-08-22
-- [x] Schematic editor (Eeschema): symbols, wires, labels, junctions, netlist, .kicad_sch save/open — 2026-08-22
-- [x] Update PCB from Schematic (symbol→footprint, netlist→nets) — 2026-08-22
-- [x] Launcher / project manager + mode switching (Schematic ↔ PCB) — 2026-08-22
-- [x] Plugin and Content Manager (built-in modules + custom .js install hook) — 2026-08-22
 - [ ] Net class / clearance settings UI (currently fixed 0.2mm)
 - [ ] Copper zones / pours (KiCad zone fills)
 - [ ] Silkscreen text editing on board
@@ -41,3 +37,15 @@ Project state file. Update after every iteration. Completed items are checked of
 - Everything sandboxed in ~/.openclaw/sandbox/kipad; push via ClawLink (no local gh).
 - Keep PWA offline-first (sw.js cache list must include new assets).
 - "As close to KiCad as you can get in terms of look and functionality."
+
+## Visual overhaul (2026-08-23)
+
+- [x] Real KiCad icons (50 PNGs from KiCad source) in editor + launcher — 2026-08-23
+- [x] KiCad light chrome theme (window/panels) + dark PCB canvas — 2026-08-23
+- [x] Launcher rebuilt as KiCad Project Manager (menubar, toolbar, file tree, app cards) — 2026-08-23
+- [x] Fix: launcher must stay as landing screen (was auto-hiding) — 2026-08-23
+- [x] Real KiCad default layer colors in renderer (from builtin_color_themes.h) — 2026-08-23
+- [x] Schematic light-paper theme (green wires, red pins, teal refs) — 2026-08-23
+- [ ] Schematic canvas grid/labels to match KiCad precisely (labels are currently black, KiCad uses dark red global labels)
+- [ ] Gerber viewer launcher card (placeholder now)
+- [ ] PCB Calculator launcher card (placeholder now)
