@@ -728,6 +728,9 @@
   function setMode(m) {
     mode = m;
     $('launcher').classList.toggle('hidden', m !== 'launcher');
+    $('menubar').classList.toggle('hidden', m === 'launcher');
+    $('toolbar').classList.toggle('hidden', m === 'launcher');
+    $('statusbar').classList.toggle('hidden', m === 'launcher');
     $('main').classList.toggle('hidden', m === 'launcher');
     document.querySelectorAll('.pcb-only').forEach(el => el.classList.toggle('hidden', m !== 'pcb'));
     document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
@@ -1235,6 +1238,19 @@
   $('sch-junction').addEventListener('click', () => setSchTool('junction'));
   $('launch-sch').addEventListener('click', () => setMode('schematic'));
   $('launch-pcb').addEventListener('click', () => setMode('pcb'));
+  // launcher PM toolbar + tree + cards
+  $('pm-new').addEventListener('click', schNew);
+  $('pm-open').addEventListener('click', () => $('btn-open').click());
+  $('pm-save').addEventListener('click', () => { if (mode !== 'launcher') $('btn-save').click(); });
+  $('pm-refresh').addEventListener('click', () => location.reload());
+  document.querySelectorAll('.pm-file[data-open], .pm-app[data-open]').forEach(el =>
+    el.addEventListener('click', () => setMode(el.dataset.open)));
+  $('launch-gerb').addEventListener('click', () => showModal('Gerber Viewer', 'Layer-by-layer Gerber preview is planned for a later build.'));
+  $('launch-gerb2').addEventListener('click', () => showModal('Gerber Viewer', 'Layer-by-layer Gerber preview is planned for a later build.'));
+  $('launch-calc').addEventListener('click', () => showModal('PCB Calculator', 'Track width / current / impedance calculators are planned for a later build.'));
+  $('launch-calc2').addEventListener('click', () => showModal('PCB Calculator', 'Track width / current / impedance calculators are planned for a later build.'));
+  $('launch-bitmap').addEventListener('click', () => showModal('Image Converter', 'Bitmap-to-footprint conversion is planned for a later build.'));
+  $('launch-pcm').addEventListener('click', showPlugins);
   $('tool-highlight').addEventListener('click', () => setTool('highlight'));
   $('tool-footprint').addEventListener('click', () => setTool('footprint'));
   $('tool-track').addEventListener('click', () => setTool('track'));
@@ -1272,6 +1288,25 @@
 
   // ---------- menus ----------
   function currentMenus() {
+    if (mode === 'launcher') return {
+      file: [
+        ['New Schematic', schNew, ''],
+        ['New PCB', () => setMode('pcb'), ''],
+        ['Open…', () => $('btn-open').click(), ''],
+        ['Save', () => { if (mode !== 'launcher') $('btn-save').click(); }, '']
+      ],
+      view: [
+        ['Zoom to fit', zoomFit, ''],
+        ['Grid: ' + grid + ' mm', cycleGrid, 'G']
+      ],
+      tools: [
+        ['Plugin and Content Manager…', showPlugins, '']
+      ],
+      help: [
+        ['How to use', showHelp, ''],
+        ['Shortcuts', showShortcuts, '']
+      ]
+    };
     if (mode === 'schematic') return {
       file: [
         ['New schematic', schNew, ''],
@@ -1383,6 +1418,10 @@
       document.querySelectorAll('.menu').forEach(x => x.classList.remove('open'));
       if (!open) { pop.classList.add('hidden'); return; }
       m.classList.add('open');
+      const r = m.getBoundingClientRect();
+      const popPos = $('menu-popup');
+      popPos.style.left = r.left + 'px';
+      popPos.style.top = (r.bottom + 2) + 'px';
       const items = currentMenus()[m.dataset.menu] || [];
       pop.innerHTML = items.map(([label, , kbd]) =>
         `<div class="mi">${label}${kbd ? `<span class="kbd">${kbd}</span>` : ''}</div>`).join('');
