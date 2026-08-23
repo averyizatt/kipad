@@ -315,3 +315,9 @@ input[type="file"].hidden { display: none; }
 }
 .plugin-row b { color: var(--fg); }
 .plugin-row .btn { white-space: nowrap; }
+
+/* Gerber viewer / calculator / bitmap converter modals */
+.gv-layers { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.gv-layers .btn { padding: 5px 9px; font-size: 11px; min-height: 28px; }
+#cal-out { padding: 8px 0; font-size: 13px; }
+#bc-file { margin-bottom: 8px; }
