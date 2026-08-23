@@ -110,12 +110,14 @@
   }
 
   /**
-   * extractNets(sch, getSymbol) -> [{ name, pins:[{symId, number, at}], labels:[text] }]
+   * connectivity(sch, getSymbol) -> [{ pins, labels:[{text,id,at}], powerName }]
    * Union-find over wire vertices, pin connection points and label anchors.
-   * Nets without a label get an auto name (N-1, N-2, ...).
-   * Power symbols (value GND/VCC/+5V/... ) name their net by value.
+   * Each group is one electrical node: the pins on it, the labels attached to
+   * it (with ids + positions for ERC locating) and the power net name derived
+   * from power symbols (value GND/VCC/+5V/... or pin name). Shared by
+   * extractNets (netlist) and ERC (js/erc.js) so both use the same topology.
    */
-  function extractNets(sch, getSymbol) {
+  function connectivity(sch, getSymbol) {
     var parent = [];
     function find(a) { while (parent[a] !== undefined && parent[a] !== a) a = parent[a]; return a; }
     function union(a, b) { var ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
@@ -123,7 +125,7 @@
     // Nodes: wire vertices (index 0..W-1), then junctions, then pins, then labels.
     var nodes = [];
     var pinRefs = [];       // { symId, number, name, type, at, symValue }
-    var labelRefs = [];     // { text, at }
+    var labelRefs = [];     // { text, id, at }
 
     sch.wires.forEach(function (w) { w.pts.forEach(function () { nodes.push({ kind: 'wire' }); }); });
     sch.junctions.forEach(function () { nodes.push({ kind: 'junction' }); });
@@ -133,7 +135,7 @@
         nodes.push({ kind: 'pin' });
       });
     });
-    sch.labels.forEach(function (l) { labelRefs.push({ text: l.text, at: l.at }); nodes.push({ kind: 'label' }); });
+    sch.labels.forEach(function (l) { labelRefs.push({ text: l.text, id: l.id, at: l.at }); nodes.push({ kind: 'label' }); });
 
     // Consecutive wire vertices are connected.
     var vi = 0;
@@ -181,13 +183,13 @@
       (groups[r] = groups[r] || []).push(n);
     }
 
-    var auto = 0;
-    var nets = [];
+    var out = [];
     Object.keys(groups).forEach(function (r) {
       var members = groups[r];
-      var labels = [], pins = [], powerName = null;
+      var labels = [], pins = [], powerName = null, wired = false;
       members.forEach(function (idx) {
-        if (nodes[idx].kind === 'label') labels.push(labelRefs[idx - wireAndJunctionCount(sch) - pinRefs.length].text);
+        if (nodes[idx].kind === 'wire' || nodes[idx].kind === 'junction') wired = true;
+        if (nodes[idx].kind === 'label') labels.push(labelRefs[idx - wireAndJunctionCount(sch) - pinRefs.length]);
         if (nodes[idx].kind === 'pin') {
           var pr = pinRefs[idx - wireAndJunctionCount(sch)];
           pins.push(pr);
@@ -199,8 +201,23 @@
         }
       });
       if (!pins.length && !labels.length) return;
-      var name = labels[0] || powerName || ('N-' + (++auto));
-      nets.push({ name: name, pins: pins, labels: labels });
+      out.push({ pins: pins, labels: labels, powerName: powerName, wired: wired });
+    });
+    return out;
+  }
+
+  /**
+   * extractNets(sch, getSymbol) -> [{ name, pins:[{symId, number, at}], labels:[text] }]
+   * Nets without a label get an auto name (N-1, N-2, ...).
+   * Power symbols (value GND/VCC/+5V/... ) name their net by value.
+   */
+  function extractNets(sch, getSymbol) {
+    var auto = 0;
+    var nets = [];
+    connectivity(sch, getSymbol).forEach(function (g) {
+      var labels = g.labels.map(function (l) { return l.text; });
+      var name = labels[0] || g.powerName || ('N-' + (++auto));
+      nets.push({ name: name, pins: g.pins, labels: labels });
     });
 
     // Merge nets sharing a name (global nets: VCC, GND, same label text).
@@ -254,6 +271,7 @@
         L.push('      (pin_names (offset 1.016)) (in_bom yes) (on_board yes)');
         L.push('      (property "Reference" "' + (def.ref || 'U') + '" (at 0 3.81 0) (effects (font (size 1.27 1.27))))');
         L.push('      (property "Value" "' + (def.value || sym.libId) + '" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))');
+        // body graphics
         var gi = 0;
         (def.graphics || []).forEach(function (g) {
           gi++;
@@ -265,6 +283,7 @@
             L.push('      (symbol "' + sym.libId.replace(/[^A-Za-z0-9]/g, '') + '_0_' + gi + '" (circle (center ' + fmt(g.center[0]) + ' ' + fmt(g.center[1]) + ') (radius ' + fmt(g.r) + ') (stroke (width 0.254) (type default)) (fill (type none))))');
           }
         });
+        // pins
         (def.pins || []).forEach(function (p, pi) {
           L.push('      (symbol "' + sym.libId.replace(/[^A-Za-z0-9]/g, '') + '_1_' + (pi + 1) + '" (pin ' + (p.type || 'passive') + ' line (at ' + fmt(p.at[0]) + ' ' + fmt(p.at[1]) + ' ' + fmt(p.angle || 0) + ') (length ' + fmt(p.length || 2.54) + ') (name "' + (p.name || '') + '" (effects (font (size 1.27 1.27)))) (number "' + p.number + '" (effects (font (size 1.27 1.27))))))');
         });
@@ -272,6 +291,7 @@
       });
       L.push('  )');
     }
+    // instances
     sch.symbols.forEach(function (sym) {
       var libName = sym.libId.indexOf(':') >= 0 ? sym.libId : (isPower(sym) ? 'power:' + sym.libId : 'Device:' + sym.libId);
       L.push('  (symbol');
@@ -390,6 +410,7 @@
     });
 
     sch.symbols.forEach(function (sym) {
+      // resolve footprint name
       var fpName = null;
       if (sym.footprint) fpName = sym.footprint.indexOf(':') >= 0 ? sym.footprint.slice(sym.footprint.indexOf(':') + 1) : sym.footprint;
       if (!fpName && fallback) fpName = fallback(sym.ref);
@@ -397,12 +418,14 @@
       if (getFootprint && !getFootprint(fpName)) fpName = fallback ? fallback(sym.ref) : fpName;
       if (!fpName) return;
 
+      // place (ref override must be the prefix, placeFootprint appends a number)
       var placed = null;
       var refPrefix = sym.ref.replace(/[0-9]+$/, '');
       try { placed = GR.KipadBoard.placeFootprint(board, fpName, sym.at, Math.round(sym.angle / 90) * 90, layer, refPrefix); }
       catch (e) { /* footprint not in registry */ }
       if (!placed) return;
 
+      // map pad numbers -> net
       var pins = pinPositions(sym, getSymbol);
       var pinNet = {};
       pins.forEach(function (p) {
@@ -432,7 +455,7 @@
   return {
     makeSchematic: makeSchematic, placeSymbol: placeSymbol, addWire: addWire,
     addLabel: addLabel, addJunction: addJunction, moveSymbol: moveSymbol, pinPositions: pinPositions,
-    extractNets: extractNets, serializeSch: serializeSch, parseSch: parseSch,
+    connectivity: connectivity, extractNets: extractNets, serializeSch: serializeSch, parseSch: parseSch,
     updatePCB: updatePCB, renumberRefs: renumberRefs, EPS: EPS
   };
 });
