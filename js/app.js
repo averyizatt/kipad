@@ -2056,17 +2056,17 @@
   function loadLibraries() {
     const jobs = [];
     if (FPs && FPs.loadLibrary) {
-      jobs.push(fetchJSON('lib/footprints.json.gz?v=13').then(data => {
+      jobs.push(fetchJSON('lib/footprints.json.gz?v=14').then(data => {
         if (data && data.length) { FPs.loadLibrary(data); setStatus('Loaded ' + data.length + ' footprints'); return true; }
-        return fetchJSON('lib/footprints.json?v=13').then(d2 => {
+        return fetchJSON('lib/footprints.json?v=14').then(d2 => {
           if (d2 && d2.length) { FPs.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' footprints'); }
         });
       }).catch(() => {}));
     }
     if (Syms && Syms.loadLibrary) {
-      jobs.push(fetchJSON('lib/symbols.json.gz?v=13').then(data => {
+      jobs.push(fetchJSON('lib/symbols.json.gz?v=14').then(data => {
         if (data && data.length) { Syms.loadLibrary(data); setStatus('Loaded ' + data.length + ' symbols'); return true; }
-        return fetchJSON('lib/symbols.json?v=13').then(d2 => {
+        return fetchJSON('lib/symbols.json?v=14').then(d2 => {
           if (d2 && d2.length) { Syms.loadLibrary(d2); setStatus('Loaded ' + d2.length + ' symbols'); }
         });
       }).catch(() => {}));

@@ -64,12 +64,16 @@
 
     // ---- grid (dots, KiCad style) ----
     const grid = state.grid || 0.25;
+    // Never draw sub-pixel grid dots. At the default 3 px/mm a 0.25 mm
+    // grid would otherwise issue >1M canvas arcs on an iPad-sized screen.
+    let drawGrid = grid;
+    while (drawGrid * view.zoom < 4) drawGrid *= 2;
     const tl = s2w(view, 0, 0, cw, ch), br = s2w(view, cw, ch, cw, ch);
-    const startX = Math.floor(tl[0] / grid) * grid;
-    const startY = Math.floor(tl[1] / grid) * grid;
+    const startX = Math.floor(tl[0] / drawGrid) * drawGrid;
+    const startY = Math.floor(tl[1] / drawGrid) * drawGrid;
     ctx.fillStyle = GRID_MINOR;
-    for (let gx = startX; gx <= br[0]; gx += grid) {
-      for (let gy = startY; gy <= br[1]; gy += grid) {
+    for (let gx = startX; gx <= br[0]; gx += drawGrid) {
+      for (let gy = startY; gy <= br[1]; gy += drawGrid) {
         const major = (Math.abs(gx - Math.round(gx)) < 1e-9) && (Math.abs(gy - Math.round(gy)) < 1e-9);
         const [sx, sy] = w2s(view, gx, gy, cw, ch);
         ctx.fillStyle = major ? GRID_MAJOR : GRID_MINOR;
