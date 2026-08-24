@@ -448,11 +448,44 @@
   }
 
   // ---------- save/open/export ----------
+  // Safe-save: validate the serialization before download and keep rotating
+  // backups of the previously opened/saved text so an overwrite is reversible.
+  const PCB_BAK_KEY = 'kipad.backup.pcb.v1';
+  let lastSavedPcb = null;      // last opened / validated .kicad_pcb text
   function doSave() {
     if (!Pcb) { setStatus('kicad_pcb module not loaded'); return; }
+    if (!SafeSave) { setStatus('safesave module not loaded'); return; }
     const text = Pcb.serializeBoard(board);
+    const v = SafeSave.validate(text,
+      t => Pcb.parseBoard(t),
+      m => Pcb.serializeBoard(m));
+    if (!v.ok) { setStatus('Save aborted: serialized board failed validation (' + v.error + ')'); return; }
+    let backed = false;
+    if (lastSavedPcb && lastSavedPcb !== text)
+      backed = SafeSave.pushBackup(SafeSave.defaultStore(), PCB_BAK_KEY, lastSavedPcb) > 0;
     download('kipad.kicad_pcb', text, 'application/x-kicad-pcb');
-    setStatus('Saved .kicad_pcb');
+    lastSavedPcb = text;
+    setStatus('Saved .kicad_pcb' + (v.stable === false ? ' (round-trip differs)' : '') +
+      (backed ? ' · previous version backed up' : ''));
+  }
+  function restorePcbBackup() {
+    if (!Pcb) { setStatus('kicad_pcb module not loaded'); return; }
+    const b = SafeSave.getBackup(SafeSave.defaultStore(), PCB_BAK_KEY, 0);
+    if (!b) { setStatus('No .kicad_pcb backups yet'); return; }
+    try {
+      pushUndo();
+      board = Pcb.parseBoard(b.s);
+      B.ensureNetClasses(board);
+      if (!Array.isArray(board.zones)) board.zones = [];
+      if (!Array.isArray(board.texts)) board.texts = [];
+      selId = null; hiNet = null; route = null; outlinePts = null;
+      markZonesDirty(true);
+      render(); refreshAll();
+      setStatus('Restored previous .kicad_pcb backup (' + new Date(b.t).toLocaleString() + ') — undo returns to the current board');
+    } catch (e) {
+      undo();
+      setStatus('Backup restore failed: ' + e.message);
+    }
   }
   function doOpen(file) {
     if (!Pcb) return;
@@ -467,7 +500,9 @@
         if (!Array.isArray(board.texts)) board.texts = [];
         selId = null; hiNet = null; route = null; outlinePts = null;
         markZonesDirty(true);
-        render(); refreshAll(); setStatus('Opened ' + file.name);
+        render(); refreshAll();
+        lastSavedPcb = r.result;   // baseline for safe-save backups
+        setStatus('Opened ' + file.name);
       } catch (e) { setStatus('Open failed: ' + e.message); }
     };
     r.readAsText(file);

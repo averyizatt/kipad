@@ -148,10 +148,41 @@
     } catch (e) { setStatus('Update PCB failed: ' + e.message); }
   }
 
+  // Safe-save for schematics: same validation + backup ring as the PCB side.
+  const SCH_BAK_KEY = 'kipad.backup.sch.v1';
+  let lastSavedSch = null;      // last opened / validated .kicad_sch text
   function schSave() {
     if (!Sch) { setStatus('schematic module not loaded'); return; }
-    download('kipad.kicad_sch', Sch.serializeSch(sch, Syms.getSymbol), 'application/x-kicad-schematic');
-    setStatus('Saved .kicad_sch');
+    if (!SafeSave) { setStatus('safesave module not loaded'); return; }
+    const text = Sch.serializeSch(sch, Syms.getSymbol);
+    const v = SafeSave.validate(text,
+      t => Sch.parseSch(t, Syms.getSymbol),
+      m => Sch.serializeSch(m, Syms.getSymbol));
+    if (!v.ok) { setStatus('Save aborted: serialized schematic failed validation (' + v.error + ')'); return; }
+    let backed = false;
+    if (lastSavedSch && lastSavedSch !== text)
+      backed = SafeSave.pushBackup(SafeSave.defaultStore(), SCH_BAK_KEY, lastSavedSch) > 0;
+    download('kipad.kicad_sch', text, 'application/x-kicad-schematic');
+    lastSavedSch = text;
+    setStatus('Saved .kicad_sch' + (v.stable === false ? ' (round-trip differs)' : '') +
+      (backed ? ' · previous version backed up' : ''));
+  }
+  function restoreSchBackup() {
+    if (!Sch) { setStatus('schematic module not loaded'); return; }
+    const b = SafeSave.getBackup(SafeSave.defaultStore(), SCH_BAK_KEY, 0);
+    if (!b) { setStatus('No .kicad_sch backups yet'); return; }
+    try {
+      schPushUndo();
+      sch = Sch.parseSch(b.s, Syms.getSymbol);
+      schSelId = null; schWirePts = [];
+      setMode('schematic');
+      zoomFit();
+      render(); refreshAll();
+      setStatus('Restored previous .kicad_sch backup (' + new Date(b.t).toLocaleString() + ') — undo returns to the current sheet');
+    } catch (e) {
+      schUndoStep();
+      setStatus('Backup restore failed: ' + e.message);
+    }
   }
   function schOpen(file) {
     if (!Sch) return;
@@ -165,6 +196,7 @@
         setMode('schematic');
         zoomFit();
         render(); refreshAll();
+        lastSavedSch = r.result;   // baseline for safe-save backups
         setStatus('Opened ' + file.name);
       } catch (e) { setStatus('Open failed: ' + e.message); }
     };

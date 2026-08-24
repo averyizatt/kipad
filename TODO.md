@@ -167,9 +167,20 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [x] Image-converter logos: auto-numbered refs, string F<n> ids — 2026-08-24
 - [x] FileReader.onerror status messages for open/import/image flows — 2026-08-24
 
-## Session 2026-08-24 (~15:45 UTC) — symbol library expansion + Symbol Fields dialog
-- [x] Edit Symbol Fields dialog (schematic Tools menu): one row per physical symbol (ref / value / footprint), edits apply live, footprint names autocomplete from the library, power + #-refs excluded; js/symfields.js model + test/test_symfields.js (154 ln) — 2026-08-24
-- [x] Symbol library expanded 600 → 2,000 parts (build-symbols.js MAX_TOTAL=2000): 12 new KiCad libs — Transistor_FET, Comparator, Reference_Voltage, Isolator, Driver_Motor, Battery_Management, Sensor_Current, Sensor_Temperature, 74xx, 4xxx, MCU_Module, RF_Module — 2026-08-24
-- [x] POPULARS reserved list so quotas can't drop hobbyist staples: NE555D/P, LM358/324/741, TL072/74, LM339/393, TL431DBZ, L7805, AMS1117-3.3, PC817, TP4056-42-ESOP8, MCP73831-2-OT, L293D, DRV8833PW, DRV8871DDA, ACS712xLCTR-05B/-20A, DS18B20, LM35-D, 2N7002, IRF540N/9540N, 9× 74HC gates/regs, 10× CD40xx, Arduino_Nano v3/RP2040/ESP32, ESP32-WROOM-32 (all verified present in output) — 2026-08-24
-- [x] Latent cache bug fixed: lib/*.json(.gz) fetch URLs were frozen at ?v=18 since forever while the shell bumped v43 — now v44 everywhere (index.html ×30, app.part4.js ×4, sw CACHE kipad-v37→v38); README stale counts corrected (400→2,000 symbols, ~170→~160 footprints) — 2026-08-24
-- [x] Payload: symbols.json 1.58 MB raw / 111 KB gzipped · **34/34 test suites green** — 2026-08-24
+
+## CURRENT AUTONOMOUS QUEUE
+
+- [x] Add safe-save validation and automatic backup before overwriting KiCad files — 2026-08-24
+  - [x] `js/safesave.js` (KipadSafeSave, UMD pure): `validate(text, parse[, reserialize])` — parse-back with the real parser gates every save (parse failure aborts the download; unstable second cycle reported as `stable:false` but allowed) + rotating backup ring (`pushBackup`/`listBackups`/`getBackup`, newest-first under `<key>.bak.v1`, default keep 3, injectable store, quota errors drop oldest and retry, storage failure degrades to "no backup" without ever breaking a save) — 2026-08-24
+  - [x] Wiring: PCB `doSave` / schematic `schSave` validate before download; last opened/saved text (`doOpen`/`schOpen` baselines) is pushed to localStorage backups (`kipad.backup.pcb.v1` / `.sch.v1`) before a changed version overwrites it; File → Restore previous save… in both editors loads the newest backup through the normal undoable open path; cache-bust v44→v45 / sw kipad-v38→v39 + ASSETS entry — 2026-08-24
+  - [x] test/test_safesave.js (14 checks incl. real-board validate smoke on lib-build/raw/custom_pads.kicad_pcb) · all 35 suites green — 2026-08-24
+- [ ] Build real-project .kicad_pcb round-trip regression fixtures
+- [ ] Preserve unsupported KiCad S-expression nodes during round trip
+- [ ] Improve interactive trace routing with 45-degree routing and route cleanup
+- [ ] Add trace width and via-size controls
+- [ ] Add route layer switching that automatically inserts a via
+- [ ] Add multi-select and group move/rotate/delete
+- [ ] Audit undo/redo so every PCB editing operation is reversible
+- [ ] Add board setup + net-class editor
+- [ ] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM
+
