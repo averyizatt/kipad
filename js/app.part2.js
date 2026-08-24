@@ -109,7 +109,10 @@
     $('modal-body').innerHTML = body;
     $('modal').classList.remove('hidden');
   }
-  function hideModal() { $('modal').classList.add('hidden'); }
+  function hideModal() {
+    if (typeof endUndoGroup === 'function') endUndoGroup();   // closes an open undo group (Net Classes edits)
+    $('modal').classList.add('hidden');
+  }
 
   // ---------- tools ----------
   function setTool(t) {

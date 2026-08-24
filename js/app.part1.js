@@ -145,6 +145,22 @@
     restore(redoStack.pop());
     render(); refreshAll();
   }
+  // Undo group: snapshot when a dialog opens; on close the base is pushed only
+  // if the board actually changed — one Ctrl+Z reverts the whole dialog session,
+  // a cancelled dialog leaves no trace. Used by the Net Classes editor whose
+  // inputs mutate board.netClasses live on every keystroke.
+  let undoGroupBase = null;
+  function beginUndoGroup() { undoGroupBase = snapshot(); }
+  function endUndoGroup() {
+    if (undoGroupBase == null) return;
+    const base = undoGroupBase;
+    undoGroupBase = null;
+    if (snapshot() === base) return;
+    undoStack.push(base);
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+    markZonesDirty();
+  }
 
   // ---------- render ----------
   function render() {
@@ -408,6 +424,7 @@
   }
   function showNetClasses() {
     B.ensureNetClasses(board);
+    beginUndoGroup();   // whole dialog session = one undo step (only if changed)
     showModal('Net Classes', buildNetClassesBody());
     wireNetClasses();
   }

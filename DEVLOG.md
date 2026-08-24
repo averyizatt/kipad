@@ -484,3 +484,18 @@ Queue item: "Add multi-select and group move/rotate/delete" (last PCB editing ga
 - Tests: test/test_multisel.js — 30 checks (set purity, per-kind deltas, zone immovability, stale-id tolerance, bounds/centre, 180° swap + full-turn restoration exactness, rigid pad flip direction Y-down, text angle, delete plan partition). **41/41 suites green**, node --check clean; static id↔JS wiring check unchanged (only known-dynamic ids).
 - Cache: index.html v=50→v51 (34 refs) + new multisel.js tag, sw ASSETS += ./js/multisel.js, CACHE kipad-v44→v45.
 - Deferred (noted, not silently dropped): rubber-band box select (conflicts with drag-pan on touch — needs a gesture disambiguation pass) and Ctrl+A select-all (needs a keys-resolver action + menu row). Schematic multi-select untouched.
+
+## 2026-08-24 ~18:40 UTC — undo/redo audit: every PCB edit reversible
+Queue item: "Audit undo/redo so every PCB editing operation is reversible".
+
+Audit method: enumerated every board-mutating call site in app.part1–4 (B.add*/remove*/set*/rename*, .push/.splice/.filter-reassign on board collections, direct field writes from UI handlers) and traced each to its undo coverage.
+
+Result — already covered (snapshot BEFORE mutation, one step per gesture):
+- Placement: footprints, vias, texts, zones (finishZone), outline line/rect/circle/arc; Update-PCB-from-schematic; Open/Restore-backup/New-board.
+- Route commit is atomic: per-segment layers + staged vias in a single pushUndo; Escape/Backspace discard drafts without touching the stack.
+- Edits: delete (single + group plan), rotate (fp/text/group), drag fp/text/group (one push on first movement), arrow nudge, properties panel (ref/value/X/Y/rot/layer-flip incl. pad relayering, track width, via size/drill, all text fields, zone clearance) — each field change pushes exactly once.
+- GAP FOUND + FIXED: the Net Classes editor mutated board.netClasses and net→class assignments live on every keystroke with NO undo at all.
+
+Fix: undo-group mechanism for dialog-scoped live edits (app.part1.js): `beginUndoGroup()` snapshots when the Net Classes modal opens, `endUndoGroup()` (wired into hideModal) pushes the base ONLY if the board JSON actually changed → whole dialog session = one Ctrl+Z, cancelled/no-op dialogs leave zero entries, redo cleared on real changes, 100-entry cap respected, markZonesDirty() so zone refills pick up new class clearances. No-op-safe guard in hideModal keeps other modals unaffected.
+
+Verification: 41/41 suites green after the change, node --check clean across js/*.js; cache-bust v=51→v52 (35 refs), sw kipad-v45→kipad-v46 (no new assets).

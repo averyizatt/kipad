@@ -196,7 +196,9 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] UI: Shift/Cmd/Ctrl+tap toggles group membership (seeds from the current selection; primary follows adds/removals); drag any selected footprint/text moves the whole group (incremental snapped deltas, one undo step); R rotates the block 90° about its centre; Del deletes all selected; arrows nudge the group; Esc clears; status bar shows member count — 2026-08-24
   - [x] render: highlights keyed off a selIds Set — tracks get green stroke + vias dashed halo when selected (fixes missing single-selection canvas feedback too) · cache v=50→v51 / sw kipad-v45 + ASSETS entry — 2026-08-24
   - Deferred: rubber-band box select (needs gesture disambiguation vs drag-pan on touch) and Ctrl+A select-all (keys resolver action + menu row) — see DEVLOG ~18:20
-- [ ] Audit undo/redo so every PCB editing operation is reversible
+- [x] Audit undo/redo so every PCB editing operation is reversible — 2026-08-24
+  - Audited every board-mutating call site in app.part1–4: placement (fp/via/text/zone/outline), route commit (atomic per-segment layers + staged vias), delete/rotate/drag/nudge (single + group), properties-panel field edits, side flip, Update-PCB, open/new/restore — all snapshot before mutation; see DEVLOG ~18:40 for the matrix
+  - Gap found and fixed: Net Classes editor mutated netClasses/net assignments live with no undo → new `beginUndoGroup`/`endUndoGroup` dialog-scoped undo (base pushed on close only if the board changed; one Ctrl+Z reverts the session, cancel leaves no trace) · cache v=52 / sw kipad-v46
 - [ ] Add board setup + net-class editor
 - [x] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM — done as PCB File > Export fabrication package (.zip) — 2026-08-24
 
