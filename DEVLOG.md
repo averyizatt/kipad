@@ -83,3 +83,53 @@ Chronological log of iterations. Newest at the bottom.
 - `board.texts[]` is part of the board model and local persistence. `.kicad_pcb` import/export now round-trips F/B silkscreen `gr_text` entries with position, angle, font size/thickness and left/center/right justification.
 - Renderer uses KiCad silkscreen colors with a selected-text bounding box. Added official KiCad `text_24.png`, cache-bust v13 / offline cache kipad-v7, and `test/test_text.js`. All 14 suites pass; jsdom startup/launcher smoke test passes.
 - Live Chromium smoke testing exposed a render stall when entering PCB mode: the default 0.25 mm grid at 3 px/mm attempted more than one million canvas arcs per frame. Grid rendering now increases only the visual dot interval until dots are at least 4 px apart (snap precision is unchanged). Cache-bust v14 / offline cache kipad-v8.
+
+## 2026-08-24 ~02:40 UTC — Expanded DRC shipped
+- board.js: three new checks folded into runDRC (all violations now carry severity):
+  - hole-to-copper (error): THT pad drills + via drills vs other-net copper on both layers; 0.25mm hole clearance (KiCad default); own-annulus (ownerPad) and same-net exempt. New copperItemsExt() tolerates *.Cu wildcard pad layers.
+  - copper-to-edge (error): outline polygon vs every copper item, 0.5mm edge clearance (KiCad default); skipped when no outline.
+  - silkscreen-over-pad (warning): user board text vs exposed pads on matching side (rotation-aware bbox), foreign-footprint F.SilkS art vs pads via Liang-Barsky seg/rect test; only flags silk reaching the central 50% of a pad so real-footprint corner clipping stays quiet; own-library art exempt.
+- app.js: DRC panel rewritten — "N error(s), M warning(s)" header, warn-coloured rows, tap-to-locate centres canvas on violation coordinates; help text updated.
+- style.css: .drc-item.warn + hover styles.
+- test/test_drc2.js added (hole/edge/silk/exemptions/regression); all 15 suites green, node --check clean.
+- Cache-bust ?v=15, service worker kipad-v9.
+
+## 2026-08-24 ~04:05 UTC — Convergence: merged two diverged parallel iterations
+Discovery: two autonomous sessions had worked in parallel from the same ancestor (post silkscreen-text, cache v14) and diverged:
+- Sandbox copy: **expanded DRC** (hole-to-copper, copper-to-edge, silk-over-pad + severity/tap-locate DRC panel + test_drc2.js) and had split `js/app.js` into `app.part1–4.js` (index.html loads the four scripts; monolithic app.js left as an "Unused" stub).
+- Workspace copy: **polish & bug-fix pass** (schematic pan-jump fix, grid batching + 40k cap, zoom-aware `pickTol()`, zone-draft layer-switch cancel, textPlace duplicate cleanup) still as a single `js/app.js`.
+Both claimed the same cache versions (v15 / kipad-v9), so neither was a superset.
+
+Merge (canonical = sandbox):
+1. Re-applied all five polish deltas onto the part files: `pickTol()` helper in part1 (+ Layers-panel zone-draft cancel), `switchLayer()` cancel + startTextTool cleanup + route/zone start tolerance in part2, `schPointerDown(wx,wy,pe)` event seeding + select-tool tolerances + dead `lastPointerX/Y` removal in part4.
+2. Ported grid batching (two batched canvas paths minor/major + 40k-dot hard cap) into sandbox `js/render.js`.
+3. Kept sandbox's expanded-DRC board.js/DRC panel/help text/style.css additions verbatim.
+4. Verified: concatenated parts diff against each parent shows ONLY that parent's missing changes (plus structural IIFE/header lines) — nothing lost either direction.
+5. Cache-bust unified: every index.html ref + lib URLs → `?v=17`, sw.js CACHE → `kipad-v11`.
+6. Tests: all 15 suites green on the merged tree; `node --check` clean on every touched file; static cross-check that every `$('…')` id used by the app exists in index.html or is built dynamically in JS.
+Workspace mirror copy synced from the merged sandbox tree so future sessions start from one state.
+
+## 2026-08-24 ~04:25 UTC — ERC violation markers on the schematic canvas
+Next unchecked milestone item. KiCad draws ERC violations as X-in-circle markers right on the sheet, so the panel no longer has to be the only way to see problems.
+
+- `js/erc.js`: new pure helper `KipadErc.markers(violations, zoom)` → drawable marker list: dedupes violations sharing a location (rounded to 0.05 mm, first wins), skips non-finite coords, severity colour (error `#cc0000`, warning `#b8860b`), world radius 0.9 mm × zoom clamped to 5–16 screen px (tappable when zoomed out, not dwarfing symbols when zoomed in). No DOM/canvas — unit-testable.
+- `js/render.js`: `renderSchematic` draws `state.ercMarkers` after labels/before the placement preview: 18%-alpha fill + solid ring + X through the circle, per marker. Renderer stays dumb — geometry is precomputed by the app.
+- `js/app.part3.js`: `renderSchematicView` passes `ercMarkers: Erc.markers(ercViolations, view.zoom)` when enabled; new `showErcMarkers` flag (declared in part1 next to `ercViolations`) + `toggleErcMarkers()`.
+- `js/app.part4.js`: schematic View menu gains "ERC markers: on/off" toggle; select-tool tap now hit-tests markers first (~10 px screen tolerance) → selects the owning symbol and reports "ERC <CODE>: <message>" in the status bar before falling through to symbol picking; schematic help text mentions the markers.
+- Cache-bust `?v=17` → `?v=18` everywhere (21 index.html refs + 4 lib URLs in part4); sw.js CACHE `kipad-v11` → `kipad-v12`. No new assets to precache.
+- Tests: `test/test_erc_markers.js` (13 checks: empty/null input, dedupe, colours, field pass-through, world coords preserved, radius scaling + both clamps + default zoom, determinism). All **16 suites green**; `node --check` clean on all touched files; node render smoke test (stubbed ctx Proxy) exercises `renderSchematic` with and without markers.
+
+## 2026-08-24 ~04:35 UTC — Zone .kicad_pcb round-trip + board-view fidelity fixes
+Zone sexpr support (first sub-item of the round-trip-fidelity milestone) plus a batch of PCB-view correctness fixes found during real-library testing.
+
+- `js/kicad_pcb.js`: zones are no longer ignored. Parse: `(zone (net N) (net_name "X") (layer "F.Cu") (polygon|filled_polygon (pts (xy …))))` → `board.zones[]` (`id: 'Z<n>'`, net resolved by name first then net-id map, layer clamped to F.Cu/B.Cu, degenerate outlines <3 pts dropped). Serialize: each zone emits `(zone (net N) (net_name "…") (layer "…") (polygon (pts …)))` with net id looked up from the nets table (0 when absent).
+- `test/test_zone_rt.js` (new): model→sexpr→model round-trip incl. B.Cu zone + clearance-bearing zone, degenerate-zone drop, double round-trip stability, zone with only `net_name` (no nets table). All **17 suites green**; `node --check` clean.
+- Real-file fidelity smoke: `lib-build/real-board.kicad_pcb` (real KiCad export, 63 footprints / 370 tracks) parses in ~62 ms, its B.Cu GND zone extracts with all 8 outline points, re-serializes and re-parses with net/layer/outline stable.
+- Footprint side flip fixed (`app.part1` Properties layer switch): full KiCad-style layer map swap (Cu/Paste/Mask/Fab/CrtYd/SilkS ↔ B-side) instead of rewriting only copper; through-hole pads span both sides and are left untouched.
+- Placed-footprint art fallback (`render.js`): library graphics win when present, else graphics stored directly on the footprint draw — imported `.kicad_mod` parts and bitmap-converter logos keep their silk/fab art. Silk `rect` items now render in both canvas paths (`render.js` + footprint-preview painter in `app.part2`).
+- Pad dimming rule aligned with tracks (`render.js`): pads on the inactive copper side dim instead of always drawing at full colour (previous condition never dimmed B footprints).
+- Via annulus stroke radius corrected (`render.js`): mid-radius circle at `(size+drill)/4` so the ring's outer edge hits size/2 and inner edge hits drill/2 (was size/4 → annulus too thin).
+- Image-converter logos (`app.part3`): refs auto-number (LOGO, LOGO2, …) so repeated imports don't collide, footprint ids use the string `F<n>` scheme consistent with the rest of the board, base layer F.Cu (silk art rides the fp.silk fallback above).
+- `FileReader.onerror` handlers added to Open/Import/image flows (`app.part2`/`app.part3`) → status message instead of silent failure.
+- Cache-bust `?v=18` → `?v=19` (index.html script refs); sw.js CACHE `kipad-v12` → `kipad-v13`. No new assets.
+- Workspace mirror synced from sandbox after tests went green.
