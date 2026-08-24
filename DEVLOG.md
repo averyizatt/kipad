@@ -319,3 +319,15 @@ Closed the "missing footprint" half of the deferred ERC item. The blocker record
 - Cache-bust ?v=35→?v=36 (25 refs); sw CACHE kipad-v29→v30. No new assets.
 - Tests: test/test_footprint_erc.js (18 checks: missing/whitespace/message-ref, GND + #-ref exemptions, lib:name and bare resolvable names pass, unknown → error shape, getter-less skip, lib-default footprints honoured, counts + determinism). All **28 suites green**; `node --check` clean on touched files.
 - Repo hygiene: added .gitignore for stray `repo/` (~297 MB duplicate clone from an earlier sync experiment) and `lib-build/attic/` so `git status` stays meaningful; both left on disk pending Avery's call on deleting them.
+
+## 2026-08-24 ~14:00 UTC — DRC: courtyard overlap check
+Added the standard KiCad `courtyards_overlap` check — the last common KiCad DRC family still missing (clearance, holes, edge, silk, unconnected all existed).
+
+- js/board.js:
+  - `footprintCourtyardPoly(fp)`: world-space courtyard rectangle from the placed instance's own `courtyard` or the library def's, rotated by fp.angle. Missing/unresolvable courtyards return null and are skipped — matches KiCad's default-ignore severity for missing courtyards.
+  - `convexPolysOverlap(A, B, eps)`: separating-axis test over both polygons' edge normals; a gap ≥ −eps on any axis counts as separated/touching, so exact edge kisses stay quiet (COURTYARD_EPS = 0.01 mm).
+  - `courtyardViolations(board)`: same-side pairs only (opposite-face parts legitimately share XY), AABB prefilter, one `courtyard` error per overlapping pair naming both refs, x/y at the midpoint of the two origins so panel tap-to-centre works. Nets deliberately ignored — courtyards are placement geometry, not copper.
+- Wired into runDRC after the silk checks; no UI change needed (panel + counts pick it up generically).
+- index.html cache-bust ?v=36→?v=37 (25 refs); sw CACHE kipad-v30→v31. No new assets.
+- Tests: test/test_courtyard.js (12 checks: far-apart clean, single error naming both refs, SAT near-miss where AABBs overlap but rotated diamonds don't, rotation flipping a clear pair into overlap, containment, exact kiss exempt, 0.05 mm penetration flagged, opposite-face exemption, net-independence, missing courtyard skipped, determinism, real-board smoke). Fixture gotcha: mkFp rect extents are LOCAL to fp.at — writing them as world coords silently moved the parts (cost one debug cycle); diamond circumradius is half·√2, not half.
+- Real board (63 fps): runDRC 47.9 ms avg including the new pass, zero courtyard violations (dense-but-legal layout). All **29 suites green**; `node --check` clean.

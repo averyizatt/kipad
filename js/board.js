@@ -780,6 +780,86 @@
     }
     return out;
   }
+  // ---------- courtyard overlap (KiCad courtyards_overlap check) ----------
+  const COURTYARD_EPS = 0.01; // mm penetration treated as mere edge-touching
+  function footprintCourtyardPoly(fp) {
+    // World-space courtyard rectangle for a placed footprint, or null when the
+    // instance/library has no courtyard (KiCad default severity for missing
+    // courtyards is "ignore", so we silently skip those).
+    let cr = fp.courtyard;
+    if (!cr || !Array.isArray(cr.min) || !Array.isArray(cr.max)) {
+      const Lib = root.KipadFootprints || (typeof require !== 'undefined' ? require('./footprints.js') : null);
+      if (!Lib) return null;
+      const def = Lib.getFootprint(fp.lib);
+      if (!def || !def.courtyard || !Array.isArray(def.courtyard.min)) return null;
+      cr = def.courtyard;
+    }
+    const x0 = cr.min[0], y0 = cr.min[1], x1 = cr.max[0], y1 = cr.max[1];
+    if (!(x1 > x0 && y1 > y0)) return null; // degenerate
+    const world = pt => { const r = rot(pt[0], pt[1], fp.angle || 0); return [fp.at[0] + r[0], fp.at[1] + r[1]]; };
+    return [world([x0, y0]), world([x1, y0]), world([x1, y1]), world([x0, y1])];
+  }
+  function polyAABB(poly) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of poly) {
+      if (p[0] < minX) minX = p[0];
+      if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1];
+      if (p[1] > maxY) maxY = p[1];
+    }
+    return { minX, minY, maxX, maxY };
+  }
+  function convexPolysOverlap(A, B, eps) {
+    // Separating-axis test over the edge normals of both convex polygons.
+    // A gap of >= -eps along any axis counts as separated/touching, so exact
+    // kisses and sub-eps penetrations stay quiet.
+    const axes = [];
+    for (const poly of [A, B]) {
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const ex = b[0] - a[0], ey = b[1] - a[1];
+        const len = Math.hypot(ex, ey);
+        if (len < 1e-9) continue;
+        axes.push([-ey / len, ex / len]);
+      }
+    }
+    for (const ax of axes) {
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const p of A) { const d = p[0] * ax[0] + p[1] * ax[1]; if (d < a0) a0 = d; if (d > a1) a1 = d; }
+      for (const p of B) { const d = p[0] * ax[0] + p[1] * ax[1]; if (d < b0) b0 = d; if (d > b1) b1 = d; }
+      if (b0 - a1 >= -eps || a0 - b1 >= -eps) return false;
+    }
+    return true;
+  }
+  function courtyardViolations(board) {
+    // KiCad: two footprints on the SAME side whose courtyards intersect are an
+    // error. Opposite-face parts legitimately share XY space; nets are not
+    // considered. Missing/unresolvable courtyards are skipped (see above).
+    const out = [];
+    const placed = [];
+    for (const fp of board.footprints) {
+      const poly = footprintCourtyardPoly(fp);
+      if (poly) placed.push({ fp, poly, bb: polyAABB(poly) });
+    }
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i], b = placed[j];
+        if ((a.fp.layer || 'F.Cu') !== (b.fp.layer || 'F.Cu')) continue;
+        if (a.bb.maxX <= b.bb.minX + COURTYARD_EPS || b.bb.maxX <= a.bb.minX + COURTYARD_EPS ||
+            a.bb.maxY <= b.bb.minY + COURTYARD_EPS || b.bb.maxY <= a.bb.minY + COURTYARD_EPS) continue;
+        if (!convexPolysOverlap(a.poly, b.poly, COURTYARD_EPS)) continue;
+        out.push({
+          type: 'courtyard', severity: 'error',
+          msg: `Footprints ${a.fp.ref} and ${b.fp.ref} courtyards overlap`,
+          netA: '', netB: '', dist: null, clearance: null,
+          classA: '', classB: '', layer: a.fp.layer || 'F.Cu',
+          x: Math.round((a.fp.at[0] + b.fp.at[0]) / 2 * 1000) / 1000,
+          y: Math.round((a.fp.at[1] + b.fp.at[1]) / 2 * 1000) / 1000
+        });
+      }
+    }
+    return out;
+  }
   function runDRC(board, clearanceOverride) {
     // clearanceOverride: optional explicit min clearance (mm) that replaces
     // per-net-class values — kept for backward compatibility. Otherwise the
@@ -868,6 +948,8 @@
     }
     // silkscreen over exposed pads (warnings)
     for (const sv of silkViolations(board)) violations.push(sv);
+    // same-side footprint courtyards must not intersect (KiCad error)
+    for (const cv of courtyardViolations(board)) violations.push(cv);
     // unconnected items (KiCad reports each remaining airwire as its own error)
     for (const l of ratsnest(board)) {
       const na = netName(board, l.netId);

@@ -44,6 +44,7 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Hole-to-copper: THT pad drills + via drills vs other-net copper on all layers, 0.25mm hole clearance; own-pad annulus and same-net exempt — `hole-*` errors — 2026-08-24
   - [x] Copper-to-edge: outline polygon vs copper items, 0.5mm edge clearance — `edge-*` errors — 2026-08-24
   - [x] Silkscreen-over-pad: board text + foreign-footprint silk art reaching a pad's central core → `silk-*` warnings (rotation-aware bbox, Liang–Barsky seg/rect test) — 2026-08-24
+  - [x] Courtyard overlap: same-side footprints whose courtyards intersect → `courtyard` error; instance-or-library courtyard rect rotated to world space, AABB prefilter + separating-axis test with 0.01mm touch tolerance; opposite-face parts and missing/unresolvable courtyards exempt (KiCad default severity for missing is ignore); real-board cost ~0ms added (47.9 ms total runDRC) — test/test_courtyard.js (12 checks) — 2026-08-24
   - [x] DRC panel: error/warning counts + colouring, tap row to centre canvas on the violation; test/test_drc2.js (15 suites green) — 2026-08-24
   - [x] Through-hole `*.Cu` pads participate in clearance and edge DRC on both copper layers, independent of footprint side — 2026-08-24
 - [x] ERC violation markers drawn on the schematic canvas — 2026-08-24
