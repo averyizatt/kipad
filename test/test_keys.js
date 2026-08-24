@@ -20,6 +20,11 @@ ok(K.resolve(ev('z', { ctrlKey: true, shiftKey: true }), pcb) === 'redo', 'Ctrl+
 ok(K.resolve(ev('y', { metaKey: true }), sch) === 'redo', 'Cmd+Y → redo');
 ok(K.resolve(ev('x', { ctrlKey: true }), pcb) === null, 'unknown Ctrl combo → null (no tool leak)');
 ok(K.resolve(ev('s', { altKey: true }), pcb) === null, 'Alt combos ignored');
+ok(K.resolve(ev('a', { ctrlKey: true }), pcb) === 'selectAll', 'Ctrl+A in PCB → selectAll');
+ok(K.resolve(ev('A', { metaKey: true }), pcb) === 'selectAll', 'Cmd+A (caps) in PCB → selectAll');
+ok(K.resolve(ev('a', { ctrlKey: true, shiftKey: true }), pcb) === 'selectAll', 'Ctrl+Shift+A still selectAll');
+ok(K.resolve(ev('a', { ctrlKey: true }), sch) === null, 'Ctrl+A in schematic → null (no multi-select there)');
+ok(K.resolve(ev('a', { ctrlKey: true }), { mode: 'launcher' }) === null, 'Ctrl+A in launcher → null');
 
 // --- zoom / fit ---
 ok(K.resolve(ev('+'), pcb) === 'zoomIn' && K.resolve(ev('='), pcb) === 'zoomIn', '+ and = → zoomIn');

@@ -516,3 +516,12 @@ Avery 18:54/18:57: wire tool "doesn't actually give me a wire"; Apple Pencil reg
 - **Wire "no wire" cause**: the double-tap-to-finish window (350ms) fired on ANY two quick taps — rapid corner tapping kept committing half-drawn fragments and resetting the draft. Now only finishes when both taps land in the same spot (< snap threshold apart). Also: draft start point is now a visible green dot, magnetic targets show a highlight ring on hover (state.snapHi), snap radius is screen-aware (~26px in world units, clamped 0.35–3), Backspace pops the last draft corner, ESC clears cleanly.
 - **Symbols/footprints stale**: sw.js existed but was NEVER REGISTERED — installs were just HTTP-cached bookmarks. index.html now registers ./sw.js and auto-reloads ONCE on controllerchange (sessionStorage guard), so future deploys reach home-screen installs by themselves.
 - All 36 suites green; node --check clean. Cache v53→v54 / kipad-v47→v48. Committed explicit paths (concurrent autonomous iteration e96c5fe landed mid-edit again — waited for quiescence, then patched).
+
+## 2026-08-24 ~19:36 UTC — Ctrl+A Select all (PCB) closes its deferred note
+Queue: the multisel milestone's deferred pair — rubber-band box select stays deferred (touch gesture disambiguation), but Ctrl+A select-all was pure wiring and is now done.
+
+- js/keys.js: `Ctrl/Cmd+A → 'selectAll'` in the modifier switch, PCB mode only (schematic has no multi-select infra; launcher untouched). Shift/caps variants pass through like the other modifier actions. Header action list updated.
+- app.part4.js: `doSelectAll()` gathers footprints + texts + tracks + vias + zones into `selSet` (same {id,kind} shape as Shift+tap; zones selectable/deletable per KipadMultisel), seeds selId/selKind to the first item, status reports the count with the group-op hint. Guarded by the active-transient-state check (route / zonePts / outlinePts / gfxStart / measureA / placeLib) so a mid-draft keypress never hijacks the tool. Empty board → "Nothing to select". Edit ▸ Select all menu row added (PCB edit menu, after Redo).
+- render picks it up unchanged via the existing `selIds` Set built from selSet ∪ selId.
+- Tests: test/test_keys.js +5 checks (ctrl/meta/shift variants → selectAll, schematic null, launcher null). All 42 suites green; node --check clean on both touched JS files.
+- Cache: index.html ?v=54→v55 (36 refs), sw CACHE kipad-v48→kipad-v49 (no new assets).

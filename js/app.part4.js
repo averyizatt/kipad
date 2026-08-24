@@ -656,7 +656,24 @@
       case 'nudgeRight': nudgeSel(1, 0); break;
       case 'nudgeUp': nudgeSel(0, -1); break;
       case 'nudgeDown': nudgeSel(0, 1); break;
+      case 'selectAll': doSelectAll(); break;
     }
+  }
+
+  // KiCad Ctrl+A: select every selectable item on the board (group ops then apply).
+  function doSelectAll() {
+    if (route || zonePts || outlinePts || gfxStart || measureA || placeLib) return; // never hijack an active draft
+    const items = []
+      .concat(board.footprints.map(f => ({ id: f.id, kind: 'footprint' })))
+      .concat((board.texts || []).map(t => ({ id: t.id, kind: 'text' })))
+      .concat(board.tracks.map(t => ({ id: t.id, kind: 'track' })))
+      .concat((board.vias || []).map(v => ({ id: v.id, kind: 'via' })))
+      .concat((board.zones || []).map(z => ({ id: z.id, kind: 'zone' })));
+    if (!items.length) { setStatus('Nothing to select'); return; }
+    selSet = items;
+    selId = items[0].id; selKind = items[0].kind;
+    setStatus(items.length + ' items selected — drag a member to move the group');
+    render(); refreshAll();
   }
 
   // Move the current selection by one grid step (KiCad arrow-key behaviour).
@@ -854,6 +871,7 @@
       edit: [
         ['Undo', undo, '⌘Z'],
         ['Redo', redo, '⌘Y'],
+        ['Select all', doSelectAll, 'Ctrl+A'],
         ['Delete selection', doDelete, '⌫'],
         ['Rotate 90°', doRotateSel, 'R']
       ],
