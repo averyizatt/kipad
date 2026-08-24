@@ -10,6 +10,13 @@
  * cleanup(pts, eps)    -> new point list: consecutive duplicates dropped, collinear
  *   runs merged (corners kept). Safe on short/degenerate input.
  * isAllowed(p1, p2, eps) -> true when the segment is H/V/45 within tolerance.
+ *
+ * Track width / via size choice helpers (back the toolbar comboboxes):
+ * widthChoices(classWidth, presets)  -> ascending unique width list, class default included
+ * viaChoices(clsSize, clsDrill, ps)  -> ascending unique {size,drill} list; on a size clash the
+ *                                       class pair wins (its drill is authoritative)
+ * resolveTrackWidth(override, clsW)  -> override (>0 number) or classWidth
+ * resolveVia(override, cls)          -> override {size,drill} or the class pair
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -71,5 +78,55 @@
     return out;
   }
 
-  return { elbow: elbow, cleanup: cleanup, isAllowed: isAllowed };
+  function widthChoices(classWidth, presets) {
+    var out = [];
+    var all = (typeof classWidth === 'number' && classWidth > 0 ? [classWidth] : [])
+      .concat(Array.isArray(presets) ? presets : []);
+    for (var i = 0; i < all.length; i++) {
+      var w = Number(all[i]);
+      if (!(w > 0)) continue;
+      if (out.indexOf(w) < 0) out.push(w);
+    }
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
+  function viaChoices(classSize, classDrill, presets) {
+    var bySize = {};
+    var sizes = [];
+    function add(size, drill) {
+      if (!(size > 0)) return;
+      var s = Number(size);
+      if (!(s in bySize)) { bySize[s] = { size: s, drill: drill > 0 && drill < s ? Number(drill) : null }; sizes.push(s); }
+    }
+    add(classSize, classDrill); // class pair first so it wins size clashes
+    if (Array.isArray(presets)) for (var i = 0; i < presets.length; i++) add(presets[i][0], presets[i][1]);
+    // fill missing drills with half the ring (KiCad-ish default when unset)
+    for (var j = 0; j < sizes.length; j++) {
+      var c = bySize[sizes[j]];
+      if (c.drill == null) c.drill = Math.round(c.size / 2 * 100) / 100;
+    }
+    sizes.sort(function (a, b) { return a - b; });
+    return sizes.map(function (s) { return bySize[s]; });
+  }
+
+  function resolveTrackWidth(override, classWidth) {
+    return (typeof override === 'number' && override > 0) ? override : classWidth;
+  }
+
+  function resolveVia(override, cls) {
+    if (override && override.size > 0) {
+      var drill = (override.drill > 0 && override.drill < override.size) ? override.drill : null;
+      if (drill == null) drill = Math.max(0.1, Math.round(override.size / 2 * 100) / 100);
+      return { size: override.size, drill: drill };
+    }
+    var c = cls || {};
+    return { size: c.viaSize, drill: c.viaDrill };
+  }
+
+  return {
+    elbow: elbow, cleanup: cleanup, isAllowed: isAllowed,
+    widthChoices: widthChoices, viaChoices: viaChoices,
+    resolveTrackWidth: resolveTrackWidth, resolveVia: resolveVia
+  };
 });

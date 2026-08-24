@@ -13,7 +13,7 @@
     document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
     if (m === 'schematic' && !sch) { sch = Sch.makeSchematic(); schTool = 'select'; }
     if (m === 'schematic') { setTab('symbols'); ercDirty = true; }
-    if (m === 'pcb') { setTab('layers'); }
+    if (m === 'pcb') { setTab('layers'); if (typeof syncRouteControls === 'function') syncRouteControls(); }
     const ercPanel = $('erc-panel');
     if (ercPanel && m !== 'schematic') ercPanel.classList.add('hidden');
     setTool('select');

@@ -183,7 +183,10 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] `generator` modeled (`board.generator`), synthesized `(general (thickness 1.6))` suppressed when extras carry one; cycle-2 output byte-stable; test/test_extra_rt.js incl. video.kicad_pcb real-file gate (2 dimensions / 175 models) — 38/38 suites green; cache v=47 / kipad-v41 — 2026-08-24
 - [x] Improve interactive trace routing with 45-degree routing and route cleanup — 2026-08-24
   - [x] `js/route.js` (KipadRoute, UMD pure): `elbow()` bends every route into H/V/45 segments (posture 'diag' default / 'straight', `/` toggles live), `cleanup()` drops duplicate + collinear points before commit, Backspace during routing removes the last placed point; dashed preview renders the real constrained elbow path — test/test_route.js (38 checks) · cache v=48 / sw kipad-v42
-- [ ] Add trace width and via-size controls
+- [x] Add trace width and via-size controls — 2026-08-24
+  - [x] Pure helpers in `js/route.js`: `widthChoices` (class default merged with presets, deduped/ascending), `viaChoices` (size-deduped {size,drill} pairs, class pair wins clashes, missing drill = half size), `resolveTrackWidth` / `resolveVia` (override-or-class) — test/test_route.js +13 checks
+  - [x] KiCad-style toolbar comboboxes in PCB mode: Track width select (net-class default entry + presets 0.15–2.0 mm, custom widths stay visible) and Via size select (default + 0.6/0.3 … 1.2/0.6 mm); selections persist in localStorage, override the net class for NEW tracks/vias until reset to "default"; live route re-widths on change
+  - [x] W now cycles "net class default → ascending presets → back to default"; new Route-menu row cycles via sizes; Route menu labels show current state; syncs on mode enter / route start; cache v=49 / sw kipad-v43
 - [ ] Add route layer switching that automatically inserts a via
 - [ ] Add multi-select and group move/rotate/delete
 - [ ] Audit undo/redo so every PCB editing operation is reversible

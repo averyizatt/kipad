@@ -256,11 +256,12 @@
     let netId = 0;
     if (hit) netId = hit.pad.netId;
     else if (hiNet != null) netId = hiNet;
-    // default width comes from the net's class (W still cycles from there)
-    trackWidth = B.netClassOfNet(board, netId).trackWidth;
+    // default width comes from the net's class unless the user picked one (toolbar / W)
+    trackWidth = KipadRoute.resolveTrackWidth(widthOverride, B.netClassOfNet(board, netId).trackWidth);
     route = { pts: [[snap(x), snap(y)]], netId, layer, width: trackWidth, posture: routePosture };
     if (hit) route.pts = [[hit.pad.at[0], hit.pad.at[1]]];
     setStatus('Routing net "' + B.netName(board, netId) + '" — tap points (/ = 45° posture, Backspace = undo point), Enter to finish, V = via+layer');
+    if (typeof syncRouteControls === 'function') syncRouteControls();
   }
   function extendRoute(x, y) {
     if (!route) return;
@@ -283,21 +284,72 @@
   function addViaHere(x, y) {
     pushUndo();
     const netId = route ? route.netId : (hiNet != null ? hiNet : 0);
-    // vias take size/drill from the net's class
-    const cls = B.netClassOfNet(board, netId);
-    const v = B.addVia(board, [snap(x), snap(y)], cls.viaSize, cls.viaDrill, netId);
+    // vias take size/drill from the net's class unless overridden in the toolbar
+    const v = KipadRoute.resolveVia(viaOverride, B.netClassOfNet(board, netId));
+    const via = B.addVia(board, [snap(x), snap(y)], v.size, v.drill, netId);
     if (route) route.layer = route.layer === 'F.Cu' ? 'B.Cu' : 'F.Cu';
     render(); refreshAll();
-    return v;
+    return via;
+  }
+
+  // ---------- track width / via size controls (toolbar selects + W/V cycles) ----------
+  function syncRouteControls() {
+    const selW = $('sel-width'), selV = $('sel-via');
+    if (!selW || !selV || mode !== 'pcb') return;
+    const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
+    const widths = KipadRoute.widthChoices(cls.trackWidth, TRACK_WIDTHS);
+    const effW = KipadRoute.resolveTrackWidth(widthOverride, cls.trackWidth);
+    selW.innerHTML = '<option value="default">' + esc(cls.name + ' (' + cls.trackWidth + ' mm)') + '</option>' +
+      widths.map(w => '<option value="' + w + '" ' + (widthOverride != null && Math.abs(w - effW) < 1e-9 ? 'selected' : '') + '>' + w + ' mm</option>').join('');
+    if (widthOverride == null) selW.value = 'default';
+    else if (!widths.some(w => Math.abs(w - effW) < 1e-9)) {
+      // custom width not in presets — keep it visible instead of silently reverting
+      selW.insertAdjacentHTML('beforeend', '<option value="' + effW + '" selected>' + effW + ' mm</option>');
+    }
+    const vias = KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, VIA_SIZES);
+    const effV = KipadRoute.resolveVia(viaOverride, cls);
+    selV.innerHTML = '<option value="default">' + esc(cls.name + ' (' + cls.viaSize + '/' + cls.viaDrill + ')') + '</option>' +
+      vias.map(v => '<option value="' + v.size + '|' + v.drill + '" ' + (viaOverride && Math.abs(v.size - effV.size) < 1e-9 && Math.abs(v.drill - effV.drill) < 1e-9 ? 'selected' : '') + '>' + v.size + '/' + v.drill + ' mm</option>').join('');
+    if (!viaOverride) selV.value = 'default';
+    selW.onchange = () => {
+      widthOverride = selW.value === 'default' ? null : parseFloat(selW.value);
+      trackWidth = KipadRoute.resolveTrackWidth(widthOverride, B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0)).trackWidth);
+      if (route) route.width = trackWidth;
+      setStatus('Track width: ' + (widthOverride == null ? 'net class default' : trackWidth + ' mm'));
+      render(); saveLocal();
+    };
+    selV.onchange = () => {
+      if (selV.value === 'default') viaOverride = null;
+      else { const [s, d] = selV.value.split('|').map(Number); viaOverride = { size: s, drill: d }; }
+      setStatus('Via size: ' + (viaOverride ? viaOverride.size + '/' + viaOverride.drill + ' mm' : 'net class default'));
+      saveLocal();
+    };
   }
   function cycleTrackWidth() {
     const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
-    const widths = [];
-    for (const w of [cls.trackWidth].concat(TRACK_WIDTHS)) if (widths.indexOf(w) < 0) widths.push(w);
-    trackWidth = widths[(widths.indexOf(trackWidth) + 1) % widths.length];
+    // first choice is "follow the net class", then explicit ascending widths
+    const choices = [null].concat(KipadRoute.widthChoices(cls.trackWidth, TRACK_WIDTHS));
+    const cur = widthOverride == null ? null : trackWidth;
+    let i = choices.findIndex(c => c == null ? widthOverride == null : Math.abs(c - cur) < 1e-9);
+    if (i < 0) i = 0;
+    widthOverride = choices[(i + 1) % choices.length];
+    trackWidth = KipadRoute.resolveTrackWidth(widthOverride, cls.trackWidth);
     if (route) route.width = trackWidth;
-    setStatus('Track width: ' + trackWidth + ' mm');
+    syncRouteControls(); saveLocal();
+    setStatus('Track width: ' + (widthOverride == null ? 'net class default (' + cls.trackWidth + ' mm)' : trackWidth + ' mm'));
     render();
+  }
+  function cycleViaSize() {
+    const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
+    const eff = KipadRoute.resolveVia(viaOverride, cls);
+    const pairs = [{ size: cls.viaSize, drill: cls.viaDrill, def: true }]
+      .concat(KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, VIA_SIZES));
+    let i = pairs.findIndex(p => p.def ? !viaOverride : Math.abs(p.size - eff.size) < 1e-9 && Math.abs(p.drill - eff.drill) < 1e-9);
+    if (i < 0) i = 0;
+    const nxt = pairs[(i + 1) % pairs.length];
+    viaOverride = nxt.def ? null : { size: nxt.size, drill: nxt.drill };
+    syncRouteControls(); saveLocal();
+    setStatus('Via size: ' + (viaOverride ? viaOverride.size + '/' + viaOverride.drill + ' mm' : 'net class default (' + cls.viaSize + '/' + cls.viaDrill + ')'));
   }
 
   // outline graphics (line/rect/circle/arc → Edge.Cuts polylines)

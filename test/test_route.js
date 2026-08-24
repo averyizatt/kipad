@@ -80,4 +80,24 @@ const bt = KR.cleanup(pts);
 ok(near(bt[bt.length - 1][0], 12) && near(bt[bt.length - 1][1], 3), 'backtrack + retap reaches new target');
 for (let i = 0; i < bt.length - 1; i++) ok(KR.isAllowed(bt[i], bt[i + 1]), 'backtracked segment ' + i + ' allowed');
 
+// --- width/via choice + resolution helpers (toolbar combobox backing) ---
+let wc = KR.widthChoices(0.25, [0.2, 0.5, 0.25, 1.0, 0.15, -1]);
+ok(JSON.stringify(wc) === JSON.stringify([0.15, 0.2, 0.25, 0.5, 1.0]), 'widthChoices: class default merged with presets, deduped, ascending, invalid dropped');
+ok(KR.widthChoices(0.3).length === 1 && KR.widthChoices(0.3)[0] === 0.3, 'widthChoices: presets optional, class-only list works');
+let vc = KR.viaChoices(0.8, 0.4, [[0.6, 0.3], [0.8, 0.35], [1.0, 0.5], [0, 9]]);
+ok(vc.length === 3, 'viaChoices: deduped by size (class wins size clash), invalid dropped');
+ok(vc[0].size === 0.6 && vc[1].size === 0.8 && vc[2].size === 1.0, 'viaChoices: ascending by size');
+ok(vc[1].drill === 0.4, 'viaChoices: class drill kept on size clash');
+let vd = KR.viaChoices(1.2, null, []);
+ok(vd[0].drill === 0.6, 'viaChoices: missing drill defaults to half the via size');
+ok(KR.resolveTrackWidth(null, 0.3) === 0.3, 'resolveTrackWidth: null override → class width');
+ok(KR.resolveTrackWidth(undefined, 0.3) === 0.3 && KR.resolveTrackWidth(0, 0.3) === 0.3, 'resolveTrackWidth: undefined/zero override → class width');
+ok(KR.resolveTrackWidth(0.45, 0.3) === 0.45, 'resolveTrackWidth: explicit override wins');
+let rv = KR.resolveVia({ size: 0.9, drill: 0 }, { viaSize: 0.8, viaDrill: 0.4 });
+ok(rv.size === 0.9 && rv.drill === 0.45, 'resolveVia: override with bad drill falls back to half-size drill');
+let rvd = KR.resolveVia(null, { viaSize: 0.8, viaDrill: 0.4 });
+ok(rvd.size === 0.8 && rvd.drill === 0.4, 'resolveVia: null override → class size/drill pair');
+ok(KR.resolveVia({ size: 1.0, drill: 0.5 }, { viaSize: 0.8, viaDrill: 0.4 }).size === 1.0, 'resolveVia: explicit pair wins');
+ok(KR.widthChoices(0.25, [1.0])[0] === 0.25 && KR.viaChoices(0.8, 0.4, []).length === 1, 'choices: class-only inputs survive');
+
 console.log('test_route.js: ' + pass + ' checks passed');

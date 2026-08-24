@@ -81,19 +81,24 @@
   let plugins = {};             // name -> {name, enabled}
   let installedPlugins = [];    // {name, fn} loaded from files
 
-  const TRACK_WIDTHS = [0.2, 0.25, 0.5, 1.0];
+  const TRACK_WIDTHS = [0.15, 0.2, 0.25, 0.3, 0.5, 0.8, 1.0, 1.27, 2.0];
+  const VIA_SIZES = [[0.6, 0.3], [0.8, 0.4], [1.0, 0.5], [1.2, 0.6]]; // [size, drill] mm
+  let widthOverride = null;   // explicit new-track width (mm) or null = net-class default
+  let viaOverride = null;     // {size, drill} for new vias or null = net-class default
   const GRIDS = [0.1, 0.25, 0.5, 1.0];
   const LAYERS = ['F.Cu', 'B.Cu', 'Edge.Cuts', 'F.SilkS', 'B.SilkS', 'F.Mask', 'B.Mask', 'F.Fab', 'B.Fab', 'F.CrtYd', 'B.CrtYd'];
 
   // ---------- persistence ----------
   const LS_KEY = 'kipad.board.v1';
   function saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, grid })); } catch (e) {}
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, grid, widthOverride, viaOverride })); } catch (e) {}
   }
   function loadLocal() {
     try {
       const d = JSON.parse(localStorage.getItem(LS_KEY));
       if (d && d.board) { board = d.board; view = d.view || view; layer = d.layer || layer; grid = d.grid || grid; }
+      if (d && typeof d.widthOverride === 'number' && d.widthOverride > 0) widthOverride = d.widthOverride;
+      if (d && d.viaOverride && d.viaOverride.size > 0) viaOverride = { size: d.viaOverride.size, drill: d.viaOverride.drill };
     } catch (e) {}
     B.ensureNetClasses(board);
     // the net class of the default net is the source of truth for the

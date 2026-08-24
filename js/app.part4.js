@@ -747,7 +747,8 @@
       route: [
         ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
         ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]); }, 'V'],
-        ['Track width: ' + trackWidth + ' mm', cycleTrackWidth, 'W']
+        ['Track width: ' + (widthOverride == null ? 'net class default' : trackWidth + ' mm'), cycleTrackWidth, 'W'],
+        ['Via size: ' + (viaOverride == null ? 'net class default' : viaOverride.size + '/' + viaOverride.drill + ' mm'), cycleViaSize, '']
       ],
       inspect: [
         ['Run DRC', () => $('btn-drc').click(), ''],
@@ -836,7 +837,7 @@
     showModal('Shortcuts', `
       S select · H net highlight · F / A footprint · X route · V via · Z zone · T text · L line · M measure<br>
       G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
-      Routing: 45° mode with / (diagonal/straight posture) · Backspace removes the last point while routing<br>
+      Routing: 45° mode with / (diagonal/straight posture) · Backspace removes the last point while routing · Track/Via dropdowns in the toolbar pick width & size for new tracks/vias (W cycles widths)<br>
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>
       Schematic: S select · W wire · L net label · Ctrl+H global label · J junction · Q no-connect<br>
