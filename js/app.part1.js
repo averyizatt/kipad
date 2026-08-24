@@ -43,6 +43,7 @@
   let panning = false, lastPan = null;
   let pointers = new Map();
   let penDown = null;       // active Apple Pencil pointerId (for palm rejection)
+  const eraserPointers = new Set(); // consume eraser-end up/cancel without triggering tap tools
   let lastPenTap = 0;       // for pencil double-tap → Select
   let lastTap = 0;
   let measureA = null;
