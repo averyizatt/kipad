@@ -49,6 +49,7 @@
       selSymId: schSelId,
       wirePts: schWirePts.length ? schWirePts : null,
       wireCur: schWireCur,
+      snapHi: schSnapHi || null,
       previewSym: (schTool === 'symbol' && schPlaceName && crosshair)
         ? { name: schPlaceName, at: [snap(crosshair[0]), snap(crosshair[1])], angle: schAngle } : null,
       ercMarkers: (showErcMarkers && ercViolations.length && Erc)

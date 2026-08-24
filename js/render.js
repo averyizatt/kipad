@@ -576,6 +576,14 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
     }
     ctx.stroke();
     ctx.setLineDash([]);
+    if (state.wirePts.length === 1) {
+      // lone start point is otherwise invisible — show the anchor dot
+      const [dx, dy] = w2s(view, state.wirePts[0][0], state.wirePts[0][1], cw, ch);
+      ctx.fillStyle = '#00b400';
+      ctx.beginPath();
+      ctx.arc(dx, dy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // junctions
@@ -585,6 +593,15 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
     ctx.beginPath();
     ctx.arc(sx, sy, 3, 0, Math.PI * 2);
     ctx.fill();
+  }
+  if (state.snapHi) {
+    // magnetic-snap highlight so touch users see what a tap will connect to
+    const [hx, hy] = w2s(view, state.snapHi[0], state.snapHi[1], cw, ch);
+    ctx.strokeStyle = SEL;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   // no-connect flags (KiCad: dark-blue X at the pin tip)

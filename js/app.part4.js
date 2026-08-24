@@ -47,7 +47,7 @@
       updatePenHud(e);
       if (KipadGestures.penInfo(e).eraser) {
         eraserPointers.add(e.pointerId);
-        const [ex, ey] = s2w(e.clientX, e.clientY);
+        const [ex, ey] = s2w(...evPos(e));
         eraseAt(ex, ey);
         e.preventDefault();
         return;
@@ -69,7 +69,7 @@
     if (e.pointerType === 'touch' && penDown !== null) return;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const [wx, wy] = s2w(e.clientX, e.clientY);
+    const [wx, wy] = s2w(...evPos(e));
     crosshair = [wx, wy];
     twoTap.feed({ type: 'down', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
 
@@ -264,18 +264,20 @@
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     twoTap.feed({ type: 'move', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
-    const [wx, wy] = s2w(e.clientX, e.clientY);
+    const [wx, wy] = s2w(...evPos(e));
     crosshair = [wx, wy];
 
     if (mode === 'schematic') {
       if (schTool === 'wire' && schWirePts.length) {
         const lastP = schWirePts[schWirePts.length - 1];
         const hitP = SchWires.pick(schTargets(), wx, wy, schPickThr());
+        schSnapHi = hitP ? [hitP.at[0], hitP.at[1]] : null;
         const bx = hitP ? hitP.at[0] : snap(wx);
         const by = hitP ? hitP.at[1] : snap(wy);
         schWireCur = SchWires.elbow(lastP, [bx, by]).concat([[bx, by]]);
       } else {
         schWireCur = null;
+        schSnapHi = null;
       }
       if (schDrag && schDrag.pan) {
         const dx = (e.clientX - lastPan.x) / view.zoom;
@@ -299,9 +301,9 @@
       if (pinchDist) {
         const mid = [(p1.x + p2.x) / 2, (p1.y + p2.y) / 2];
         const factor = d / pinchDist;
-        const [mw, mwy] = s2w(mid[0], mid[1]);
+        const [mw, mwy] = s2w(...evPosAt(mid[0], mid[1]));
         view.zoom = Math.max(0.5, Math.min(50, view.zoom * factor));
-        const [nw, nwy] = s2w(mid[0], mid[1]);
+        const [nw, nwy] = s2w(...evPosAt(mid[0], mid[1]));
         view.x += mw - nw; view.y += mwy - nwy;
         pinchDist = d;
       }
@@ -358,16 +360,22 @@
 
     if (mode === 'schematic') {
       const now2 = Date.now();
-      if (schTool === 'wire' && schWirePts.length >= 2 && now2 - lastTap < 350) {
+      // finish-on-double-tap only counts when BOTH taps land in the same
+      // spot; otherwise quick corner-tapping kept committing half-drawn wires
+      if (schTool === 'wire' && schWirePts.length >= 2 && now2 - lastTap < 350 &&
+          lastTapPos && Math.hypot(lastTapPos[0] - wx, lastTapPos[1] - wy) < schPickThr()) {
         finishSchWire();
         lastTap = 0;
+        lastTapPos = null;
         render();
         return;
       }
       lastTap = now2;
+      lastTapPos = [wx, wy];
       if (schDrag && schDrag.symId) schPushUndo();
       schDrag = null;
       schWireCur = null;
+      schSnapHi = null;
       render();
       return;
     }
@@ -403,9 +411,9 @@
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
     const [mx, my] = [e.clientX, e.clientY];
-    const [mw, mwy] = s2w(mx, my);
+    const [mw, mwy] = s2w(...evPos(e));
     view.zoom = Math.max(0.5, Math.min(50, view.zoom * factor));
-    const [nw, nwy] = s2w(mx, my);
+    const [nw, nwy] = s2w(...evPos(e));
     view.x += mw - nw; view.y += mwy - nwy;
     render();
   }, { passive: false });
@@ -528,13 +536,16 @@
   }
 
   function schPickThr() {
-    return Math.min(0.8, Math.max(0.3, grid));
+    // touch-sized magnet radius: ~26 on-screen px worth of world distance,
+    // clamped so dense pin fields still resolve to the nearest target
+    return Math.min(3, Math.max(0.35, pxToWorld(26)));
   }
   function schTargets() {
     return SchWires.collectTargets(sch, s => Sch.pinPositions(s, Syms.getSymbol));
   }
   function finishSchWire() {
     if (schWirePts.length < 2) { schWirePts = []; render(); return; }
+    schSnapHi = null;
     const myPts = schWirePts.map(p => p.slice());
     const others = sch.wires.slice();
     schPushUndo();
@@ -568,10 +579,19 @@
         case 'h': case 'H':
           if (e.ctrlKey || e.metaKey) { e.preventDefault(); setSchTool('glabel'); }   // KiCad legacy Ctrl+H = Add Global Label
           break;
-        case 'Delete': case 'Backspace': e.preventDefault(); schDoDelete(); break;
+        case 'Delete': case 'Backspace':
+          e.preventDefault();
+          if (schTool === 'wire' && schWirePts.length) {
+            schWirePts.pop();
+            schSnapHi = null;
+            setStatus(schWirePts.length ? 'Wire: point removed' : 'Wire cancelled');
+            render();
+            break;
+          }
+          schDoDelete(); break;
         case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
         case 'Escape':
-          schWirePts = []; schPlaceName = null; schSelNc = null; setSchTool('select'); break;
+          schWirePts = []; schSnapHi = null; schPlaceName = null; schSelNc = null; setSchTool('select'); break;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? schRedoStep() : schUndoStep(); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); schRedoStep(); }
