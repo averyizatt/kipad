@@ -185,5 +185,11 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [ ] Add multi-select and group move/rotate/delete
 - [ ] Audit undo/redo so every PCB editing operation is reversible
 - [ ] Add board setup + net-class editor
-- [ ] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM
+- [x] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM — done as PCB File > Export fabrication package (.zip) — 2026-08-24
 
+
+## Session 2026-08-24 (~16:50 UTC) — fabrication ZIP export
+- [x] js/zip.js (KipadZip UMD): table-driven CRC32, UTF-8 toBytes, store-mode zipStore (local headers + central directory + EOCD), deterministic given fixed timestamp — 2026-08-24
+- [x] PCB File > Export fabrication package (.zip) — doFabZip bundles gerbers/ (9-layer set), drill/kipad.drl, placement/kipad-top|bottom.pos, plus bom/kipad-bom.csv when a schematic is loaded; binary download via new downloadBytes(); status reports file count + KB — 2026-08-24
+- [x] test/test_zip.js: 59 checks (CRC vectors 0xCBF43926 + fox vector, multibyte UTF-8, full structure walk with CD↔local-header cross-checks, DOS datetime encoding, byte-determinism); archive also validated externally with python zipfile (testzip clean, names + readback OK) — 2026-08-24
+- [x] Cache discipline: index.html ?v=45→v46 (32 refs incl. new zip.js tag), sw ASSETS += ./js/zip.js, CACHE kipad-v39→v40 · **35/35 test suites green** — 2026-08-24

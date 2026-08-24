@@ -9,6 +9,7 @@
   const Bom = window.KipadBom || null;
   const NetlistExp = window.KipadNetlist || null;
   const SymFields = window.KipadSymFields || null;
+  const Zip = window.KipadZip || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;

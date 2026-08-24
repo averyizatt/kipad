@@ -549,6 +549,44 @@
     download('kipad.net', out.text, 'text/plain');
     setStatus('Netlist exported: ' + out.data.nets.length + ' net' + (out.data.nets.length === 1 ? '' : 's') + ', ' + out.data.components.length + ' component' + (out.data.components.length === 1 ? '' : 's'));
   }
+  function doFabZip() {
+    if (!Zip) { setStatus('ZIP module not loaded'); return; }
+    if (!Gerber) { setStatus('Gerber module not loaded'); return; }
+    const files = [];
+    const g = Gerber.exportAll(board, FPs ? FPs.getFootprint : null);
+    for (const [l, txt] of Object.entries(g)) {
+      files.push({ name: 'gerbers/kipad-' + l.replace(/[^A-Za-z0-9]/g, '') + '.gbr', data: txt });
+    }
+    if (Drill) {
+      const d = Drill.exportDrill(board);
+      if (d) files.push({ name: 'drill/kipad.drl', data: d });
+    }
+    if (Pos) {
+      const p = Pos.exportPos(board);
+      if (p.front) files.push({ name: 'placement/kipad-top.pos', data: p.front });
+      if (p.back) files.push({ name: 'placement/kipad-bottom.pos', data: p.back });
+    }
+    let bomNote = '';
+    if (Bom && sch && sch.symbols.length) {
+      try {
+        const b = Bom.exportBom(sch);
+        if (b.rows.length) { files.push({ name: 'bom/kipad-bom.csv', data: b.csv }); bomNote = ' + BOM'; }
+      } catch (e) { /* BOM is best-effort inside the package */ }
+    }
+    if (!files.length) { setStatus('Nothing to export — board is empty'); return; }
+    const bytes = Zip.zipStore(files);
+    downloadBytes('kipad-fab.zip', bytes, 'application/zip');
+    const kb = Math.max(1, Math.round(bytes.length / 1024));
+    setStatus('Fab package exported: ' + files.length + ' file' + (files.length === 1 ? '' : 's') + bomNote + ' (' + kb + ' KB)');
+  }
+  function downloadBytes(name, bytes, mime) {
+    const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
   function download(name, text, mime) {
     const blob = new Blob([text], { type: mime || 'text/plain' });
     const a = document.createElement('a');
