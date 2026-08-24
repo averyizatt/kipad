@@ -59,8 +59,9 @@
   const Erc = window.KipadErc || null;
   let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
   let sch = null;               // schematic model
-  let schTool = 'select';       // select | symbol | wire | label | junction
+  let schTool = 'select';       // select | symbol | wire | label | junction | noconn
   let schSelId = null;          // selected symbol id
+  let schSelNc = null;          // selected no-connect flag id
   let schWirePts = [];          // in-progress wire
   let schPlaceName = null;      // symbol being placed
   let schAngle = 0;
