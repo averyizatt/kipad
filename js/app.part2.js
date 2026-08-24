@@ -341,7 +341,7 @@
     const selW = $('sel-width'), selV = $('sel-via');
     if (!selW || !selV || mode !== 'pcb') return;
     const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
-    const widths = KipadRoute.widthChoices(cls.trackWidth, TRACK_WIDTHS);
+    const widths = KipadRoute.widthChoices(cls.trackWidth, KipadSetup.effective(board).trackWidths);
     const effW = KipadRoute.resolveTrackWidth(widthOverride, cls.trackWidth);
     selW.innerHTML = '<option value="default">' + esc(cls.name + ' (' + cls.trackWidth + ' mm)') + '</option>' +
       widths.map(w => '<option value="' + w + '" ' + (widthOverride != null && Math.abs(w - effW) < 1e-9 ? 'selected' : '') + '>' + w + ' mm</option>').join('');
@@ -350,7 +350,7 @@
       // custom width not in presets — keep it visible instead of silently reverting
       selW.insertAdjacentHTML('beforeend', '<option value="' + effW + '" selected>' + effW + ' mm</option>');
     }
-    const vias = KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, VIA_SIZES);
+    const vias = KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, KipadSetup.effective(board).viaSizes);
     const effV = KipadRoute.resolveVia(viaOverride, cls);
     selV.innerHTML = '<option value="default">' + esc(cls.name + ' (' + cls.viaSize + '/' + cls.viaDrill + ')') + '</option>' +
       vias.map(v => '<option value="' + v.size + '|' + v.drill + '" ' + (viaOverride && Math.abs(v.size - effV.size) < 1e-9 && Math.abs(v.drill - effV.drill) < 1e-9 ? 'selected' : '') + '>' + v.size + '/' + v.drill + ' mm</option>').join('');
@@ -372,7 +372,7 @@
   function cycleTrackWidth() {
     const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
     // first choice is "follow the net class", then explicit ascending widths
-    const choices = [null].concat(KipadRoute.widthChoices(cls.trackWidth, TRACK_WIDTHS));
+    const choices = [null].concat(KipadRoute.widthChoices(cls.trackWidth, KipadSetup.effective(board).trackWidths));
     const cur = widthOverride == null ? null : trackWidth;
     let i = choices.findIndex(c => c == null ? widthOverride == null : Math.abs(c - cur) < 1e-9);
     if (i < 0) i = 0;
@@ -387,7 +387,7 @@
     const cls = B.netClassOfNet(board, route ? route.netId : (hiNet != null ? hiNet : 0));
     const eff = KipadRoute.resolveVia(viaOverride, cls);
     const pairs = [{ size: cls.viaSize, drill: cls.viaDrill, def: true }]
-      .concat(KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, VIA_SIZES));
+      .concat(KipadRoute.viaChoices(cls.viaSize, cls.viaDrill, KipadSetup.effective(board).viaSizes));
     let i = pairs.findIndex(p => p.def ? !viaOverride : Math.abs(p.size - eff.size) < 1e-9 && Math.abs(p.drill - eff.drill) < 1e-9);
     if (i < 0) i = 0;
     const nxt = pairs[(i + 1) % pairs.length];
@@ -476,7 +476,8 @@
   let drcViolations = [];
   function runDRC() {
     const panel = $('drc-panel');
-    drcViolations = B.runDRC(board);
+    const st = KipadSetup.effective(board);
+    drcViolations = B.runDRC(board, { clearance: st.minClearance, holeClearance: st.holeClearance, edgeClearance: st.edgeClearance });
     panel.classList.remove('hidden');
     if (!drcViolations.length) {
       panel.innerHTML = '<h4>DRC</h4><div class="drc-clear">✓ No violations — clearances, holes, edges, silkscreen and connectivity all pass</div>';

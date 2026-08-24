@@ -860,12 +860,21 @@
     }
     return out;
   }
-  function runDRC(board, clearanceOverride) {
-    // clearanceOverride: optional explicit min clearance (mm) that replaces
-    // per-net-class values — kept for backward compatibility. Otherwise the
-    // required clearance between two items is the LARGER of the two classes'
-    // clearances (KiCad rule).
+  function optNum(v, fallback) {
+    const n = typeof v === 'string' ? parseFloat(v) : v;
+    return (typeof n === 'number' && isFinite(n)) ? n : fallback;
+  }
+  function runDRC(board, opts) {
+    // opts: number → explicit min clearance that replaces per-net-class values
+    // (backward compatible); object → { clearance?, holeClearance?, edgeClearance? }
+    // constraint overrides from Board Setup. Missing fields keep the defaults.
+    // Otherwise the required clearance between two items is the LARGER of the two
+    // classes' clearances (KiCad rule).
     ensureNetClasses(board);
+    const o = (opts !== null && typeof opts === 'object') ? opts : {};
+    const clOverride = (typeof opts === 'number' && isFinite(opts)) ? opts : optNum(o.clearance, null);
+    const holeCl = Math.max(0, optNum(o.holeClearance, HOLE_CLEARANCE_DEFAULT));
+    const edgeCl = Math.max(0, optNum(o.edgeClearance, EDGE_CLEARANCE_DEFAULT));
     const violations = [];
     for (const layer of ['F.Cu', 'B.Cu']) {
       const items = copperItems(board, layer);
@@ -875,8 +884,8 @@
           if (a.netId !== 0 && a.netId === b.netId) continue; // same net OK
           const clsA = netClassOfNet(board, a.netId);
           const clsB = netClassOfNet(board, b.netId);
-          const minCl = (clearanceOverride != null && clearanceOverride > 0)
-            ? clearanceOverride
+          const minCl = (clOverride != null && clOverride > 0)
+            ? clOverride
             : Math.max(clsA.clearance, clsB.clearance);
           const d = itemDist(a, b);
           if (d < minCl) {
@@ -906,12 +915,12 @@
             if (it.ownerPad && it.ownerPad === h.ownerPad) continue; // own annulus
             if (h.netId !== 0 && h.netId === it.netId) continue;    // same net
             const d = itemHoleDist(h, it);
-            if (d >= HOLE_CLEARANCE_DEFAULT) continue;
+            if (d >= holeCl) continue;
             violations.push({
               type: `hole-${it.kind}`, severity: 'error',
-              msg: `${it.kind} (${netName(board, it.netId)}) ${d < 0 ? 'crosses' : 'crowds'} ${h.kind === 'via' ? 'via' : 'pad'} drill hole (${netName(board, h.netId)}): gap ${Math.round(d * 1000) / 1000}mm < ${HOLE_CLEARANCE_DEFAULT}mm hole clearance`,
+              msg: `${it.kind} (${netName(board, it.netId)}) ${d < 0 ? 'crosses' : 'crowds'} ${h.kind === 'via' ? 'via' : 'pad'} drill hole (${netName(board, h.netId)}): gap ${Math.round(d * 1000) / 1000}mm < ${holeCl}mm hole clearance`,
               netA: netName(board, h.netId), netB: netName(board, it.netId),
-              dist: Math.round(d * 1000) / 1000, clearance: HOLE_CLEARANCE_DEFAULT,
+              dist: Math.round(d * 1000) / 1000, clearance: holeCl,
               classA: '', classB: '', layer,
               x: Math.round(h.x * 1000) / 1000,
               y: Math.round(h.y * 1000) / 1000
@@ -930,14 +939,14 @@
             const d = itemEdgeDist(it, s);
             if (!worst || d < worst.d) worst = { d };
           }
-          if (worst && worst.d < EDGE_CLEARANCE_DEFAULT) {
+          if (worst && worst.d < edgeCl) {
             const cx = it.x != null ? it.x : (it.seg ? (it.seg[0][0] + it.seg[1][0]) / 2 : 0);
             const cy = it.y != null ? it.y : (it.seg ? (it.seg[0][1] + it.seg[1][1]) / 2 : 0);
             violations.push({
               type: `edge-${it.kind}`, severity: 'error',
-              msg: `${it.kind} (${netName(board, it.netId)}) too close to board edge: gap ${Math.round(worst.d * 1000) / 1000}mm < ${EDGE_CLEARANCE_DEFAULT}mm edge clearance`,
+              msg: `${it.kind} (${netName(board, it.netId)}) too close to board edge: gap ${Math.round(worst.d * 1000) / 1000}mm < ${edgeCl}mm edge clearance`,
               netA: netName(board, it.netId), netB: '',
-              dist: Math.round(worst.d * 1000) / 1000, clearance: EDGE_CLEARANCE_DEFAULT,
+              dist: Math.round(worst.d * 1000) / 1000, clearance: edgeCl,
               classA: '', classB: '', layer,
               x: Math.round(cx * 1000) / 1000,
               y: Math.round(cy * 1000) / 1000

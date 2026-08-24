@@ -199,7 +199,10 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [x] Audit undo/redo so every PCB editing operation is reversible — 2026-08-24
   - Audited every board-mutating call site in app.part1–4: placement (fp/via/text/zone/outline), route commit (atomic per-segment layers + staged vias), delete/rotate/drag/nudge (single + group), properties-panel field edits, side flip, Update-PCB, open/new/restore — all snapshot before mutation; see DEVLOG ~18:40 for the matrix
   - Gap found and fixed: Net Classes editor mutated netClasses/net assignments live with no undo → new `beginUndoGroup`/`endUndoGroup` dialog-scoped undo (base pushed on close only if the board changed; one Ctrl+Z reverts the session, cancel leaves no trace) · cache v=52 / sw kipad-v46
-- [ ] Add board setup + net-class editor
+- [x] Add board setup + net-class editor
+  - [x] Net Classes… editor (Nets panel) — shipped 2026-08-23 (see Session 2026-08-23 evening)
+  - [x] Board Setup dialog (File ▸ Board Setup…, KiCad-style): Constraints (min clearance — blank = per-net-pair max of the two class clearances — plus hole/edge clearance overrides) + Pre-defined sizes (track widths / via size-drill pairs as free text, normalized live); "Net Classes…" button opens the existing editor; whole dialog = one undo step via beginUndoGroup; cache v=53 / sw kipad-v47 — 2026-08-24
+  - [x] `js/setup.js` (KipadSetup, UMD pure): `normalize`/`effective` merge board.setup over KiCad defaults (hole 0.25 / edge 0.5 mm, preset width/via lists), 3-decimal rounding, garbage-tolerant (bad values fall back, unknown keys dropped), via pairs size>drill with half-size drill fallback + first-wins dedupe; `runDRC(board, opts)` now accepts `{clearance?, holeClearance?, edgeClearance?}` (number form still supported) and board.setup feeds it on every DRC run — test/test_setup.js (30 checks) · 42/42 suites green
 - [x] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM — done as PCB File > Export fabrication package (.zip) — 2026-08-24
 
 

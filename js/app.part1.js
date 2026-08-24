@@ -54,6 +54,7 @@
   const eraserPointers = new Set(); // consume eraser-end up/cancel without triggering tap tools
   let lastPenTap = 0;       // for pencil double-tap → Select
   let lastTap = 0;
+  let lastTapPos = null;
   let measureA = null;
   let crosshair = null;
   let currentTab = 'layers';
@@ -77,6 +78,7 @@
   let schUndo = [], schRedo = [];
   let schDrag = null;           // {symId, dx, dy}
   let schWireCur = null;
+  let schSnapHi = null;
   let ercViolations = [];       // cached ERC results (recomputed on change)
   let ercDirty = true;
   let showErcMarkers = true;    // View-menu toggle for on-canvas ERC markers
@@ -84,8 +86,6 @@
   let plugins = {};             // name -> {name, enabled}
   let installedPlugins = [];    // {name, fn} loaded from files
 
-  const TRACK_WIDTHS = [0.15, 0.2, 0.25, 0.3, 0.5, 0.8, 1.0, 1.27, 2.0];
-  const VIA_SIZES = [[0.6, 0.3], [0.8, 0.4], [1.0, 0.5], [1.2, 0.6]]; // [size, drill] mm
   let widthOverride = null;   // explicit new-track width (mm) or null = net-class default
   let viaOverride = null;     // {size, drill} for new vias or null = net-class default
   const GRIDS = [0.1, 0.25, 0.5, 1.0];
@@ -117,6 +117,20 @@
   function w2s(p) { return R.w2s(view, p[0], p[1], cw, ch); }
   function s2w(sx, sy) { return R.s2w(view, sx, sy, cw, ch); }
   function snap(v) { return Math.round(v / grid) * grid; }
+
+  // Pointer events report viewport coords; the canvas may sit anywhere in the
+  // layout (toolbars, safe areas), so always convert through a fresh rect.
+  // Feeding clientX/Y straight into s2w() made every placement land offset —
+  // glaringly obvious with an Apple Pencil.
+  function evPosAt(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    return [clientX - r.left, clientY - r.top];
+  }
+  function evPos(e) { return evPosAt(e.clientX, e.clientY); }
+  // how many world units ~px screen pixels span (for touch-sized tolerances)
+  function pxToWorld(px) {
+    return Math.abs(s2w(px, 0)[0] - s2w(0, 0)[0]);
+  }
 
   // ---------- undo ----------
   function snapshot() { return JSON.stringify(board); }
@@ -427,6 +441,60 @@
     beginUndoGroup();   // whole dialog session = one undo step (only if changed)
     showModal('Net Classes', buildNetClassesBody());
     wireNetClasses();
+  }
+
+  // ---------- board setup modal (KiCad "Board Setup" dialog) ----------
+  function buildBoardSetupBody() {
+    const s = KipadSetup.effective(board);
+    return `<h5>Constraints</h5>
+      <div class="prop-row"><label>Min clearance</label><input id="bs-mincl" type="number" step="0.05" min="0" placeholder="per net class" value="${s.minClearance != null ? s.minClearance : ''}"><span class="u">mm</span></div>
+      <div class="prop-row"><label>Hole clearance</label><input id="bs-holecl" type="number" step="0.05" min="0.05" value="${s.holeClearance}"><span class="u">mm</span></div>
+      <div class="prop-row"><label>Edge clearance</label><input id="bs-edgecl" type="number" step="0.05" min="0" value="${s.edgeClearance}"><span class="u">mm</span></div>
+      <div class="desc">Blank minimum clearance: each net pair uses the larger of its two net-class clearances (KiCad rule).</div>
+      <h5>Pre-defined sizes</h5>
+      <div class="prop-row"><label>Track widths</label><input id="bs-tw" value="${s.trackWidths.join(' ')}"></div>
+      <div class="prop-row"><label>Via sizes</label><input id="bs-vs" value="${s.viaSizes.map(v => v[0] + '/' + v[1]).join(' ')}"></div>
+      <div class="desc">Space-separated mm values · via entries are size/drill · shown in the routing toolbar selects and cycled by W and Route ▸ Via size.</div>
+      <div class="lib-actions"><button class="btn" id="bs-netclasses">Net Classes…</button></div>`;
+  }
+  function wireBoardSetup() {
+    const bodyEl = $('modal-body');
+    if (!bodyEl) return;
+    const reapply = () => {
+      const val = sel => { const el = bodyEl.querySelector(sel); return el ? el.value.trim() : ''; };
+      const widths = val('#bs-tw').split(/[\s,]+/).filter(Boolean).map(Number);
+      const viaPairs = val('#bs-vs').split(/[\s,]+/).filter(Boolean).map(tok => {
+        const parts = tok.split('/');
+        return parts.length > 1 ? [Number(parts[0]), Number(parts[1])] : [Number(parts[0])];
+      });
+      board.setup = KipadSetup.normalize({
+        minClearance: parseFloat(val('#bs-mincl')),
+        holeClearance: parseFloat(val('#bs-holecl')),
+        edgeClearance: parseFloat(val('#bs-edgecl')),
+        trackWidths: widths,
+        viaSizes: viaPairs
+      });
+      const s = KipadSetup.effective(board);
+      // echo canonical values back so the user sees sorted/deduped/rounded lists
+      const tw = bodyEl.querySelector('#bs-tw'), vs = bodyEl.querySelector('#bs-vs');
+      if (tw) tw.value = s.trackWidths.join(' ');
+      if (vs) vs.value = s.viaSizes.map(v => v[0] + '/' + v[1]).join(' ');
+      syncRouteControls(); saveLocal();
+      setStatus('Board setup: ' + (s.minClearance != null ? s.minClearance + ' mm min clearance' : 'net-class clearances')
+        + ' · hole ' + s.holeClearance + ' · edge ' + s.edgeClearance + ' · ' + s.trackWidths.length + ' widths / ' + s.viaSizes.length + ' vias');
+    };
+    ['#bs-mincl', '#bs-holecl', '#bs-edgecl', '#bs-tw', '#bs-vs'].forEach(sel => {
+      const el = bodyEl.querySelector(sel);
+      if (el) el.addEventListener('change', reapply);
+    });
+    const ncBtn = bodyEl.querySelector('#bs-netclasses');
+    if (ncBtn) ncBtn.addEventListener('click', showNetClasses);
+  }
+  function showBoardSetup() {
+    if (mode !== 'pcb') return;
+    beginUndoGroup();   // whole dialog session = one undo step (only if changed)
+    showModal('Board Setup', buildBoardSetupBody());
+    wireBoardSetup();
   }
 
   // ---------- symbol fields editor (KiCad "Edit Symbol Fields" dialog) ----------
