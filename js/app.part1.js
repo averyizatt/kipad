@@ -1,7 +1,6 @@
-/* Kipad — KiCad-like PCB editor for iPad. Main app. */
+/* Kipad — KiCad-like PCB editor for iPad. Main app, part 1: state, panels, tools, DRC/ERC, file IO. */
 'use strict';
 
-(function () {
   const B = window.KipadBoard;
   const R = window.KipadRender;
   const Pcb = window.KipadPcb;
@@ -100,8 +99,6 @@
   function w2s(p) { return R.w2s(view, p[0], p[1], cw, ch); }
   function s2w(sx, sy) { return R.s2w(view, sx, sy, cw, ch); }
   function snap(v) { return Math.round(v / grid) * grid; }
-  // selection tolerance in world mm that stays ~4 px on screen at any zoom
-  function pickTol(px) { return Math.max(0.2, (px || 4) / view.zoom); }
 
   // ---------- undo ----------
   function snapshot() { return JSON.stringify(board); }
@@ -210,10 +207,7 @@
           render(); refreshLayers();
           return;
         }
-        if (l === 'F.Cu' || l === 'B.Cu') {
-          if (zonePts && tool === 'zone') { zonePts = null; setStatus('Layer switched — zone draft cancelled'); }
-          layer = l; $('st-layer').textContent = l;
-        }
+        if (l === 'F.Cu' || l === 'B.Cu') { layer = l; $('st-layer').textContent = l; }
         render(); refreshLayers();
       });
       el.appendChild(row);
@@ -421,3 +415,115 @@
       if (px) px.addEventListener('change', applyPos);
       if (py) py.addEventListener('change', applyPos);
       const prot = $('p-rot');
+      if (prot) prot.addEventListener('change', e => {
+        pushUndo();
+        const a = parseFloat(e.target.value);
+        if (!isNaN(a)) { const d = ((a - fp.angle) % 360 + 360) % 360; B.rotateFootprint(board, fp.id, d); }
+        render();
+      });
+      const plyr = $('p-layer');
+      if (plyr) plyr.addEventListener('change', e => {
+        pushUndo();
+        fp.layer = e.target.value;
+        for (const p of fp.pads) {
+          const cu = p.layers[0];
+          p.layers[0] = fp.layer;
+          if (cu === 'F.Cu' || cu === 'B.Cu') p.layers = p.layers.map((l, i) => i === 0 ? fp.layer : (l === cu ? cu : l));
+          else p.layers = [fp.layer].concat(p.layers.filter(l => l !== 'F.Cu' && l !== 'B.Cu'));
+        }
+        render();
+      });
+      const rb = $('p-rot-btn');
+      if (rb) rb.addEventListener('click', () => { pushUndo(); B.rotateFootprint(board, fp.id, 90); refreshProps(); render(); });
+      const db = $('p-del-btn');
+      if (db) db.addEventListener('click', doDelete);
+      return;
+    }
+    const tr = board.tracks.find(t => t.id === selId);
+    if (tr) {
+      el.innerHTML = `<div class="prop-group"><h5>Track</h5>
+        <div class="prop-row"><label>Width</label><input id="p-w" value="${tr.width}"></div>
+        <div class="prop-row"><label>Layer</label><span>${tr.layer}</span></div>
+        <div class="prop-row"><label>Net</label><span>${esc(B.netName(board, tr.netId) || '—')}</span></div>
+        <div class="lib-actions"><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const w = $('p-w');
+      if (w) w.addEventListener('change', e => {
+        const v = parseFloat(e.target.value);
+        if (!isNaN(v) && v > 0) { pushUndo(); tr.width = v; render(); }
+      });
+      const db = $('p-del-btn');
+      if (db) db.addEventListener('click', () => { pushUndo(); board.tracks = board.tracks.filter(t => t.id !== selId); selId = null; selKind = null; refreshProps(); render(); });
+      return;
+    }
+    const via = board.vias.find(v => v.id === selId);
+    if (via) {
+      el.innerHTML = `<div class="prop-group"><h5>Via</h5>
+        <div class="prop-row"><label>Size</label><input id="p-s" value="${via.size}"></div>
+        <div class="prop-row"><label>Drill</label><input id="p-d" value="${via.drill}"></div>
+        <div class="prop-row"><label>Net</label><span>${esc(B.netName(board, via.netId) || '—')}</span></div>
+        <div class="lib-actions"><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const s = $('p-s'), d = $('p-d');
+      const apply = () => {
+        const sv = parseFloat(s.value), dv = parseFloat(d.value);
+        if (!isNaN(sv) && sv > 0) { pushUndo(); via.size = sv; }
+        if (!isNaN(dv) && dv > 0 && dv < via.size) { pushUndo(); via.drill = dv; }
+        render();
+      };
+      if (s) s.addEventListener('change', apply);
+      if (d) d.addEventListener('change', apply);
+      const db = $('p-del-btn');
+      if (db) db.addEventListener('click', () => { pushUndo(); board.vias = board.vias.filter(v => v.id !== selId); selId = null; selKind = null; refreshProps(); render(); });
+      return;
+    }
+    const txt = (board.texts || []).find(t => t.id === selId);
+    if (txt) {
+      el.innerHTML = `<div class="prop-group"><h5>Board Text</h5>
+        <div class="prop-row"><label>Text</label><input id="p-txt" value="${esc(txt.text)}"></div>
+        <div class="prop-row"><label>Layer</label><select id="p-tlayer"><option ${txt.layer==='F.SilkS'?'selected':''}>F.SilkS</option><option ${txt.layer==='B.SilkS'?'selected':''}>B.SilkS</option></select></div>
+        <div class="prop-row"><label>Height</label><input id="p-tsize" type="number" step="0.1" min="0.1" value="${txt.size}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Thickness</label><input id="p-tth" type="number" step="0.05" min="0.01" value="${txt.thickness}"><span class="u">mm</span></div>
+        <div class="prop-row"><label>Rotation</label><input id="p-tangle" type="number" step="1" value="${txt.angle}"><span class="u">°</span></div>
+        <div class="prop-row"><label>Align</label><select id="p-tjust"><option ${txt.justify==='left'?'selected':''}>left</option><option ${txt.justify==='center'?'selected':''}>center</option><option ${txt.justify==='right'?'selected':''}>right</option></select></div>
+        <div class="lib-actions"><button class="btn" id="p-rot-btn">Rotate 90°</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const updateText = () => {
+        pushUndo();
+        txt.text = $('p-txt').value;
+        txt.layer = $('p-tlayer').value;
+        txt.size = Math.max(0.1, parseFloat($('p-tsize').value) || txt.size);
+        txt.thickness = Math.max(0.01, parseFloat($('p-tth').value) || txt.thickness);
+        txt.angle = ((parseFloat($('p-tangle').value) || 0) % 360 + 360) % 360;
+        txt.justify = $('p-tjust').value;
+        render();
+      };
+      ['p-txt','p-tlayer','p-tsize','p-tth','p-tangle','p-tjust'].forEach(id => $(id).addEventListener('change', updateText));
+      $('p-rot-btn').addEventListener('click', () => { pushUndo(); txt.angle = (txt.angle + 90) % 360; refreshProps(); render(); });
+      $('p-del-btn').addEventListener('click', doDelete);
+      return;
+    }
+    const zn = (board.zones || []).find(z => z.id === selId);
+    if (zn) {
+      const fill = zoneFills.get(zn.id);
+      el.innerHTML = `<div class="prop-group"><h5>Zone</h5>
+        <div class="prop-row"><label>Net</label><span>${esc(zn.net || '—')}</span></div>
+        <div class="prop-row"><label>Layer</label><span>${zn.layer}</span></div>
+        <div class="prop-row"><label>Clearance</label><input id="p-zcl" type="number" step="0.05" min="0" value="${zn.clearance != null ? zn.clearance : ''}" placeholder="net class"></div>
+        <div class="prop-row"><label>Filled area</label><span>${fill ? fill.area.toFixed(1) + ' mm²' : '—'}</span></div>
+        <div class="lib-actions"><button class="btn" id="p-zrefill">Refill</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
+      const zcl = $('p-zcl');
+      if (zcl) zcl.addEventListener('change', e => {
+        pushUndo();
+        const v = parseFloat(e.target.value);
+        if (isNaN(v)) delete zn.clearance; else zn.clearance = Math.max(0, v);
+        markZonesDirty(true);
+      });
+      const zr = $('p-zrefill');
+      if (zr) zr.addEventListener('click', () => { markZonesDirty(true); setStatus('Zones refilled'); });
+      const db = $('p-del-btn');
+      if (db) db.addEventListener('click', () => { pushUndo(); B.removeZone(board, zn.id); selId = null; selKind = null; refreshProps(); render(); });
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+[PART1_TAIL]
