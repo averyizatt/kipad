@@ -303,9 +303,17 @@
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(1, t.width * view.zoom);
       ctx.lineCap = 'round';
-      const [ax, ay] = w2s(view, t.start[0], t.start[1], cw, ch);
-      const [bx, by] = w2s(view, t.end[0], t.end[1], cw, ch);
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      const segs = (typeof KipadBoard !== 'undefined' && KipadBoard.trackSegments)
+        ? KipadBoard.trackSegments(t)
+        : [{ ax: t.start[0], ay: t.start[1], bx: t.end[0], by: t.end[1] }];
+      ctx.beginPath();
+      for (let si = 0; si < segs.length; si++) {
+        const [ax, ay] = w2s(view, segs[si].ax, segs[si].ay, cw, ch);
+        const [bx, by] = w2s(view, segs[si].bx, segs[si].by, cw, ch);
+        if (si === 0) ctx.moveTo(ax, ay); else ctx.lineTo(ax, ay);
+        ctx.lineTo(bx, by);
+      }
+      ctx.stroke();
     }
 
     // ---- vias ----
@@ -405,7 +413,47 @@
       ctx.fillRect(-(w - h) / 2, -h / 2, w - h, h);
       if (p.drill) {
         ctx.fillStyle = BG;
-        ctx.beginPath(); ctx.arc(0, 0, p.drill / 2 * view.zoom, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, p.drill / 2 * view.zoom, 0, Math.PI * 2); ctx.fill();
+    } else if (p.shape === 'custom' && p.primitives && p.primitives.length) {
+      const z = view.zoom;
+      for (const prim of p.primitives) {
+        if (prim.kind === 'gr_line') {
+          ctx.lineWidth = Math.max(1, (prim.width || 0.1) * z);
+          ctx.beginPath();
+          ctx.moveTo(prim.start[0] * z, prim.start[1] * z);
+          ctx.lineTo(prim.end[0] * z, prim.end[1] * z);
+          ctx.stroke();
+        }
+      }
+      ctx.beginPath();
+      for (const prim of p.primitives) {
+        if (prim.kind === 'gr_poly' && prim.pts && prim.pts.length >= 2) {
+          ctx.moveTo(prim.pts[0][0] * z, prim.pts[0][1] * z);
+          for (let pi = 1; pi < prim.pts.length; pi++)
+            ctx.lineTo(prim.pts[pi][0] * z, prim.pts[pi][1] * z);
+          ctx.closePath();
+        } else if (prim.kind === 'gr_rect') {
+          const x1 = Math.min(prim.start[0], prim.end[0]) * z;
+          const y1 = Math.min(prim.start[1], prim.end[1]) * z;
+          const rw = Math.abs(prim.end[0] - prim.start[0]) * z;
+          const rh = Math.abs(prim.end[1] - prim.start[1]) * z;
+          if (prim.fill) ctx.rect(x1, y1, rw, rh);
+          else { ctx.lineWidth = Math.max(1, (prim.width || 0.1) * z); ctx.strokeRect(x1, y1, rw, rh); }
+        } else if (prim.kind === 'gr_circle') {
+          const cr = Math.hypot(prim.end[0] - prim.center[0], prim.end[1] - prim.center[1]) * z;
+          if (prim.fill) {
+            ctx.moveTo(prim.center[0] * z + cr, prim.center[1] * z);
+            ctx.arc(prim.center[0] * z, prim.center[1] * z, cr, 0, Math.PI * 2);
+          } else {
+            ctx.lineWidth = Math.max(1, (prim.width || 0.1) * z);
+            ctx.beginPath();
+            ctx.arc(prim.center[0] * z, prim.center[1] * z, cr, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+          }
+        }
+      }
+      ctx.fill();
       }
     } else {
       ctx.fillRect(-w / 2, -h / 2, w, h);

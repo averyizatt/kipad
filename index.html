@@ -10,10 +10,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kipad">
-<link rel="manifest" href="manifest.webmanifest?v=18">
-<link rel="icon" href="icon.svg?v=18" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-180.png?v=18">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="manifest" href="manifest.webmanifest?v=23">
+<link rel="icon" href="icon.svg?v=23" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=23">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 <div id="app">
@@ -156,6 +156,7 @@
       <button id="sch-wire" class="tool sch-only hidden" title="Wire (W)"><img src="icons/line.png" alt="Wire"></button>
       <button id="sch-label" class="tool sch-only hidden" title="Net label (L)"><img src="icons/glabel.png" alt="Label"></button>
       <button id="sch-junction" class="tool sch-only hidden" title="Junction (J)"><img src="icons/junction.png" alt="Junction"></button>
+      <button id="sch-noconn" class="tool sch-only hidden" title="No-connect flag (Q)"><img src="icons/noconn.png" alt="No connect"></button>
     </nav>
 
     <section id="canvas-wrap">
@@ -215,22 +216,23 @@
 <input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
-<script src="js/sexpr.js?v=19"></script>
-<script src="js/footprints.js?v=18"></script>
-<script src="js/kicad_pcb.js?v=19"></script>
-<script src="js/gerber.js?v=18"></script>
-<script src="js/drill.js?v=18"></script>
-<script src="js/board.js?v=18"></script>
-<script src="js/render.js?v=19"></script>
-<script src="js/kicad_mod.js?v=18"></script>
-<script src="js/kicad_sym.js?v=18"></script>
-<script src="js/symbols.js?v=18"></script>
-<script src="js/schematic.js?v=18"></script>
-<script src="js/erc.js?v=18"></script>
-<script src="js/zones.js?v=18"></script>
-<script src="js/app.part1.js?v=19"></script>
-<script src="js/app.part2.js?v=19"></script>
-    <script src="js/app.part3.js?v=19"></script>
-    <script src="js/app.part4.js?v=18"></script>
+<script src="js/sexpr.js?v=23"></script>
+<script src="js/footprints.js?v=23"></script>
+<script src="js/kicad_pcb.js?v=23"></script>
+<script src="js/gerber.js?v=23"></script>
+<script src="js/drill.js?v=23"></script>
+<script src="js/board.js?v=23"></script>
+<script src="js/render.js?v=23"></script>
+<script src="js/kicad_mod.js?v=23"></script>
+<script src="js/kicad_sym.js?v=23"></script>
+<script src="js/symbols.js?v=23"></script>
+<script src="js/schematic.js?v=23"></script>
+<script src="js/erc.js?v=23"></script>
+<script src="js/keys.js?v=23"></script>
+<script src="js/zones.js?v=23"></script>
+<script src="js/app.part1.js?v=23"></script>
+<script src="js/app.part2.js?v=23"></script>
+    <script src="js/app.part3.js?v=23"></script>
+    <script src="js/app.part4.js?v=23"></script>
 </body>
 </html>

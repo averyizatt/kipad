@@ -54,7 +54,7 @@
 
   var DEG = Math.PI / 180;
   var EPS = 1e-9;
-  var SHAPES = { rect: 1, circle: 1, roundrect: 1, obround: 1 };
+  var SHAPES = { rect: 1, circle: 1, roundrect: 1, obround: 1, custom: 1 };
 
   // ------------------------------------------------------------------
   // helpers
@@ -197,7 +197,8 @@
       vias: [],
       texts: [],
       zones: [],
-      outline: []
+      outline: [],
+      groups: []
     };
 
     // ---- net table: supports BOTH legacy numeric ids ((nets N (net 1 "GND")))
@@ -277,6 +278,42 @@
       return node.find(function (c) { return isList(c) && tag(c) === key; });
     }
 
+    // Custom-pad primitive shapes, kept in pad-local coordinates (mm).
+    function parsePrimitives(node) {
+      var prims = [];
+      for (var i = 1; i < node.length; i++) {
+        var c = node[i];
+        if (!isList(c)) continue;
+        var k = tag(c);
+        var wN = childAt(c, 'width');
+        var w = wN ? num(wN[1]) : 0;
+        var fill = false;
+        for (var fi = 1; fi < c.length; fi++) {
+          var fc = c[fi];
+          if (isList(fc) && tag(fc) === 'fill' && atom(fc[1]) === 'yes') fill = true;
+        }
+        var sN = childAt(c, 'start'), eN = childAt(c, 'end'), cN = childAt(c, 'center');
+        if (k === 'gr_poly') {
+          var pts = [];
+          var ptsNode = childAt(c, 'pts');
+          if (ptsNode) {
+            for (var j = 1; j < ptsNode.length; j++) {
+              var xy = ptsNode[j];
+              if (isList(xy) && tag(xy) === 'xy') pts.push([num(xy[1]), num(xy[2])]);
+            }
+          }
+          if (pts.length >= 2) prims.push({ kind: 'gr_poly', pts: pts, width: w, fill: fill });
+        } else if (k === 'gr_line' && sN && eN) {
+          prims.push({ kind: 'gr_line', start: [num(sN[1]), num(sN[2])], end: [num(eN[1]), num(eN[2])], width: w });
+        } else if (k === 'gr_rect' && sN && eN) {
+          prims.push({ kind: 'gr_rect', start: [num(sN[1]), num(sN[2])], end: [num(eN[1]), num(eN[2])], width: w, fill: fill });
+        } else if (k === 'gr_circle' && cN && eN) {
+          prims.push({ kind: 'gr_circle', center: [num(cN[1]), num(cN[2])], end: [num(eN[1]), num(eN[2])], width: w, fill: fill });
+        }
+      }
+      return prims;
+    }
+
     function parsePad(node, fpAt, fpAngle) {
       if (node.length < 4) return null;
       var number = atom(node[1]);
@@ -290,6 +327,8 @@
       var rratio = null;
       var layers = null;
       var netId = 0;
+      var anchor = null;
+      var primitives = null;
 
       for (var ci = 4; ci < node.length; ci++) {
         var c = node[ci];
@@ -318,6 +357,14 @@
           case 'net':
             netId = resolveNetId(c);
             break;
+          case 'options': {
+            var an = childAt(c, 'anchor');
+            if (an) anchor = atom(an[1]);
+            break;
+          }
+          case 'primitives':
+            primitives = parsePrimitives(c);
+            break;
         }
       }
 
@@ -328,7 +375,7 @@
         ? rratio * Math.min(size[0], size[1])
         : null;
 
-      return {
+      var pad = {
         number: number,
         type: type,
         shape: shape,
@@ -342,6 +389,9 @@
           : (type === 'smd' ? ['F.Cu', 'F.Paste', 'F.Mask'] : ['F.Cu', 'B.Cu']),
         netId: netId
       };
+      if (anchor) pad.anchor = anchor;
+      if (primitives && primitives.length) pad.primitives = primitives;
+      return pad;
     }
 
     function parseFootprint(node) {
@@ -412,6 +462,35 @@
       return {
         id: 'T' + (++trSeq),
         start: start,
+        end: end,
+        width: width,
+        layer: layer,
+        netId: netId
+      };
+    }
+
+    // Track arc: (arc (start x y) (mid x y) (end x y) (width w) (layer "F.Cu") (net n))
+    function parseArc(node) {
+      var start = null, mid = null, end = null;
+      var width = 0, layer = 'F.Cu', netId = 0;
+      for (var ci = 1; ci < node.length; ci++) {
+        var c = node[ci];
+        if (!isList(c)) continue;
+        switch (tag(c)) {
+          case 'start': start = [num(c[1]), num(c[2])]; break;
+          case 'mid': mid = [num(c[1]), num(c[2])]; break;
+          case 'end': end = [num(c[1]), num(c[2])]; break;
+          case 'width': width = num(c[1]); break;
+          case 'layer': layer = atom(c[1]); break;
+          case 'net': netId = resolveNetId(c); break;
+        }
+      }
+      if (!start || !mid || !end) return null;
+      return {
+        id: 'T' + (++trSeq),
+        kind: 'arc',
+        start: start,
+        mid: mid,
         end: end,
         width: width,
         layer: layer,
@@ -491,7 +570,9 @@
           break;
         }
 
-        case 'footprint': {
+        case 'footprint':
+        case 'module': {
+          // 'module' = pre-v6 footprint spelling still written by old exports
           var fp = parseFootprint(child);
           if (fp) board.footprints.push(fp);
           break;
@@ -500,6 +581,28 @@
         case 'segment': {
           var t = parseSegment(child);
           if (t) board.tracks.push(t);
+          break;
+        }
+
+        case 'arc': {
+          var ar = parseArc(child);
+          if (ar) board.tracks.push(ar);
+          break;
+        }
+
+        case 'group': {
+          var gname = child.length > 1 ? atom(child[1]) : '';
+          var guuid = '', glocked = false, gmembers = [];
+          for (var gi = 1; gi < child.length; gi++) {
+            var gc = child[gi];
+            if (!isList(gc)) continue;
+            if (tag(gc) === 'uuid') guuid = atom(gc[1]);
+            else if (tag(gc) === 'locked') glocked = atom(gc[1]) === 'yes';
+            else if (tag(gc) === 'members') {
+              for (var mi = 1; mi < gc.length; mi++) gmembers.push(atom(gc[mi]));
+            }
+          }
+          board.groups.push({ name: gname, uuid: guuid, locked: glocked, members: gmembers });
           break;
         }
 
@@ -651,6 +754,28 @@
   // serialization
   // ------------------------------------------------------------------
 
+  function serializePrimitive(p) {
+    var w = p.width || 0;
+    if (p.kind === 'gr_poly' && p.pts && p.pts.length >= 2) {
+      var pts = ['pts'];
+      for (var i = 0; i < p.pts.length; i++)
+        pts.push(['xy', r4str(p.pts[i][0]), r4str(p.pts[i][1])]);
+      return ['gr_poly', pts, ['width', r4str(w)]];
+    }
+    if (p.kind === 'gr_line')
+      return ['gr_line', ['start', r4str(p.start[0]), r4str(p.start[1])],
+        ['end', r4str(p.end[0]), r4str(p.end[1])], ['width', r4str(w)]];
+    if (p.kind === 'gr_rect')
+      return ['gr_rect', ['start', r4str(p.start[0]), r4str(p.start[1])],
+        ['end', r4str(p.end[0]), r4str(p.end[1])], ['width', r4str(w)]]
+        .concat(p.fill ? [['fill', 'yes']] : []);
+    if (p.kind === 'gr_circle')
+      return ['gr_circle', ['center', r4str(p.center[0]), r4str(p.center[1])],
+        ['end', r4str(p.end[0]), r4str(p.end[1])], ['width', r4str(w)]]
+        .concat(p.fill ? [['fill', 'yes']] : []);
+    return null;
+  }
+
   function serializeFootprint(fp, netName) {
     var fx = fp.at ? fp.at[0] : 0;
     var fy = fp.at ? fp.at[1] : 0;
@@ -702,6 +827,15 @@
       }
       var netId = pad.netId === null || pad.netId === undefined ? 0 : pad.netId;
       padNode.push(['net', String(netId), { q: str(netName.get(netId) || '') }]);
+      if (shapeStr === 'custom' && pad.primitives && pad.primitives.length) {
+        padNode.push(['options', ['clearance', 'outline'], ['anchor', pad.anchor || 'rect']]);
+        var primNodes = [];
+        for (var pri = 0; pri < pad.primitives.length; pri++) {
+          var pn = serializePrimitive(pad.primitives[pri]);
+          if (pn) primNodes.push(pn);
+        }
+        padNode.push(['primitives'].concat(primNodes));
+      }
       node.push(padNode);
     }
 
@@ -735,14 +869,26 @@
     }
     for (var ti = 0; ti < (board.tracks || []).length; ti++) {
       var t = board.tracks[ti];
-      root.push([
-        'segment',
-        ['start', r4str(t.start[0]), r4str(t.start[1])],
-        ['end', r4str(t.end[0]), r4str(t.end[1])],
-        ['width', r4str(t.width)],
-        ['layer', { q: str(t.layer) }],
-        ['net', String(t.netId)]
-      ]);
+      if (t.mid) {
+        root.push([
+          'arc',
+          ['start', r4str(t.start[0]), r4str(t.start[1])],
+          ['mid', r4str(t.mid[0]), r4str(t.mid[1])],
+          ['end', r4str(t.end[0]), r4str(t.end[1])],
+          ['width', r4str(t.width)],
+          ['layer', { q: str(t.layer) }],
+          ['net', String(t.netId)]
+        ]);
+      } else {
+        root.push([
+          'segment',
+          ['start', r4str(t.start[0]), r4str(t.start[1])],
+          ['end', r4str(t.end[0]), r4str(t.end[1])],
+          ['width', r4str(t.width)],
+          ['layer', { q: str(t.layer) }],
+          ['net', String(t.netId)]
+        ]);
+      }
     }
     for (var vi = 0; vi < (board.vias || []).length; vi++) {
       var v = board.vias[vi];
@@ -773,6 +919,14 @@
         ['layer', { q: str(zz.layer === 'B.Cu' ? 'B.Cu' : 'F.Cu') }],
         ['polygon', ptsN]
       ]);
+    }
+    for (var gi2 = 0; gi2 < (board.groups || []).length; gi2++) {
+      var g = board.groups[gi2];
+      var gn = ['group', { q: str(g.name || '') }];
+      if (g.uuid) gn.push(['uuid', { q: str(g.uuid) }]);
+      if (g.locked) gn.push(['locked', 'yes']);
+      gn.push(['members'].concat((g.members || []).map(function (m) { return { q: str(m) }; })));
+      root.push(gn);
     }
     for (var xi = 0; xi < (board.texts || []).length; xi++) {
       var tx = board.texts[xi];

@@ -133,3 +133,48 @@ Zone sexpr support (first sub-item of the round-trip-fidelity milestone) plus a 
 - `FileReader.onerror` handlers added to Open/Import/image flows (`app.part2`/`app.part3`) → status message instead of silent failure.
 - Cache-bust `?v=18` → `?v=19` (index.html script refs); sw.js CACHE `kipad-v12` → `kipad-v13`. No new assets.
 - Workspace mirror synced from sandbox after tests went green.
+
+## 2026-08-24 ~05:16 UTC — No-connect flag placement tool (ERC milestone)
+Next ERC item: KiCad's no-connect flag — an X placed on a pin to state "intentionally unconnected", suppressing the pin's ERC warning without wiring anything.
+
+- `js/schematic.js`: `sch.noConnects[]` (`{id, at}`) + `addNoConnect` / `removeNoConnect` (lazy array creation so legacy saved schematics keep working); `(no_connect (at x y) (uuid …))` serialize + parse in the .kicad_sch paths.
+- `js/erc.js`: `pinHasNoConnect()` — a pin tip within 0.635 mm of a flag (half the common 1.27 mm pitch) is exempt from UNCONNECTED_PIN and SINGLE_PIN_NET; a flag also legitimately terminates a wire, so wire ends at flags are no longer DANGLING_WIRE. Flags create no connectivity (netlist unchanged). Exported `pinHasNoConnect` + `NC_RADIUS`.
+- `js/render.js`: dark-blue (#000084, `LAYER_NOCONNECT` from KiCad builtin_color_themes.h) X after junctions; world half-diagonal 0.635 mm with 4 px screen floor.
+- App: `sch-noconn` rail button (official `icons/noconn.png`, fetched from kicad-source-mirror), Q shortcut, Place → No-connect flag menu entry, status names ("No Connect"); placement snaps to the nearest pin tip within 0.635 mm else grid point, duplicate-flag guard; select tool hit-tests flags (~10 px tolerance) before symbols → ⌫ deletes via `removeNoConnect`; Escape clears selection; help text updated.
+- Cache-bust all index.html refs → `?v=20` (21 refs); sw.js CACHE → `kipad-v14` + precache `./icons/noconn.png`.
+- Tests: `test/test_noconnect.js` (model add/remove/idempotence/lazy-array, ERC suppression incl. radius boundary both sides, flag-terminated wires not dangling, netlist invariance, sexpr round-trip + uuid-file parse + double round-trip). All **18 suites green**; `node --check` clean on every touched file; static `$('…')` ↔ index.html check passes for all six sch tools.
+- Workspace mirror synced from sandbox.
+
+## 2026-08-24 ~06:05 UTC — ERC power-pin conflict check
+Next unchecked ERC item: two different power nets shorted together on one node — e.g. a GND symbol wired to a VCC symbol. KiCad reports this class of mistake as an error; until now Kipad's ERC silently accepted it (extractNets just named the net after the first power_in pin).
+
+- `js/erc.js`: new POWERPIN_CONFLICT check. For each connectivity group, pins are resolved to their symValue-stamped records (`stamped` map keyed `symId|number`, built alongside the existing pinGroup map) and run through the existing `powerNetName()` helper; every distinct power name beyond the first on the same node adds one error naming both nets, located at the offending pin (so panel tap-locate and canvas markers work with no UI change). Same-name repeats (two GND symbols tied together) stay clean; a no-connect flag does not excuse a wired short. Deterministic: insertion-ordered scan, one violation per extra net.
+- Deliberately NOT added this round: cross-sheet global label conflicts (model is single-sheet) and missing-footprint warnings (symbol properties UI has no footprint field editor yet — would produce unfixable noise). TODO notes both as deferred.
+- Cache-bust `?v=20` → `?v=21` (21 refs in index.html); sw.js CACHE `kipad-v14` → `kipad-v15`. No new assets.
+- Tests: `test/test_powerconflict.js` (8 suites: GND↔VCC short = exactly one error naming both nets + coordinates/netName fields; two GNDs fine; unwired different powers fine; three-way short reports each extra net once; ordinary passive pins on the node don't mask it; power_out+power_in of the same name no false positive; flag can't excuse a wired short; determinism). Fixture gotcha worth remembering: connectivity merges pins only at wire *vertices* (EPS), not mid-segment — a 3-point wire is needed for a 3-pin short. All **19 suites green**; `node --check` clean.
+
+## 2026-08-24 ~06:16 UTC — Round-trip fidelity vs real exports: arc tracks, custom pads, groups
+Completed the last open sub-item of the round-trip-fidelity milestone using REAL KiCad exports pulled from kicad-source-mirror qa/data/pcbnew into lib-build/raw/ (tracks_arcs_vias.kicad_pcb v20210126, custom_pads.kicad_pcb v20200829, groups_load_save.kicad_pcb v20231231, plus demos/video.kicad_pcb as a big smoke file).
+
+- js/kicad_pcb.js:
+  - Arc tracks: new `parseArc` + top-level `arc` case → tracks with `{kind:'arc', mid}`; serializer emits `(arc …)` for any track carrying `mid`. Straight segments unchanged.
+  - Custom pads: `SHAPES` now includes `custom` (was silently coerced to rect); `parsePad` reads `(options (anchor))` → `pad.anchor` and `(primitives …)` via new `parsePrimitives` (gr_poly pts+width, gr_line, gr_rect±fill, gr_circle center/end) kept in pad-local mm on `pad.primitives`; serializer re-emits `(options (clearance outline) (anchor …))` + primitives verbatim.
+  - Groups: top-level `(group)` case → `board.groups[] {name, uuid, locked, members[]}`; serialized after zones with members as quoted strings. No UI (opaque round-trip is the goal).
+  - Pre-v6 compat: top-level `(module …)` now parses like `footprint` (the 20200829 fixture uses it).
+- js/board.js: `arcPolyline(start,mid,end,n)` circumcircle sampling (collinear → 2-pt fallback) + exported `trackSegments(t)` (1 seg straight / 12 chords arc). Consumers switched: hitTrack, copperItems, copperItemsExt (per-chord clearance items), so DRC/hit-tests see arc geometry.
+- js/render.js: track loop draws the sampled polyline per arc; drawPad gains a `custom` branch rendering primitives in pad space (poly filled; rect/circle filled when `(fill yes)` else stroked at their width; gr_line stroked).
+- js/app.part2.js zoneCtx: zone blocking flattens arcs through trackSegments.
+- Cache-bust ?v=21→?v=22 (21 refs), sw CACHE kipad-v15→kipad-v16. No new assets.
+- Tests: new test/test_roundtrip2.js — 112 checks: all three fixtures parse → serialize → re-parse field-by-field stable (coords at r4 precision), double serialization byte-stable, arc polyline passes through mid (<0.05 mm), SOT-89-style poly values exact, group name/members/locked preserved, video.kicad_pcb smoke (7932 tracks / 189 footprints stable, ~619 ms full parse+serialize+parse cycle). All 20 suites green; node --check clean on touched files.
+- Gotchas worth remembering: sexpr output is pretty-printed multiline, so content greps must not assume inline nodes; r4str rounds half-away-from-zero (36.60765 → "36.6077") unlike JS toFixed ("36.6076") — compare with tolerance in tests.
+
+## 2026-08-24 ~06:40 UTC — KiCad keyboard shortcuts parity
+Implemented the "Keyboard shortcuts parity" TODO item as a small, testable increment.
+
+- js/keys.js (new, KipadKeys UMD, pure): `resolve(ev, ctx)` maps {key, ctrl/meta/shift/alt} + {mode, hasSelection} → action. Modifier combos resolve FIRST and return early — fixes the old ordering where e.g. Ctrl+S also fell through to the plain-'s' select-tool switch (Ctrl+Z/Y blocks at the bottom of the old handler are superseded and removed from the PCB branch).
+- Wiring in app.part4.js keydown: resolver runs right after the INPUT/TEXTAREA guard; resolved actions preventDefault + dispatch through new `applyKeyAction`. New actions: save/open (mode-aware), undo/redo, zoomIn/zoomOut (+ = - _ , same 1.25× steps and 0.5–50 clamps as toolbar buttons), zoomFit (Home → zoomFit()), props (E → Properties tab when a PCB selection exists), addFootprint (A → footprint tool + Library tab, mirroring KiCad's Add-Footprint chooser flow), addSymbol (A → setSchTool('symbol'), which already switches to the Symbols tab), nudgeLeft/Right/Up/Down.
+- `nudgeSel(dx,dy)` moves the current selection by one grid step: PCB footprints via B.moveFootprint + board texts via B.moveText; schematic symbols via Sch.moveSymbol (schPushUndo first on every path; refreshProps/refreshAll after). Track/via/zone selections intentionally not nudged.
+- Launcher mode is fully inert to these bindings (resolver returns null for mode==='launcher').
+- Help modal + Shortcuts modal text updated with the new keys.
+- Cache-bust ?v=22→?v=23 (all refs incl. new js/keys.js tag after erc.js); sw CACHE kipad-v16→v17, './js/keys.js' added to ASSETS.
+- Tests: test/test_keys.js — 27 checks (mod combos incl. Cmd variants and shift-redo, unknown-mod null so no tool leak, alt ignored, launcher gating, zoom keys both glyphs, Home, E/A context rules incl. no-selection nulls, all four arrows ± selection requirement, missing key). All **21 suites green** by exit code; node --check clean on touched files.

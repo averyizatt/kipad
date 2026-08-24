@@ -24,15 +24,16 @@ assert.strictEqual(sch.symbols[0].ref, 'R1', 'auto ref numbering');
 assert.strictEqual(sch.symbols[1].ref, 'C1', 'auto ref numbering C');
 assert.strictEqual(sch.symbols[2].ref, '#PWR1', 'power symbol ref prefix');
 
+// pin positions of R (pins at [0,3.81] and [0,-3.81] relative)
 const rPins = Sch.pinPositions(sch.symbols[0], Syms.getSymbol);
 assert.strictEqual(rPins.length, 2, 'R has 2 pins');
 assert.ok(Math.abs(rPins[0].at[0]) < 1e-9 && Math.abs(rPins[0].at[1] - 3.81) < 1e-9, 'R pin1 at (0, 3.81)');
 assert.ok(Math.abs(rPins[1].at[1] + 3.81) < 1e-9, 'R pin2 at (0, -3.81)');
 
 // ---- 2. wires + labels + nets ----
-Sch.addWire(sch, [[0, 3.81], [2.54, 3.81], [5.08, 3.81]]);
-Sch.addLabel(sch, 'VCC', [1.27, 3.81], 0);
-Sch.addWire(sch, [[5.08, -3.81], [2.54, -3.81]]);
+Sch.addWire(sch, [[0, 3.81], [2.54, 3.81], [5.08, 3.81]]);  // R1 pin1 -- C1 pin1
+Sch.addLabel(sch, 'VCC', [1.27, 3.81], 0);                  // label mid-segment
+Sch.addWire(sch, [[5.08, -3.81], [2.54, -3.81]]);           // C1 pin2 -- GND pin
 const nets = Sch.extractNets(sch, Syms.getSymbol);
 const byName = {};
 nets.forEach(n => { byName[n.name] = n; });

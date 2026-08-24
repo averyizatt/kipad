@@ -392,6 +392,12 @@
   // ---------- keyboard ----------
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // KiCad-parity bindings (save/open/undo/redo, zoom, properties, add, nudge)
+    const keyAct = KipadKeys.resolve(e, {
+      mode: mode,
+      hasSelection: mode === 'schematic' ? !!schSelId : !!selId
+    });
+    if (keyAct) { e.preventDefault(); applyKeyAction(keyAct); return; }
     if (mode === 'schematic') {
       switch (e.key) {
         case 's': case 'S': setSchTool('select'); break;
@@ -438,9 +444,52 @@
         setTool('select'); break;
       case 'w': cycleTrackWidth(); break;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
   });
+
+  function applyKeyAction(act) {
+    switch (act) {
+      case 'save': mode === 'schematic' ? schSave() : doSave(); break;
+      case 'open': $('btn-open').click(); break;
+      case 'undo': mode === 'schematic' ? schUndoStep() : undo(); break;
+      case 'redo': mode === 'schematic' ? schRedoStep() : redo(); break;
+      case 'zoomIn': view.zoom = Math.min(50, view.zoom * 1.25); render(); break;
+      case 'zoomOut': view.zoom = Math.max(0.5, view.zoom / 1.25); render(); break;
+      case 'zoomFit': zoomFit(); break;
+      case 'props': setTab('props'); break;
+      case 'addFootprint': setTool('footprint'); setTab('library'); break;
+      case 'addSymbol': setSchTool('symbol'); break;
+      case 'nudgeLeft': nudgeSel(-1, 0); break;
+      case 'nudgeRight': nudgeSel(1, 0); break;
+      case 'nudgeUp': nudgeSel(0, -1); break;
+      case 'nudgeDown': nudgeSel(0, 1); break;
+    }
+  }
+
+  // Move the current selection by one grid step (KiCad arrow-key behaviour).
+  function nudgeSel(dx, dy) {
+    if (mode === 'schematic') {
+      const s = sch.symbols.find(x => x.id === schSelId);
+      if (s) {
+        schPushUndo();
+        Sch.moveSymbol(sch, s.id, [s.at[0] + dx * grid, s.at[1] + dy * grid]);
+        render(); refreshAll();
+      }
+      return;
+    }
+    const fp = board.footprints.find(f => f.id === selId);
+    if (fp) {
+      pushUndo();
+      B.moveFootprint(board, fp.id, [fp.at[0] + dx * grid, fp.at[1] + dy * grid]);
+      render(); refreshProps();
+      return;
+    }
+    const tx = (board.texts || []).find(t => t.id === selId);
+    if (tx) {
+      pushUndo();
+      B.moveText(board, tx.id, [tx.at[0] + dx * grid, tx.at[1] + dy * grid]);
+      render(); refreshProps();
+    }
+  }
 
   function cycleGrid() {
     grid = GRIDS[(GRIDS.indexOf(grid) + 1) % GRIDS.length];
@@ -683,7 +732,7 @@
       ╲ ▭ ◯ ◠ — draw line / rectangle / circle / arc on the board outline (Edge.Cuts)<br>
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
-      <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
+      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
@@ -691,9 +740,10 @@
   }
   function showShortcuts() {
     showModal('Shortcuts', `
-      S select · H net highlight · F footprint · X route · V via · Z zone · T text · L line · M measure<br>
-      G grid cycle · N ratsnest · R rotate · W track width · Del delete<br>
-      Enter finish · Esc cancel · Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo<br>
+      S select · H net highlight · F / A footprint · X route · V via · Z zone · T text · L line · M measure<br>
+      G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
+      Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
+      + / = zoom in · - zoom out · Home zoom to fit<br>
       Pinch to zoom · drag empty area to pan<br>
       Pencil: double-tap → Select · palm rejection active
     `);

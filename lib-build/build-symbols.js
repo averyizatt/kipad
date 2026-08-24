@@ -17,13 +17,45 @@ const KipadKicadSym = require('../js/kicad_sym.js');
 
 const SRC = path.join(__dirname, 'symbols-src');
 const OUT = path.join(__dirname, '..', 'lib', 'symbols.json');
-const MAX_TOTAL = 400;
+const MAX_TOTAL = 600;
 
 // Essential everyday components always kept, so the built library is actually
 // usable (and so tests can rely on R / power rails existing). Anything not
 // found in the sources is skipped. Reserved first, remaining budget is filled
 // by per-library alphabetical quotas below.
 const ESSENTIALS = ['R', 'C', 'LED', 'GND', 'VCC', '+5V'];
+
+// Generic everyday symbols that KiCad users expect (diode, transistor, switch,
+// fuse, connector, ...). Always reserved (in addition to ESSENTIALS), and given
+// a default footprint so "Update PCB from Schematic" produces real footprints.
+const GENERICS = [
+  'D', 'D_Zener', 'LED', 'R', 'C', 'C_Polarized', 'L', 'Q_NPN_BCE', 'Q_PNP_BCE',
+  'Fuse', 'SW_Push', 'Crystal', 'Battery', 'Speaker', 'Motor', 'Thermistor',
+  'Potentiometer', 'Relay', 'Transformer', 'Photodiode', 'OpAmp',
+  'Conn_01x02', 'Conn_01x04', 'Conn_01x08'
+];
+
+// Default footprint (KiCad lib:footprint syntax) applied to generic symbols that
+// don't already carry one. All targets exist in lib/footprints.json.
+const GENERIC_FOOTPRINTS = {
+  'D': 'Diode_SMD:D_SOD-123',
+  'D_Zener': 'Diode_SMD:D_SOD-123',
+  'LED': 'LED_SMD:LED_0603_1608Metric',
+  'R': 'Resistor_SMD:R_0603_1608Metric',
+  'C': 'Capacitor_SMD:C_0603_1608Metric',
+  'C_Polarized': 'Capacitor_SMD:C_0603_1608Metric',
+  'L': 'Inductor_SMD:L_0603_1608Metric',
+  'Q_NPN_BCE': 'Package_TO_SOT_SMD:SOT-23',
+  'Q_PNP_BCE': 'Package_TO_SOT_SMD:SOT-23',
+  'Fuse': 'Fuse:Fuse_0805_2012Metric',
+  'SW_Push': 'Button_Switch_SMD:SW_SPST_PTS645',
+  'Crystal': 'Crystal:Crystal_HC49-4H_Vertical',
+  'Battery': 'Battery:Battery_Cell',
+  'Thermistor': 'Resistor_SMD:R_0603_1608Metric',
+  'Conn_01x02': 'Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical',
+  'Conn_01x04': 'Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical',
+  'Conn_01x08': 'Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical'
+};
 
 // Libraries in priority order (first occurrence wins on name collision).
 const LIBRARIES = [
@@ -35,7 +67,8 @@ const LIBRARIES = [
   'LED',
   'Amplifier_Operational',
   'Regulator_Linear',
-  'Timer'
+  'Timer',
+  'Connector_Generic'
 ];
 
 /**
@@ -119,9 +152,10 @@ function main() {
   let total = libs.reduce((n, l) => n + l.symbols.length, 0);
   console.log(`Parsed ${total} symbols before cap.`);
 
-  // 2a. Reserve essential symbols (in library priority order, first wins).
+  // 2a. Reserve essential + generic symbols (in library priority order, first wins).
   const reserved = [];
-  for (const name of ESSENTIALS) {
+  const reserveNames = ESSENTIALS.concat(GENERICS);
+  for (const name of reserveNames) {
     for (const l of libs) {
       const idx = l.symbols.findIndex((s) => s.name === name);
       if (idx !== -1) {
@@ -170,6 +204,13 @@ function main() {
     }
   } else {
     for (const l of libs) chosen = chosen.concat(l.symbols);
+  }
+
+  // 2c. Apply default footprints to generic symbols that lack one.
+  for (const s of chosen) {
+    if (GENERIC_FOOTPRINTS[s.name] && !(s.footprint && s.footprint.length)) {
+      s.footprint = GENERIC_FOOTPRINTS[s.name];
+    }
   }
 
   // 3. Sort by name and write.

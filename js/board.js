@@ -62,7 +62,8 @@
       footprints: [],
       tracks: [],
       vias: [],
-      outline: []
+      outline: [],
+      groups: []
     };
   }
 
@@ -324,6 +325,46 @@
     }
     return null;
   }
+  // ---------- track geometry (arc tracks sampled as polylines) ----------
+  // Sample the circular arc start→mid→end as nSegs chords.
+  function arcPolyline(start, mid, end, nSegs) {
+    const sx = start[0], sy = start[1], mx = mid[0], my = mid[1], ex = end[0], ey = end[1];
+    const d = 2 * (sx * (my - ey) + mx * (ey - sy) + ex * (sy - my));
+    if (Math.abs(d) < 1e-9) return [[sx, sy], [ex, ey]]; // collinear → straight
+    const ux = ((sx*sx + sy*sy)*(my - ey) + (mx*mx + my*my)*(ey - sy) + (ex*ex + ey*ey)*(sy - my)) / d;
+    const uy = ((sx*sx + sy*sy)*(ex - mx) + (mx*mx + my*my)*(sx - ex) + (ex*ex + ey*ey)*(mx - sx)) / d;
+    const R = Math.hypot(sx - ux, sy - uy);
+    const n = Math.max(2, nSegs || 12);
+    const aS = Math.atan2(sy - uy, sx - ux);
+    let dir = Math.atan2(my - uy, mx - ux) - aS;   // where the mid sits relative to start
+    while (dir <= -1e-9) dir += 2 * Math.PI;
+    dir = dir > Math.PI ? -1 : 1;
+    let sweep = dir > 0 ? Math.atan2(ey - uy, ex - ux) - aS : aS - Math.atan2(ey - uy, ex - ux);
+    sweep = ((sweep % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    if (sweep < 1e-9) sweep = 2 * Math.PI;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const a = aS + dir * sweep * (i / n);
+      pts.push([ux + R * Math.cos(a), uy + R * Math.sin(a)]);
+    }
+    return pts;
+  }
+  // Straight tracks → one segment; arcs → chord list {ax,ay,bx,by}.
+  function trackSegments(t) {
+    if (!t.mid || t.kind !== 'arc')
+      return [{ ax: t.start[0], ay: t.start[1], bx: t.end[0], by: t.end[1] }];
+    const pts = arcPolyline(t.start, t.mid, t.end, 12);
+    const segs = [];
+    for (let i = 0; i + 1 < pts.length; i++)
+      segs.push({ ax: pts[i][0], ay: pts[i][1], bx: pts[i + 1][0], by: pts[i + 1][1] });
+    return segs;
+  }
+  function hitTrack(board, x, y, tol) {
+    for (const t of board.tracks)
+      for (const s of trackSegments(t))
+        if (pointSegDist(x, y, s.ax, s.ay, s.bx, s.by) <= t.width / 2 + tol) return t;
+    return null;
+  }
   function hitVia(board, x, y, tol) {
     for (const v of board.vias) {
       if (Math.sqrt(dist2(x, y, v.at[0], v.at[1])) <= v.size / 2 + tol) return v;
@@ -383,7 +424,8 @@
     }
     for (const t of board.tracks) {
       if (t.layer !== layer) continue;
-      items.push({ kind: 'track', seg: [t.start, t.end], r: t.width / 2, netId: t.netId, layer });
+      for (const s of trackSegments(t))
+        items.push({ kind: 'track', seg: [[s.ax, s.ay], [s.bx, s.by]], r: t.width / 2, netId: t.netId, layer });
     }
     for (const v of board.vias) {
       // via copper on both layers
@@ -420,7 +462,8 @@
     }
     for (const t of board.tracks) {
       if (t.layer !== layer) continue;
-      items.push({ kind: 'track', seg: [t.start, t.end], r: t.width / 2, netId: t.netId, layer });
+      for (const s of trackSegments(t))
+        items.push({ kind: 'track', seg: [[s.ax, s.ay], [s.bx, s.by]], r: t.width / 2, netId: t.netId, layer });
     }
     for (const v of board.vias) {
       items.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.size / 2, netId: v.netId, layer });
@@ -662,6 +705,7 @@
     addZone, removeZone, zonesOn, addText, removeText, moveText, hitText,
     placeFootprint, moveFootprint, rotateFootprint,
     addTrack, addVia, hitPad, hitFootprint, hitTrack, hitVia,
-    ratsnest, runDRC, rot, segSegDist, pointSegDist
+    ratsnest, runDRC, rot, segSegDist, pointSegDist,
+    arcPolyline, trackSegments
   };
 });

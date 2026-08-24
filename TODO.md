@@ -49,12 +49,17 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] KiCad-style X-in-circle markers at each violation's world coords; red `#cc0000` errors / amber `#b8860b` warnings, deduped per location, radius clamped to 5–16 screen px — 2026-08-24
   - [x] Pure geometry helper `KipadErc.markers()` (unit-tested); render.js just draws the precomputed list — 2026-08-24
   - [x] Tap a marker (select tool) → selects the owning symbol + status bar shows code/message; View menu toggle "ERC markers: on/off" — 2026-08-24
-- [ ] More ERC checks: no-connect flag placement tool, cross-sheet global label conflicts, power-pin conflicts, missing footprint
-- [ ] .kicad_pcb round-trip fidelity check against real KiCad files
+- [x] More ERC checks: cross-sheet global label conflicts, power-pin conflicts, missing footprint
+  - [x] No-connect flag placement tool (Q): KiCad-style X marker on a pin tip — `sch.noConnects[]` model + `(no_connect …)` sexpr round-trip; flagged pins exempt from UNCONNECTED_PIN / SINGLE_PIN_NET and flag terminates wires (no DANGLING_WIRE); pin-tip snapping, select/⌫ delete, dark-blue X rendering (#000084 from builtin_color_themes.h), official `noconn_24.png` icon — 2026-08-24
+  - [x] Power-pin conflicts: two different power nets shorted on one node (GND symbol wired to VCC) → POWERPIN_CONFLICT error naming both nets; same-name repeats fine; shows in panel + canvas markers with no UI change — 2026-08-24
+  - Cross-sheet global label conflicts + missing footprint deferred: single-sheet model / no UI to assign footprints yet
+- [x] .kicad_pcb round-trip fidelity check against real KiCad files — 2026-08-24
   - [x] Zones: `(zone (net) (net_name) (layer) (polygon|filled_polygon (pts)))` parse + serialize, name-first net mapping, degenerate outlines dropped; test/test_zone_rt.js — 2026-08-24
   - [x] Real-file smoke: lib-build/real-board.kicad_pcb (63 fp / 370 tracks / B.Cu GND zone) → parse → serialize → re-parse stable (~62 ms) — 2026-08-24
   - [ ] Compare more element types field-by-field against additional real exports (pads with custom shapes, arcs in tracks, groups)
-- [ ] Keyboard: more KiCad shortcuts parity
+- [x] Keyboard: more KiCad shortcuts parity — 2026-08-24
+  - [x] Pure resolver `js/keys.js` (KipadKeys.resolve) runs before legacy single-key switches so modifier combos never leak into tools; test/test_keys.js (27 checks) — 2026-08-24
+  - [x] Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z / +Shift+Z / +Y undo-redo (mode-aware); +/-/= zoom, Home zoom-fit; E opens Properties on PCB selection; A = Add Footprint (PCB, Library tab) / Add Symbol (schematic); arrow keys nudge footprint/text/symbol selection by one grid step — 2026-08-24
 - [ ] iPad polish: haptics, Apple Pencil tilt/eraser, two-finger tap undo
 
 ## Recurring rules (from Avery)

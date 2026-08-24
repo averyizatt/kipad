@@ -160,7 +160,8 @@
       pads.push({ x: p.at[0] - p.size[0] / 2, y: p.at[1] - p.size[1] / 2, w: p.size[0], h: p.size[1], net: B.netName(board, p.netId) });
     }
     for (const t of board.tracks) {
-      tracks.push({ ax: t.start[0], ay: t.start[1], bx: t.end[0], by: t.end[1], r: t.width / 2, net: B.netName(board, t.netId) });
+      for (const s of B.trackSegments(t))
+        tracks.push({ ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, r: t.width / 2, net: B.netName(board, t.netId) });
     }
     for (const v of board.vias) {
       vias.push({ x: v.at[0], y: v.at[1], r: v.size / 2, net: B.netName(board, v.netId) });

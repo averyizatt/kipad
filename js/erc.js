@@ -23,6 +23,8 @@
  *   MISSING_VALUE    — symbol with an empty value
  *   LABEL_CONFLICT   — two different labels on the same electrical node
  *   DANGLING_WIRE    — wire end that touches nothing
+ *   POWERPIN_CONFLICT— two different power nets shorted on one node
+ *                      (e.g. a GND symbol wired to a VCC symbol)
  *
  * Topology comes from KipadSchematic.connectivity() — the same union-find
  * + label-to-wire merging used for the schematic→PCB netlist, so ERC and the
@@ -96,8 +98,13 @@
 
     var groups = Sch.connectivity(sch, getSymbol);
 
-    // Map each pin to its electrical node group.
+    // Map each pin to its electrical node group (and keep the symValue-stamped
+    // record reachable from the group's plain pin records).
     var pinGroup = {};
+    var stamped = {};      // symId|number -> stamped position record
+    symbols.forEach(function (sym) {
+      (pinsOf[sym.id] || []).forEach(function (p) { stamped[sym.id + '|' + p.number] = p; });
+    });
     groups.forEach(function (g) {
       g.pins.forEach(function (p) { pinGroup[p.symId + '|' + p.number] = g; });
     });
@@ -204,6 +211,29 @@
           message: 'Label "' + l.text + '" conflicts with label "' + first + '" on the same net',
           labelId: l.id, netName: first,
           x: l.at[0], y: l.at[1]
+        });
+      });
+    });
+
+    // ---- 5b. power-pin conflicts (two different power nets on one node) ----
+    // A GND symbol wired to a VCC symbol shorts two nets that must stay
+    // separate; KiCad reports this as an error. Same-name repeats (two GND
+    // symbols tied together) are fine.
+    groups.forEach(function (g) {
+      var firstName = null;  // first power net name seen on the node
+      g.pins.forEach(function (gp) {
+        var sp = stamped[gp.symId + '|' + gp.number];
+        if (!sp) return;
+        var pn = powerNetName(sp);
+        if (!pn) return;
+        if (!firstName) { firstName = pn; return; }
+        if (pn === firstName) return;
+        add({
+          severity: 'error',
+          code: 'POWERPIN_CONFLICT',
+          message: 'Power net "' + pn + '" is shorted to "' + firstName + '"',
+          symbolId: sp.symId, pinId: sp.number, netName: pn,
+          x: sp.at[0], y: sp.at[1]
         });
       });
     });
