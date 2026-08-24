@@ -181,7 +181,8 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [x] Preserve unsupported KiCad S-expression nodes during round trip — 2026-08-24
   - [x] `board.extra[]` / `fp.extra[]` hold raw parsed subtrees verbatim (JSON-safe): top-level dimension/setup/title_block/paper/images/targets/gr_curve, non-silk gr_text, non-edge gr_line/rect/arc/poly/circle; footprint-level fp_line/fp_text/graphics, model, attr, descr/tags, custom properties — 2026-08-24
   - [x] `generator` modeled (`board.generator`), synthesized `(general (thickness 1.6))` suppressed when extras carry one; cycle-2 output byte-stable; test/test_extra_rt.js incl. video.kicad_pcb real-file gate (2 dimensions / 175 models) — 38/38 suites green; cache v=47 / kipad-v41 — 2026-08-24
-- [ ] Improve interactive trace routing with 45-degree routing and route cleanup
+- [x] Improve interactive trace routing with 45-degree routing and route cleanup — 2026-08-24
+  - [x] `js/route.js` (KipadRoute, UMD pure): `elbow()` bends every route into H/V/45 segments (posture 'diag' default / 'straight', `/` toggles live), `cleanup()` drops duplicate + collinear points before commit, Backspace during routing removes the last placed point; dashed preview renders the real constrained elbow path — test/test_route.js (38 checks) · cache v=48 / sw kipad-v42
 - [ ] Add trace width and via-size controls
 - [ ] Add route layer switching that automatically inserts a via
 - [ ] Add multi-select and group move/rotate/delete
