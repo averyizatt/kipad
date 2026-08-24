@@ -395,3 +395,14 @@ All TODO items closed or blocked (haptics: no iPadOS Safari API; cross-sheet ERC
 - Tests: test/test_netlist_export.js — 12 checks (empty-sch valid sexpr incl. `{q:'D'}` string shape, label-named shared net with node refs/pins, GND power exclusion from file entirely while naming its net, auto N-* names, natural sort, libpart dedupe + balanced pins block, footprint lib-prefix passthrough, missing-def tolerance, quote escaping, determinism with fixed date, serialize→parse round-trip incl. Footprint property, every node references an exported component).
 - Debug notes: KiCad's R symbol has VERTICAL pins (±3.81 y); GND pin sits at symbol origin; sexpr.js parses quoted strings as {q:"…"} objects. First draft had an unbalanced-paren bug in the libpart pins block (non-last lines left `(pin` open) — caught by Sexp.parse assertions.
 - All **33 suites green**; node --check clean on touched files.
+
+## 2026-08-24 ~15:45 UTC — symbol library 600→2,000 + Edit Symbol Fields dialog
+Avery asked for "more common symbols — actual circuit components" and what GitHub Pages limits apply. Two-part increment answered it.
+
+Part 1 — shipped the finished-but-uncommitted Symbol Fields WIP as its own commit (5c9dc6e): KipadSymFields rows/applyRow model, showSymFields() modal in app.part1.js (ref/value/footprint grid, change-events apply live via SymFields.applyRow, blank ref keeps old designator, datalist autocomplete from FPs.listFootprints('')), Tools > "Edit Symbol Fields…" entry in app.part4.js, .fields-table styles, sw ASSETS += ./js/symfields.js.
+
+Part 2 — library expansion (this commit): build-symbols.js MAX_TOTAL 600→2,000; LIBRARIES grew Device/Power/Switch/BJT/Diode/LED/OpAmp/RegLin/Timer/ConnGeneric with Transistor_FET (+608 syms parsed), Comparator, Reference_Voltage, Isolator, Driver_Motor, Battery_Management, Sensor_Current, Sensor_Temperature, 74xx, 4xxx, MCU_Module, RF_Module → 6,971 parsed pre-cap. New POPULARS reserved array pins exact-name hobbyist staples (NE555D/P … ESP32-WROOM-32) ahead of the proportional alphabetical quotas; all 70 verified present in the built file. Output: 2,000 symbols, 1,619,200 B raw / 111,238 B gzip (-fk9n). Footprint-default mapping intentionally left to the new Symbol Fields dialog instead of hardcoding more GENERIC_FOOTPRINTS entries.
+
+Cache discipline catch: loadLibraries fetches used ?v=18 on all four lib URLs (frozen since an early iteration) — bumped to v44 alongside index.html ×30 and sw kipad-v37→v38 so clients actually refetch the bigger library. README feature line updated (400→2,000 symbols, ~170→~160 footprints).
+
+Tests: 34/34 suites green after rebuild. Pages payload still trivial vs GitHub limits (site ≈ few MB, soft caps 100 GB/mo bandwidth).

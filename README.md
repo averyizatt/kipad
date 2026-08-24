@@ -6,7 +6,7 @@ A KiCad-like PCB layout editor that runs in the browser as an installable PWA. D
 
 ## Features
 
-- **Real KiCad libraries** — ~170 footprints (`lib/footprints.json`) and 400 symbols (`lib/symbols.json`) converted from the official KiCad repositories (kicad-footprints, kicad-symbols)
+- **Real KiCad libraries** — ~160 footprints (`lib/footprints.json`) and 2,000 symbols (`lib/symbols.json`) converted from the official KiCad repositories (kicad-footprints, kicad-symbols)
 - **Import your own parts** — open `.kicad_mod` and `.kicad_sym` files directly in the app
 - **2-layer boards** (F.Cu / B.Cu) with Edge.Cuts board outline
 - **KiCad-style UI**: menu bar, toolbar, left tool rail, right panel (Layers / Library / Symbols / Nets / Properties), bottom status bar, dark KiCad 8 theme

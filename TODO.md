@@ -166,3 +166,10 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [x] Via annulus stroke radius (size+drill)/4; pads dim on inactive copper side like tracks — 2026-08-24
 - [x] Image-converter logos: auto-numbered refs, string F<n> ids — 2026-08-24
 - [x] FileReader.onerror status messages for open/import/image flows — 2026-08-24
+
+## Session 2026-08-24 (~15:45 UTC) — symbol library expansion + Symbol Fields dialog
+- [x] Edit Symbol Fields dialog (schematic Tools menu): one row per physical symbol (ref / value / footprint), edits apply live, footprint names autocomplete from the library, power + #-refs excluded; js/symfields.js model + test/test_symfields.js (154 ln) — 2026-08-24
+- [x] Symbol library expanded 600 → 2,000 parts (build-symbols.js MAX_TOTAL=2000): 12 new KiCad libs — Transistor_FET, Comparator, Reference_Voltage, Isolator, Driver_Motor, Battery_Management, Sensor_Current, Sensor_Temperature, 74xx, 4xxx, MCU_Module, RF_Module — 2026-08-24
+- [x] POPULARS reserved list so quotas can't drop hobbyist staples: NE555D/P, LM358/324/741, TL072/74, LM339/393, TL431DBZ, L7805, AMS1117-3.3, PC817, TP4056-42-ESOP8, MCP73831-2-OT, L293D, DRV8833PW, DRV8871DDA, ACS712xLCTR-05B/-20A, DS18B20, LM35-D, 2N7002, IRF540N/9540N, 9× 74HC gates/regs, 10× CD40xx, Arduino_Nano v3/RP2040/ESP32, ESP32-WROOM-32 (all verified present in output) — 2026-08-24
+- [x] Latent cache bug fixed: lib/*.json(.gz) fetch URLs were frozen at ?v=18 since forever while the shell bumped v43 — now v44 everywhere (index.html ×30, app.part4.js ×4, sw CACHE kipad-v37→v38); README stale counts corrected (400→2,000 symbols, ~170→~160 footprints) — 2026-08-24
+- [x] Payload: symbols.json 1.58 MB raw / 111 KB gzipped · **34/34 test suites green** — 2026-08-24

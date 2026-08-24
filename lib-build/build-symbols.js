@@ -5,7 +5,7 @@
  *
  * Reads the cloned kicad-symbols repo (lib-build/symbols-src), parses the
  * requested libraries with js/kicad_sym.js, dedupes by symbol name, caps the
- * total at 400 symbols (per-library quotas, alphabetical), and writes
+ * total at MAX_TOTAL symbols (per-library quotas, alphabetical), and writes
  * lib/symbols.json as a JSON ARRAY of symbol objects.
  *
  * Usage: node lib-build/build-symbols.js
@@ -17,7 +17,7 @@ const KipadKicadSym = require('../js/kicad_sym.js');
 
 const SRC = path.join(__dirname, 'symbols-src');
 const OUT = path.join(__dirname, '..', 'lib', 'symbols.json');
-const MAX_TOTAL = 600;
+const MAX_TOTAL = 2000;
 
 // Essential everyday components always kept, so the built library is actually
 // usable (and so tests can rely on R / power rails existing). Anything not
@@ -33,6 +33,29 @@ const GENERICS = [
   'Fuse', 'SW_Push', 'Crystal', 'Battery', 'Speaker', 'Motor', 'Thermistor',
   'Potentiometer', 'Relay', 'Transformer', 'Photodiode', 'OpAmp',
   'Conn_01x02', 'Conn_01x04', 'Conn_01x08'
+];
+
+// Popular hobbyist/maker ICs and modules pinned so per-library quotas can't
+// drop them (exact KiCad symbol names, verified against symbols-src).
+const POPULARS = [
+  // timers / op-amps / comparators / references
+  'NE555D', 'NE555P', 'LM358', 'LM324', 'LM741', 'TL072', 'TL074',
+  'LM339', 'LM393', 'TL431DBZ',
+  // regulators / protection / isolation
+  'L7805', 'AMS1117-3.3', 'PC817',
+  // battery charging / motor drivers / sensors
+  'TP4056-42-ESOP8', 'MCP73831-2-OT',
+  'L293D', 'DRV8833PW', 'DRV8871DDA',
+  'ACS712xLCTR-05B', 'ACS712xLCTR-20A', 'DS18B20', 'LM35-D',
+  // transistors (FET)
+  '2N7002', 'IRF540N', 'IRF9540N',
+  // logic: 74HC family + CD4xxx family
+  '74HC00', '74HC02', '74HC04', '74HC14', '74HC74', '74HC86', '74HC138',
+  '74HC165', '74HC595',
+  '4001', '4011', '4013', '4017', '4021', '4051', '4052', '4053', '4060', '4066',
+  // boards & modules
+  'Arduino_Nano_v3.x', 'Arduino_Nano_RP2040_Connect', 'Arduino_Nano_ESP32',
+  'ESP32-WROOM-32'
 ];
 
 // Default footprint (KiCad lib:footprint syntax) applied to generic symbols that
@@ -63,11 +86,23 @@ const LIBRARIES = [
   'Power',
   'Switch',
   'Transistor_BJT',
+  'Transistor_FET',
   'Diode',
   'LED',
   'Amplifier_Operational',
+  'Comparator',
+  'Reference_Voltage',
   'Regulator_Linear',
   'Timer',
+  'Isolator',
+  'Driver_Motor',
+  'Battery_Management',
+  'Sensor_Current',
+  'Sensor_Temperature',
+  '74xx',
+  '4xxx',
+  'MCU_Module',
+  'RF_Module',
   'Connector_Generic'
 ];
 
@@ -152,9 +187,9 @@ function main() {
   let total = libs.reduce((n, l) => n + l.symbols.length, 0);
   console.log(`Parsed ${total} symbols before cap.`);
 
-  // 2a. Reserve essential + generic symbols (in library priority order, first wins).
+  // 2a. Reserve essential + generic + popular symbols (library order, first wins).
   const reserved = [];
-  const reserveNames = ESSENTIALS.concat(GENERICS);
+  const reserveNames = ESSENTIALS.concat(GENERICS).concat(POPULARS);
   for (const name of reserveNames) {
     for (const l of libs) {
       const idx = l.symbols.findIndex((s) => s.name === name);
