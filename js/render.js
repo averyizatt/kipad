@@ -494,6 +494,20 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
     ctx.fill();
   }
 
+  // no-connect flags (KiCad: dark-blue X at the pin tip)
+  if (sch.noConnects && sch.noConnects.length) {
+    ctx.strokeStyle = '#000084';
+    ctx.lineWidth = 2;
+    for (const nc of sch.noConnects) {
+      const [sx, sy] = w2s(view, nc.at[0], nc.at[1], cw, ch);
+      const r = Math.max(4, 0.635 * z);   // world half-diagonal 0.635 mm, min screen size
+      ctx.beginPath();
+      ctx.moveTo(sx - r, sy - r); ctx.lineTo(sx + r, sy + r);
+      ctx.moveTo(sx - r, sy + r); ctx.lineTo(sx + r, sy - r);
+      ctx.stroke();
+    }
+  }
+
   // symbols
   for (const sym of sch.symbols) {
     const def = (S && S.getSymbol) ? S.getSymbol(sym.libId) : null;
