@@ -47,6 +47,22 @@
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
 
   /**
+   * No-connect flag locations (sch.noConnects). A pin whose tip lies within
+   * NC_RADIUS of a flag is "intentionally unconnected" — exempt from
+   * UNCONNECTED_PIN and SINGLE_PIN_NET. Radius is generous (half the common
+   * 1.27 mm pin pitch) so hand-placed flags still catch their pin.
+   */
+  var NC_RADIUS = 0.635;
+  function noConnectAts(sch) {
+    return (sch && sch.noConnects) ? sch.noConnects.map(function (n) { return n.at; }) : [];
+  }
+  function pinHasNoConnect(sch, at) {
+    var ats = noConnectAts(sch);
+    for (var i = 0; i < ats.length; i++) if (dist(at, ats[i]) <= NC_RADIUS) return true;
+    return false;
+  }
+
+  /**
    * Power net name for a pin, or null. Mirrors the powerName derivation in
    * schematic.js extractNets: power_in/power_out pins whose value is a plain
    * net name (GND/VCC/+5V/...) — or whose pin name is — belong to a named
@@ -92,6 +108,7 @@
       (pinsOf[sym.id] || []).forEach(function (p) {
         if (p.type === 'no_connect') return;      // explicit no-connect flag
         if (powerNetName(p)) return;              // named power pin (GND/VCC…)
+        if (pinHasNoConnect(sch, p.at)) return;   // placed no-connect flag on the tip
         var g = pinGroup[sym.id + '|' + p.number];
         // Connected only when something else shares the node: another pin, a
         // label, a wire or a junction.
@@ -117,6 +134,7 @@
       var p = g.pins[0];
       if (p.type === 'no_connect') return;
       if (powerNetName(p)) return;                 // lone GND/VCC pin is fine
+      if (pinHasNoConnect(sch, p.at)) return;      // flagged no-connect
       if (unconnected[p.symId + '|' + p.number]) return; // already "pin not connected"
       add({
         severity: 'warning',
@@ -197,6 +215,7 @@
     });
     var juncs = (sch.junctions || []).map(function (j) { return j.at; });
     var labAt = (sch.labels || []).map(function (l) { return l.at; });
+    var ncAts = noConnectAts(sch);   // a flag legitimately terminates a wire
     var verts = [];
     (sch.wires || []).forEach(function (w) {
       w.pts.forEach(function (p, i) {
@@ -209,6 +228,7 @@
         for (var i = 0; i < pinTips.length && dangling; i++) if (dist(e, pinTips[i]) <= EPS) dangling = false;
         for (var j = 0; j < juncs.length && dangling; j++) if (dist(e, juncs[j]) <= EPS) dangling = false;
         for (var k = 0; k < labAt.length && dangling; k++) if (dist(e, labAt[k]) <= LABEL_RADIUS) dangling = false;
+        for (var q = 0; q < ncAts.length && dangling; q++) if (dist(e, ncAts[q]) <= NC_RADIUS) dangling = false;
         for (var m = 0; m < verts.length && dangling; m++) {
           if (verts[m].at === e) continue;          // the endpoint itself
           if (dist(e, verts[m].at) <= EPS) dangling = false;  // any other vertex (incl. same-wire loop close)
@@ -276,6 +296,8 @@
     counts: counts,
     markers: markers,
     powerNetName: powerNetName,
+    pinHasNoConnect: pinHasNoConnect,
+    NC_RADIUS: NC_RADIUS,
     EPS: EPS
   };
 });
