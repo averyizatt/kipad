@@ -525,3 +525,14 @@ Queue: the multisel milestone's deferred pair — rubber-band box select stays d
 - render picks it up unchanged via the existing `selIds` Set built from selSet ∪ selId.
 - Tests: test/test_keys.js +5 checks (ctrl/meta/shift variants → selectAll, schematic null, launcher null). All 42 suites green; node --check clean on both touched JS files.
 - Cache: index.html ?v=54→v55 (36 refs), sw CACHE kipad-v48→kipad-v49 (no new assets).
+
+## 2026-08-24 ~23:55 UTC — load-and-render regression suite (headless canvas mock)
+Avery 23:34: "make a test suite where it tries to load a kicad file and make sure it shows up as it should, or make one via python".
+
+Parse-vs-file coverage already existed (test_roundtrip_fixtures.js counts raw sexpr against the parsed model); what was missing was proof that a loaded board actually *renders* correctly. New `test/test_load_render.js` closes that gap without a browser or pixel library: render() only ever touches the canvas-2D API surface, so a faithful call recorder IS a faithful headless canvas. The mock logs every draw call and every style set (arcTo added after pic_programmer's roundrect pads exposed it), letting assertions target exact primitives instead of screenshots.
+
+- Part A — real fixture: parses lib-build/raw/pic_programmer.kicad_pcb, checks ground-truth counts (63 footprints / 370 segments / 6 vias) survive parseBoard AND reach the paint list: background fillRect first, every footprint ref label present as fillText text, Edge.Cuts outline stroked in theme colour, ≥6 via annuli in #c0c0c0, F.Cu segments at full copper colour while B.Cu strokes appear rgba(77,127,196,0.38)-dimmed.
+- Part B — synthetic minimal board asserts geometry precisely using render.js's own w2s for expected screen coords: segment corner moveTo/lineTo pairs, pad translate + arc at size/2·zoom radius, ref-label y offset above fp centre, outline closePath before stroke; plus state gating — layerVis {F.Cu:false} drops F.Cu primitives while Edge.Cuts stays, activeLayer:'B.Cu' flips the dim/full relationship both directions, hiNet repaints cyan (#00f8ff), selIds repaints selection green (#04ff43).
+- Notable model detail confirmed by the test's first draft failing: parsePad bakes fp.at/fpAngle into absolute pad coords, so renderer needs no per-footprint transform for pads.
+- Python option considered and skipped: it would duplicate the parser as an oracle in a second runtime; the Node harness already cross-checks against raw-text regex ground truth. Revisit only if we ever want a fully independent implementation.
+- Verification: test_load_render 24/24 checks, full suite 43/43 green, node --check clean on the new file. No app assets touched → no cache-bust needed.

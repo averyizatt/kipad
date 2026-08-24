@@ -4,6 +4,10 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Milestones
 
+- [x] Load-and-render regression suite (headless canvas mock) — 2026-08-24
+  - [x] `test/test_load_render.js`: recording canvas-2D mock (every draw call + style set logged) so the real renderer runs headlessly with zero browser/pixel deps — 2026-08-24
+  - [x] Part A loads `lib-build/raw/pic_programmer.kicad_pcb` (63 fps / 370 segs / 6 vias): raw-text ground-truth counts survive parse AND reach the canvas — bg fill first, all 63 ref labels via fillText, Edge.Cuts outline colour, via annuli count, F.Cu full copper + B.Cu rgba-dimmed strokes — 2026-08-24
+  - [x] Part B synthetic board: exact w2s screen math via the module's own w2s (segment corners, pad centre/radius, ref-label offset), plus state gating — layerVis hides F.Cu but never Edge.Cuts, activeLayer dimming both directions, hiNet cyan repaint, selIds green overlay — 2026-08-24
 - [x] Collapsible side panel (schematic + PCB editors) — 2026-08-24
   - [x] Edge handle hides the right panel, floating ‹ restore tab brings it back; state remembered per mode via localStorage (`kipad.panel.hidden.<mode>`) — 2026-08-24
   - [x] View → Show/Hide Side Panel toggle in both editors' menus — 2026-08-24
