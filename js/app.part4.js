@@ -358,13 +358,14 @@
       render();
       return;
     }
-    if (schTool === 'label') {
-      const text = prompt('Net label text:');
+    if (schTool === 'label' || schTool === 'glabel') {
+      const isGlobal = schTool === 'glabel';
+      const text = prompt(isGlobal ? 'Global net label text:' : 'Net label text:');
       if (text && text.trim()) {
         schPushUndo();
-        Sch.addLabel(sch, text.trim(), [sx, sy], 0);
+        Sch.addLabel(sch, text.trim(), [sx, sy], 0, isGlobal ? 'global' : 'local');
         render(); refreshAll();
-        setStatus('Label ' + text.trim());
+        setStatus((isGlobal ? 'Global label ' : 'Label ') + text.trim());
       }
       return;
     }
@@ -471,6 +472,9 @@
         case 'q': case 'Q': setSchTool('noconn'); break;
         case 'r': case 'R': schDoRotate(); break;
         case 'g': case 'G': cycleGrid(); break;
+        case 'h': case 'H':
+          if (e.ctrlKey || e.metaKey) { e.preventDefault(); setSchTool('glabel'); }   // KiCad legacy Ctrl+H = Add Global Label
+          break;
         case 'Delete': case 'Backspace': e.preventDefault(); schDoDelete(); break;
         case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
         case 'Escape':
@@ -567,6 +571,7 @@
   $('sch-symbol').addEventListener('click', () => setSchTool('symbol'));
   $('sch-wire').addEventListener('click', () => setSchTool('wire'));
   $('sch-label').addEventListener('click', () => setSchTool('label'));
+  $('sch-glabel').addEventListener('click', () => setSchTool('glabel'));
   $('sch-junction').addEventListener('click', () => setSchTool('junction'));
   $('sch-noconn').addEventListener('click', () => setSchTool('noconn'));
   $('launch-sch').addEventListener('click', () => setMode('schematic'));
@@ -670,6 +675,7 @@
         ['Symbol…', () => { setTab('symbols'); setSchTool('symbol'); }, 'S'],
         ['Wire', () => setSchTool('wire'), 'W'],
         ['Net Label', () => setSchTool('label'), 'L'],
+        ['Global Label', () => setSchTool('glabel'), 'Ctrl+H'],
         ['Junction', () => setSchTool('junction'), 'J'],
         ['No-connect flag', () => setSchTool('noconn'), 'Q']
       ],
@@ -749,6 +755,7 @@
       ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>
+      🚩 Global Label — dark-red flag that names the net across sheets (Ctrl+H); both label types connect nets by matching text<br>
       • Junction — tap to add a wire junction dot<br>
       ✕ No-connect — tap a pin to mark it intentionally unconnected (suppresses its ERC warning); Q shortcut<br><br>
       <b>Flow</b>: place symbols → wire them → add labels → <b>Inspect → Electrical Rules Check…</b> to find unconnected pins, duplicate refs, label conflicts and more, then <b>File → Update PCB from Schematic</b> to continue in the PCB editor.<br><br>
@@ -809,6 +816,7 @@
       G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>
+      Schematic: S select · W wire · L net label · Ctrl+H global label · J junction · Q no-connect<br>
       Pinch to zoom · drag empty area to pan<br>
       Pencil: tilt in HUD · eraser end deletes · double-tap → Select · palm rejection active<br>
       Touch: two-finger tap → Undo · pinch zoom · drag pan

@@ -140,7 +140,7 @@
     schWirePts = [];
     if (t !== 'select') schSelNc = null;
     document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
-    const map = { select: 'sch-select', symbol: 'sch-symbol', wire: 'sch-wire', label: 'sch-label', junction: 'sch-junction', noconn: 'sch-noconn' };
+    const map = { select: 'sch-select', symbol: 'sch-symbol', wire: 'sch-wire', label: 'sch-label', glabel: 'sch-glabel', junction: 'sch-junction', noconn: 'sch-noconn' };
     if (map[t] && $(map[t])) $(map[t]).classList.add('active');
     if (t === 'symbol') {
       setTab('symbols');

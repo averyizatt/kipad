@@ -198,3 +198,15 @@ Advanced the next iPad-polish item while keeping PCB geometry independent of pen
 - Cache-bust `?v=24` → `?v=25`; service-worker cache `kipad-v18` → `kipad-v19`. No new assets.
 - Tests: `test/test_gestures.js` now has 32 checks including eraser button/bit recognition, ordinary-tip isolation, native angle conversion, tilt fallback and non-pen isolation. All **22 suites green**; touched JavaScript passes `node --check`.
 - Haptics remains pending: iPadOS Safari exposes no vibration/haptic web API, so implementing it honestly requires a future supported API or native wrapper.
+
+## 2026-08-24 ~08:30 UTC — Schematic grid + labels to match KiCad precisely
+Closed the last open item of the 2026-08-23 visual-overhaul list (grid/labels), using exact values from KiCad 8.0 common/settings/builtin_color_themes.h (Kicad 2007 light theme).
+
+- js/render.js:
+  - Grid: dots are now LAYER_SCHEMATIC_GRID grey rgb(181,181,181) (was rgba(0,0,0,0.16)), drawn as clean 1px squares that grow to 2px when spacing >10px; same >3px visibility threshold. Added the eeschema grid-axes cross through the world origin in LAYER_SCHEMATIC_GRID_AXES rgb(0,0,132).
+  - Labels: local labels keep LAYER_LOCLABEL #0F0F0F. Global labels render the KiCad flag/banner: paper-filled polygon with pointed end docked on the anchor, outline+text in LAYER_GLOBLABEL #840000, ~1.905 mm world height clamped to 12–40 screen px so it stays legible at any zoom.
+- js/schematic.js: labels carry `type: 'local'|'global'` (addLabel 5th arg, unknown coerces local). Serializer emits `(global_label "…" (at …) (shape input) …)` for globals, `(label …)` unchanged; parser maps tag → type both ways (previously global_label was silently flattened to label).
+- js/app.part4.js / app.part2.js / app.part3.js: new `glabel` sch tool — rail button sch-glabel, Place → Global Label, Ctrl+H shortcut (KiCad legacy Add-Global-Label binding), status/HUD names. The old label button now uses the correct official add_label_24.png (it had been reusing glabel.png); glabel.png stays on the global-label button.
+- index.html: cache-bust ?v=25→?v=26 (24 refs incl. icons/add_label.png); sw.js CACHE kipad-v19→v20, ICONS precache += add_label.
+- Tests: test/test_sch_labels.js (model defaults/coercion, serializer both flavours + mixed file, parsing real KiCad text with angles, legacy plain-(label files, double round-trip stability, netlist equivalence — local+global with equal text merge into one net). All **23 suites green**; node --check clean on touched files; static $('id')↔index.html check passes (missing IDs are all JS-built, verified p-ref et al.).
+- Housekeeping: TODO.md round-trip sub-item checked off (was completed ~06:16 per DEVLOG but left unchecked).

@@ -78,8 +78,11 @@
     return w;
   }
 
-  function addLabel(sch, text, at, angle) {
-    var l = { id: nid('lbl'), text: String(text), at: [at[0], at[1]], angle: angle || 0 };
+  // type: 'local' (default) | 'global' — KiCad label flavours. Both name the
+  // net the same way; only rendering and serialization differ.
+  function addLabel(sch, text, at, angle, type) {
+    var l = { id: nid('lbl'), text: String(text), at: [at[0], at[1]], angle: angle || 0,
+              type: type === 'global' ? 'global' : 'local' };
     sch.labels.push(l);
     return l;
   }
@@ -331,7 +334,11 @@
       L.push('  (junction (at ' + fmt(j.at[0]) + ' ' + fmt(j.at[1]) + ') (diameter 0) (color 0 0 0 0) (uuid "00000000-0000-0000-0000-000000000000"))');
     });
     sch.labels.forEach(function (l) {
-      L.push('  (label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
+      if (l.type === 'global') {
+        L.push('  (global_label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (shape input) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
+      } else {
+        L.push('  (label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
+      }
     });
     (sch.noConnects || []).forEach(function (nc) {
       L.push('  (no_connect (at ' + fmt(nc.at[0]) + ' ' + fmt(nc.at[1]) + ') (uuid "00000000-0000-0000-0000-000000000000"))');
@@ -391,7 +398,7 @@
         var text = str(node[1]);
         var lat = [0, 0], lang = 0;
         node.forEach(function (child) { if (child[0] === 'at') { lat = [num(child[1]), num(child[2])]; lang = num(child[3]) || 0; } });
-        addLabel(sch, text, lat, lang);
+        addLabel(sch, text, lat, lang, tag === 'global_label' ? 'global' : 'local');
       }
     });
     return sch;

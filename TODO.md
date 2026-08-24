@@ -56,7 +56,7 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] .kicad_pcb round-trip fidelity check against real KiCad files — 2026-08-24
   - [x] Zones: `(zone (net) (net_name) (layer) (polygon|filled_polygon (pts)))` parse + serialize, name-first net mapping, degenerate outlines dropped; test/test_zone_rt.js — 2026-08-24
   - [x] Real-file smoke: lib-build/real-board.kicad_pcb (63 fp / 370 tracks / B.Cu GND zone) → parse → serialize → re-parse stable (~62 ms) — 2026-08-24
-  - [ ] Compare more element types field-by-field against additional real exports (pads with custom shapes, arcs in tracks, groups)
+  - [x] Compare more element types field-by-field against additional real exports (pads with custom shapes, arcs in tracks, groups) — 2026-08-24 (test_roundtrip2.js: custom pads w/ primitives, arc tracks, groups; see DEVLOG ~06:16)
 - [x] Keyboard: more KiCad shortcuts parity — 2026-08-24
   - [x] Pure resolver `js/keys.js` (KipadKeys.resolve) runs before legacy single-key switches so modifier combos never leak into tools; test/test_keys.js (27 checks) — 2026-08-24
   - [x] Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z / +Shift+Z / +Y undo-redo (mode-aware); +/-/= zoom, Home zoom-fit; E opens Properties on PCB selection; A = Add Footprint (PCB, Library tab) / Add Symbol (schematic); arrow keys nudge footprint/text/symbol selection by one grid step — 2026-08-24
@@ -81,7 +81,10 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Fix: launcher must stay as landing screen (was auto-hiding) — 2026-08-23
 - [x] Real KiCad default layer colors in renderer (from builtin_color_themes.h) — 2026-08-23
 - [x] Schematic light-paper theme (green wires, red pins, teal refs) — 2026-08-23
-- [ ] Schematic canvas grid/labels to match KiCad precisely (labels are currently black, KiCad uses dark red global labels)
+- [x] Schematic canvas grid/labels to match KiCad precisely — 2026-08-24
+  - [x] Grid: 1px dots in LAYER_SCHEMATIC_GRID grey rgb(181,181,181) + dark-blue grid-axes cross through world origin rgb(0,0,132) (both from builtin_color_themes.h Kicad-2007 light theme); dot size scales at high zoom, same visibility threshold as before
+  - [x] Labels typed local|global: local keeps LAYER_LOCLABEL #0F0F0F text; global renders the KiCad flag/banner (paper-filled, #840000 LAYER_GLOBLABEL outline+text, pointed end docked on the anchor, ~1.9 mm world height clamped to screen px); placement tool + Ctrl+H shortcut (KiCad legacy Add Global Label), official add_label_24.png icon for the label button, glabel.png now only on the global-label button
+  - [x] Model/IO: Sch.addLabel(…, type), serializer emits (global_label … (shape input)), parser maps tag → type both ways, round-trip stable; test/test_sch_labels.js
 - [ ] Gerber viewer launcher card (placeholder now)
 - [ ] PCB Calculator launcher card (placeholder now)
 

@@ -48,7 +48,7 @@
   }
 
   function schToolName() {
-    const m = { select: 'Select', symbol: 'Place Symbol', wire: 'Wire', label: 'Net Label', junction: 'Junction', noconn: 'No Connect' };
+    const m = { select: 'Select', symbol: 'Place Symbol', wire: 'Wire', label: 'Net Label', glabel: 'Global Label', junction: 'Junction', noconn: 'No Connect' };
     return m[schTool] || schTool;
   }
 

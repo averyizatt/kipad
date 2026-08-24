@@ -1,5 +1,5 @@
 /* Kipad service worker — offline-first PWA */
-const CACHE = 'kipad-v19';
+const CACHE = 'kipad-v20';
 const ASSETS = [
   './',
   './index.html',
@@ -38,7 +38,7 @@ const ICONS = [
   'add_zone','text','erc','exit','gerbview','glabel','help','highlight','import','junction','kicad','measure','module_editor',
   'netlist','new_project','open_project','pcbnew','ratsnest','redo','refresh','save','symbol','tracks',
   'undo','via','zoom_fit','zoom_in','zoom_out',
-  'gerber','grid','line','noconn','pcm','rect',
+  'gerber','grid','line','noconn','pcm','rect','add_label',
   'icon_cvpcb_128','icon_eeschema_128','icon_gerbview_128','icon_kicad_128','icon_libedit_128',
   'icon_modedit_128','icon_pcbcalculator_128','icon_pcbnew_128','icon_pcm_128'
 ].map(n => './icons/' + n + '.png');
