@@ -375,7 +375,7 @@
     drcViolations = B.runDRC(board);
     panel.classList.remove('hidden');
     if (!drcViolations.length) {
-      panel.innerHTML = '<h4>DRC</h4><div class="drc-clear">✓ No violations — clearances, holes, edges, silkscreen all pass</div>';
+      panel.innerHTML = '<h4>DRC</h4><div class="drc-clear">✓ No violations — clearances, holes, edges, silkscreen and connectivity all pass</div>';
       return;
     }
     const errs = drcViolations.filter(v => v.severity !== 'warning').length;

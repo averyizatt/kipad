@@ -2,11 +2,56 @@
 'use strict';
 
   // ---------- pointer handling ----------
+  // iPadOS-style two-finger tap = undo (recognizer is pure, see js/gestures.js)
+  const twoTap = KipadGestures.twoFingerTap();
+
+  function updatePenHud(e) {
+    const h = $('hud-pen');
+    if (!h) return;
+    const p = KipadGestures.penInfo(e);
+    if (!p.isPen) return;
+    h.classList.remove('hidden');
+    h.textContent = p.eraser ? '⌫ Eraser' : '✏' + (p.altitude == null ? '' : ' ' + Math.round(p.altitude) + '°');
+  }
+
+  function eraseAt(wx, wy) {
+    if (mode === 'schematic') {
+      const tol = Math.max(0.3, 10 / view.zoom);
+      const nc = (sch.noConnects || []).find(n => Math.hypot(n.at[0] - wx, n.at[1] - wy) <= tol);
+      const sym = nc ? null : schHitSymbol(wx, wy);
+      if (!nc && !sym) { setStatus('Eraser: nothing under Pencil'); return; }
+      schSelNc = nc ? nc.id : null;
+      schSelId = sym ? sym.id : null;
+      schDoDelete();
+      setStatus('Pencil eraser: deleted ' + (nc ? 'no-connect flag' : 'symbol'));
+      return;
+    }
+    const hit = B.hitPad(board, wx, wy, pickTol()) || B.hitFootprint(board, wx, wy, pickTol());
+    const tr = hit ? null : B.hitTrack(board, wx, wy, pickTol(6));
+    const via = hit || tr ? null : B.hitVia(board, wx, wy, pickTol(6));
+    const text = hit || tr || via ? null : B.hitText(board, wx, wy, pickTol());
+    const zone = hit || tr || via || text ? null : hitZone(wx, wy);
+    const id = hit ? (hit.fp ? hit.fp.id : hit.id) : tr ? tr.id : via ? via.id : text ? text.id : zone ? zone.id : null;
+    if (!id) { setStatus('Eraser: nothing under Pencil'); return; }
+    selId = id;
+    selKind = hit ? 'footprint' : tr ? 'track' : via ? 'via' : text ? 'text' : 'zone';
+    const erasedKind = selKind;
+    doDelete();
+    setStatus('Pencil eraser: deleted ' + erasedKind);
+  }
+
   canvas.addEventListener('pointerdown', e => {
     const penHud = $('hud-pen');
     if (e.pointerType === 'pen') {
       penDown = e.pointerId;
-      if (penHud) penHud.classList.remove('hidden');
+      updatePenHud(e);
+      if (KipadGestures.penInfo(e).eraser) {
+        eraserPointers.add(e.pointerId);
+        const [ex, ey] = s2w(e.clientX, e.clientY);
+        eraseAt(ex, ey);
+        e.preventDefault();
+        return;
+      }
       const now = Date.now();
       const drawing = mode === 'schematic'
         ? (schTool === 'wire' && schWirePts.length > 0) || schTool === 'symbol'
@@ -26,8 +71,13 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
+    twoTap.feed({ type: 'down', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
 
-    if (mode === 'schematic') { schPointerDown(wx, wy, e); return; }
+    if (mode === 'schematic') {
+      // multi-touch (pinch zoom / two-finger tap) must not place parts or wire points
+      if (pointers.size < 2) schPointerDown(wx, wy, e);
+      return;
+    }
 
     if (pointers.size === 2) {
       const [p1, p2] = [...pointers.values()];
@@ -149,8 +199,10 @@
   });
 
   canvas.addEventListener('pointermove', e => {
+    if (e.pointerType === 'pen') updatePenHud(e);
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    twoTap.feed({ type: 'move', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
 
@@ -214,10 +266,17 @@
 
   canvas.addEventListener('pointerup', e => {
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
+    if (eraserPointers.delete(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     const wasDragging = dragging;
     dragging = null; lastPan = null;
+
+    if (twoTap.feed({ type: 'up', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp }) === 'undo') {
+      applyKeyAction('undo');
+      setStatus('Two-finger tap → Undo');
+      return;
+    }
 
     if (mode === 'schematic') {
       const now2 = Date.now();
@@ -249,6 +308,11 @@
   });
 
   canvas.addEventListener('pointercancel', e => {
+    if (eraserPointers.delete(e.pointerId)) {
+      if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
+      return;
+    }
+    twoTap.feed({ type: 'cancel', id: e.pointerId });
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
@@ -294,13 +358,14 @@
       render();
       return;
     }
-    if (schTool === 'label') {
-      const text = prompt('Net label text:');
+    if (schTool === 'label' || schTool === 'glabel') {
+      const isGlobal = schTool === 'glabel';
+      const text = prompt(isGlobal ? 'Global net label text:' : 'Net label text:');
       if (text && text.trim()) {
         schPushUndo();
-        Sch.addLabel(sch, text.trim(), [sx, sy], 0);
+        Sch.addLabel(sch, text.trim(), [sx, sy], 0, isGlobal ? 'global' : 'local');
         render(); refreshAll();
-        setStatus('Label ' + text.trim());
+        setStatus((isGlobal ? 'Global label ' : 'Label ') + text.trim());
       }
       return;
     }
@@ -392,6 +457,12 @@
   // ---------- keyboard ----------
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // KiCad-parity bindings (save/open/undo/redo, zoom, properties, add, nudge)
+    const keyAct = KipadKeys.resolve(e, {
+      mode: mode,
+      hasSelection: mode === 'schematic' ? !!schSelId : !!selId
+    });
+    if (keyAct) { e.preventDefault(); applyKeyAction(keyAct); return; }
     if (mode === 'schematic') {
       switch (e.key) {
         case 's': case 'S': setSchTool('select'); break;
@@ -401,6 +472,9 @@
         case 'q': case 'Q': setSchTool('noconn'); break;
         case 'r': case 'R': schDoRotate(); break;
         case 'g': case 'G': cycleGrid(); break;
+        case 'h': case 'H':
+          if (e.ctrlKey || e.metaKey) { e.preventDefault(); setSchTool('glabel'); }   // KiCad legacy Ctrl+H = Add Global Label
+          break;
         case 'Delete': case 'Backspace': e.preventDefault(); schDoDelete(); break;
         case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
         case 'Escape':
@@ -438,9 +512,52 @@
         setTool('select'); break;
       case 'w': cycleTrackWidth(); break;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
   });
+
+  function applyKeyAction(act) {
+    switch (act) {
+      case 'save': mode === 'schematic' ? schSave() : doSave(); break;
+      case 'open': $('btn-open').click(); break;
+      case 'undo': mode === 'schematic' ? schUndoStep() : undo(); break;
+      case 'redo': mode === 'schematic' ? schRedoStep() : redo(); break;
+      case 'zoomIn': view.zoom = Math.min(50, view.zoom * 1.25); render(); break;
+      case 'zoomOut': view.zoom = Math.max(0.5, view.zoom / 1.25); render(); break;
+      case 'zoomFit': zoomFit(); break;
+      case 'props': setTab('props'); break;
+      case 'addFootprint': setTool('footprint'); setTab('library'); break;
+      case 'addSymbol': setSchTool('symbol'); break;
+      case 'nudgeLeft': nudgeSel(-1, 0); break;
+      case 'nudgeRight': nudgeSel(1, 0); break;
+      case 'nudgeUp': nudgeSel(0, -1); break;
+      case 'nudgeDown': nudgeSel(0, 1); break;
+    }
+  }
+
+  // Move the current selection by one grid step (KiCad arrow-key behaviour).
+  function nudgeSel(dx, dy) {
+    if (mode === 'schematic') {
+      const s = sch.symbols.find(x => x.id === schSelId);
+      if (s) {
+        schPushUndo();
+        Sch.moveSymbol(sch, s.id, [s.at[0] + dx * grid, s.at[1] + dy * grid]);
+        render(); refreshAll();
+      }
+      return;
+    }
+    const fp = board.footprints.find(f => f.id === selId);
+    if (fp) {
+      pushUndo();
+      B.moveFootprint(board, fp.id, [fp.at[0] + dx * grid, fp.at[1] + dy * grid]);
+      render(); refreshProps();
+      return;
+    }
+    const tx = (board.texts || []).find(t => t.id === selId);
+    if (tx) {
+      pushUndo();
+      B.moveText(board, tx.id, [tx.at[0] + dx * grid, tx.at[1] + dy * grid]);
+      render(); refreshProps();
+    }
+  }
 
   function cycleGrid() {
     grid = GRIDS[(GRIDS.indexOf(grid) + 1) % GRIDS.length];
@@ -454,6 +571,7 @@
   $('sch-symbol').addEventListener('click', () => setSchTool('symbol'));
   $('sch-wire').addEventListener('click', () => setSchTool('wire'));
   $('sch-label').addEventListener('click', () => setSchTool('label'));
+  $('sch-glabel').addEventListener('click', () => setSchTool('glabel'));
   $('sch-junction').addEventListener('click', () => setSchTool('junction'));
   $('sch-noconn').addEventListener('click', () => setSchTool('noconn'));
   $('launch-sch').addEventListener('click', () => setMode('schematic'));
@@ -557,6 +675,7 @@
         ['Symbol…', () => { setTab('symbols'); setSchTool('symbol'); }, 'S'],
         ['Wire', () => setSchTool('wire'), 'W'],
         ['Net Label', () => setSchTool('label'), 'L'],
+        ['Global Label', () => setSchTool('glabel'), 'Ctrl+H'],
         ['Junction', () => setSchTool('junction'), 'J'],
         ['No-connect flag', () => setSchTool('noconn'), 'Q']
       ],
@@ -636,6 +755,7 @@
       ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>
+      🚩 Global Label — dark-red flag that names the net across sheets (Ctrl+H); both label types connect nets by matching text<br>
       • Junction — tap to add a wire junction dot<br>
       ✕ No-connect — tap a pin to mark it intentionally unconnected (suppresses its ERC warning); Q shortcut<br><br>
       <b>Flow</b>: place symbols → wire them → add labels → <b>Inspect → Electrical Rules Check…</b> to find unconnected pins, duplicate refs, label conflicts and more, then <b>File → Update PCB from Schematic</b> to continue in the PCB editor.<br><br>
@@ -683,19 +803,23 @@
       ╲ ▭ ◯ ◠ — draw line / rectangle / circle / arc on the board outline (Edge.Cuts)<br>
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
-      <b>Shortcuts</b>: S select · H highlight · F footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · Del delete · Ctrl+Z/Y undo/redo<br><br>
-      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
+      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
+      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
+      <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
     `);
   }
   function showShortcuts() {
     showModal('Shortcuts', `
-      S select · H net highlight · F footprint · X route · V via · Z zone · T text · L line · M measure<br>
-      G grid cycle · N ratsnest · R rotate · W track width · Del delete<br>
-      Enter finish · Esc cancel · Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo<br>
+      S select · H net highlight · F / A footprint · X route · V via · Z zone · T text · L line · M measure<br>
+      G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
+      Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
+      + / = zoom in · - zoom out · Home zoom to fit<br>
+      Schematic: S select · W wire · L net label · Ctrl+H global label · J junction · Q no-connect<br>
       Pinch to zoom · drag empty area to pan<br>
-      Pencil: double-tap → Select · palm rejection active
+      Pencil: tilt in HUD · eraser end deletes · double-tap → Select · palm rejection active<br>
+      Touch: two-finger tap → Undo · pinch zoom · drag pan
     `);
   }
   $('modal-cancel').addEventListener('click', hideModal);
