@@ -361,9 +361,6 @@
                       : 'Wire: tap to draw; snaps to pins, wire ends, junctions');
       } else {
         const last = schWirePts[schWirePts.length - 1];
-        if (Math.abs(last[0] - sx) > 1e-9 || Math.abs(last[1] - sy) > 1e-9) {
-          void last; // superseded by snapped target below
-        }
         if (Math.abs(last[0] - tx) > 1e-9 || Math.abs(last[1] - ty) > 1e-9) {
           for (const p of SchWires.elbow(last, [tx, ty])) {
             const lp = schWirePts[schWirePts.length - 1];

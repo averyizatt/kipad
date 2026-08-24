@@ -13,6 +13,7 @@ const ASSETS = [
   './js/drill.js',
   './js/pos.js',
   './js/zip.js',
+  './js/schwires.js',
   './js/bom.js',
   './js/safesave.js',
   './js/symfields.js',

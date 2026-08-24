@@ -464,3 +464,12 @@ Found on inspection: the old V-during-routing path (`addViaHere` at the last poi
 - render.js: dashed preview strokes per-segment layer colours around staged vias and draws planned annuli + drill holes; cursor tail uses the post-flip layer.
 - Tests: test_route.js 65 → 78 checks (toggle add/remove, currentLayer counts, plain-route parity, mid/double/start/trailing/stale via plans, collinear-via protection, duplicate-merge keeps flag, degenerate nulls, full simulated elbow pipeline with a staged via). **38/38 suites green**, node --check clean.
 - Cache: index.html v=49→v50 (33 refs), sw CACHE kipad-v43→v44.
+
+## 2026-08-24 ~18:15 UTC — schematic wire tool rework (Avery: "wires should snap, be straight, snap to pins")
+Rebuilt the schematic wire draw loop on new js/schwires.js (KipadSchWires, pure UMD):
+- Magnetic snapping: every tap lands EXACTLY on symbol pins / wire endpoints / junctions within threshold (min(0.8, max(0.3, grid))); pins win distance ties. No more near-miss connections.
+- Orthogonal routing: diagonal taps expand to KiCad-style L elbows via elbow() (dominant axis first); axis-aligned moves stay direct. Live preview shows the same elbow shape (render accepts array wireCur).
+- Auto-finish: landing on any pin/wire-end or mid-run T-spot commits the run automatically — tap pin A, tap corner(s), tap pin B = done and connected.
+- Junction dots: junctionNeeded() implements KiCad semantics at commit time (T into open run, >=2 other vertices converging, corner meeting a vertex -> dot; plain endpoint-to-endpoint join -> none). Replaces old maybeJunction (0.01-radius vertex-only check that also littered junctions when abandoning drafts).
+- test/test_schwires.js: 26 checks (elbows, target collection, tie-breaks, T-detection, all junction rules). Suite green incl. concurrent route work.
+NOTE: commit 9a37975 (concurrent via-in-route iteration, blanket add) accidentally swept this module in WITHOUT its index.html/sw.js load entries — fixed here; wire tool would have crashed on null KipadSchWires until now.
