@@ -37,6 +37,9 @@
         c.stroke();
       } else if (s.type === 'circle') {
         c.beginPath(); c.arc(s.at[0], s.at[1], s.r, 0, Math.PI * 2); c.stroke();
+      } else if (s.type === 'rect') {
+        c.strokeRect(Math.min(s.start[0], s.end[0]), Math.min(s.start[1], s.end[1]),
+          Math.abs(s.end[0] - s.start[0]), Math.abs(s.end[1] - s.start[1]));
       }
     }
     for (const p of fp.pads) {
@@ -452,6 +455,7 @@
   function doOpen(file) {
     if (!Pcb) return;
     const r = new FileReader();
+    r.onerror = () => setStatus('Could not read ' + file.name);
     r.onload = () => {
       try {
         pushUndo();
@@ -491,6 +495,7 @@
   }
   function doImport(file) {
     const r = new FileReader();
+    r.onerror = () => setStatus('Could not read ' + file.name);
     r.onload = () => {
       const name = file.name;
       try {
@@ -518,4 +523,3 @@
     };
     r.readAsText(file);
   }
-
