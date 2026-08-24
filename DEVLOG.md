@@ -373,3 +373,14 @@ Extended the Gerber exporter from 3 layers (F.Cu/B.Cu/Edge.Cuts) to KiCad's stan
 - Tests: test_gerber.js extended (~25 new checks: nine-key contract, mask expansion/tenting/THT-both-sides, paste SMD-only + exact sizes, bare-[F.Cu] regression for label-less pads, silk stroke counts incl. circle chords, rotation+side-mapping of back art, per-layer M02 completeness, real-board smoke parsing all nine outputs through gerber_viewer.parse). test_integration.js key-set assertion updated to nine layers.
 - All **32 suites green**; node --check clean.
 - Coordination note: a concurrent session was actively editing index.html/app.part1–4/sw.js for the lib editors while this ran (mtimes 14:48–15:01), so this increment deliberately touches ONLY js/gerber.js + tests + state files. Deferred to next committer (TODO has the checklist): doGerber status/help strings still say three layers; pass FPs.getFootprint into exportAll for library silk art; viewer colors array covers 6 of 9 tabs; no ?v=/sw bump here — the editors commit must bump anyway and will pick up these changes.
+
+## 2026-08-24 ~15:16 UTC — Gerber nine-layer wiring follow-up (unblocked)
+
+Closed the item deferred by the 15:15 Gerber increment: the concurrent lib-editor session had committed (df9d680), so app/index/sw ownership was free.
+
+- js/app.part2.js `doGerber`: passes `FPs.getFootprint` into `Gerber.exportAll` so footprint silk art comes from the live registry (imported/edited parts render their real strokes, not just stored fp.silk); status now reports the actual layer count — "Gerbers exported (9 layers: copper, edge, silk, mask, paste)".
+- js/app.part3.js `showGerberViewer`: same resolver passed for generated-board preview fidelity; colour palette extended 6 → 9 entries (added green/orange/violet) with a modulo index so imported-file tinting stays safe; generated tabs now map 1:1 to the nine layers.
+- js/app.part4.js help text: "Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X" → nine-layer set description.
+- Cache-bust ?v=40→?v=41 (28 refs); sw CACHE kipad-v34→v35. No new assets.
+- Tests: all **32 suites green**; node --check clean on the three touched app files.
+- No remaining unchecked TODO items except the two documented blockers (haptics: no iPadOS Safari API; cross-sheet ERC labels: single-sheet model).

@@ -474,11 +474,12 @@
   }
   function doGerber() {
     if (!Gerber) { setStatus('Gerber module not loaded'); return; }
-    const out = Gerber.exportAll(board);
+    const out = Gerber.exportAll(board, FPs ? FPs.getFootprint : null);
+    const n = Object.keys(out).length;
     for (const [l, g] of Object.entries(out)) {
       download(`kipad-${l.replace(/[^A-Za-z0-9]/g, '')}.gbr`, g, 'application/gerber');
     }
-    setStatus('Gerber exported (F.Cu, B.Cu, Edge.Cuts)');
+    setStatus(`Gerbers exported (${n} layers: copper, edge, silk, mask, paste)`);
   }
   function doDrill() {
     if (!Drill) { setStatus('Drill module not loaded'); return; }

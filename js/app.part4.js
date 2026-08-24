@@ -819,7 +819,7 @@
       <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
       <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
-      <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
+      <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = 9-layer fab set (F/B.Cu · Edge · F/B.SilkS · F/B.Mask · F/B.Paste) RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
     `);
   }

@@ -217,8 +217,8 @@
   function showGerberViewer() {
     const GV = window.KipadGerberViewer;
     if (!GV || !Gerber) { setStatus('Gerber viewer module not loaded'); return; }
-    const colors = ['#e64545', '#4d8ee8', '#e7dc87', '#cf69e8', '#55d5c8', '#d5d5d5'];
-    const layers = Object.entries(Gerber.exportAll(board)).map(([name, data], i) => ({ name, image: GV.parse(data), color: colors[i] }));
+    const colors = ['#e64545', '#4d8ee8', '#e7dc87', '#cf69e8', '#55d5c8', '#d5d5d5', '#8fd07a', '#e89b52', '#a58fe0'];
+    const layers = Object.entries(Gerber.exportAll(board, FPs ? FPs.getFootprint : null)).map(([name, data], i) => ({ name, image: GV.parse(data), color: colors[i % colors.length] }));
     let cur = 'F.Cu';
     const body = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label class="btn">Open Gerber files<input id="gv-file" type="file" accept=".gbr,.ger,.gtl,.gbl,.gto,.gbo,.gts,.gbs,.gm1,text/plain" multiple class="hidden"></label><span id="gv-info" class="muted"></span></div>
       <div class="gv-layers" id="gv-layers"></div><canvas class="lib-preview" id="gv-canvas" style="height:45vh;background:#111"></canvas>`;
