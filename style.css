@@ -253,6 +253,16 @@ html, body {
 .nc-chip:active { opacity: .7; }
 .nc-add { flex: 0 0 auto; font-size: 11px; padding: 3px 4px; max-width: 110px; }
 
+/* Symbol Fields modal (Tools > Edit Symbol Fields) */
+.fields-table { display: flex; flex-direction: column; gap: 4px; max-height: 55vh; overflow-y: auto; }
+.fields-row { display: grid; grid-template-columns: 64px 1fr 2fr; gap: 4px; }
+.fields-row input {
+  font-size: 12px; padding: 5px 6px; min-height: 30px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--fg);
+  min-width: 0;
+}
+.fields-row input.sf-ref { font-weight: 600; }
+
 /* Properties */
 .prop-group { margin-bottom: 10px; }
 .prop-group h5 {

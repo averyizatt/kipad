@@ -8,6 +8,7 @@
   const Pos = window.KipadPos || null;
   const Bom = window.KipadBom || null;
   const NetlistExp = window.KipadNetlist || null;
+  const SymFields = window.KipadSymFields || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
@@ -393,6 +394,43 @@
     B.ensureNetClasses(board);
     showModal('Net Classes', buildNetClassesBody());
     wireNetClasses();
+  }
+
+  // ---------- symbol fields editor (KiCad "Edit Symbol Fields" dialog) ----------
+  function showSymFields() {
+    if (!SymFields) return;
+    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    schPushUndo();
+    const fpNames = FPs.listFootprints('').map(n => `<option value="${esc(n)}">`).join('');
+    let html = `<datalist id="sf-fp-list">${fpNames}</datalist>
+      <div class="fields-table">`;
+    for (const r of SymFields.rows(sch)) {
+      html += `<div class="fields-row" data-sid="${esc(r.id)}">
+        <input class="sf-ref" value="${esc(r.ref)}" title="Reference" placeholder="R1">
+        <input class="sf-val" value="${esc(r.value)}" title="Value" placeholder="10k">
+        <input class="sf-fp" list="sf-fp-list" value="${esc(r.footprint)}" title="Footprint" placeholder="— none —">
+      </div>`;
+    }
+    html += `</div><div class="desc">Edits apply live · footprint names autocomplete from the library · power and # symbols are hidden</div>`;
+    showModal('Symbol Fields (' + SymFields.rows(sch).length + ' parts)', html);
+    const body = $('modal-body');
+    body.querySelectorAll('.fields-row').forEach(row => {
+      const sym = sch.symbols.find(s => s.id === row.dataset.sid);
+      if (!sym) return;
+      const wire = (cls, key) => {
+        const el = row.querySelector(cls);
+        if (el) el.addEventListener('change', () => {
+          const changed = SymFields.applyRow(sym, { [key]: el.value });
+          if (changed.includes('ref')) el.value = sym.ref; // blank input keeps old ref
+          if (changed.length) {
+            render(); refreshErc(); refreshAll();
+            setStatus(sym.ref + ' updated (' + changed.join(', ') + ')');
+          }
+        });
+      };
+      wire('.sf-ref', 'ref'); wire('.sf-val', 'value'); wire('.sf-fp', 'footprint');
+    });
+    $('modal-ok').addEventListener('click', hideModal);
   }
 
   function refreshProps() {

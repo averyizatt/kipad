@@ -694,6 +694,7 @@
         ['Measure', () => setSchTool('select'), 'M']
       ],
       tools: [
+        ['Edit Symbol Fields…', showSymFields, ''],
         ['Open Symbol Editor…', () => showLibEditor('symbol'), ''],
         ['Switch to PCB Editor', () => setMode('pcb'), ''],
         ['Plugin and Content Manager…', showPlugins, '']
