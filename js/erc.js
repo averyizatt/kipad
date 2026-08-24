@@ -238,9 +238,43 @@
     return { errors: errors, warnings: warnings };
   }
 
+  /**
+   * markers(violations, zoom) -> drawable marker list for renderSchematic.
+   *
+   * KiCad-style ERC markers: an X-in-circle glyph centred on the violation's
+   * world coordinates. Pure geometry — no DOM/canvas — so it is unit-testable:
+   *   - dedupes violations sharing a location (rounded to 0.05 mm), first wins
+   *   - severity colour: error #cc0000, warning #b8860b
+   *   - world radius 0.9 mm scaled by zoom, clamped to 5–16 screen px so
+   *     markers stay tappable when zoomed out and do not dwarf symbols zoomed in
+   * Returns [{ x, y, r, color, code, message, severity }] (x/y world mm, r screen px).
+   */
+  function markers(violations, zoom) {
+    var z = Number(zoom) || 3;
+    var seen = {};
+    var out = [];
+    (violations || []).forEach(function (v) {
+      if (typeof v.x !== 'number' || typeof v.y !== 'number' || !isFinite(v.x) || !isFinite(v.y)) return;
+      var key = Math.round(v.x / 0.05) + ',' + Math.round(v.y / 0.05);
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push({
+        x: v.x,
+        y: v.y,
+        r: Math.max(5, Math.min(16, 0.9 * z)),
+        color: v.severity === 'error' ? '#cc0000' : '#b8860b',
+        code: v.code,
+        message: v.message,
+        severity: v.severity
+      });
+    });
+    return out;
+  }
+
   return {
     runERC: runERC,
     counts: counts,
+    markers: markers,
     powerNetName: powerNetName,
     EPS: EPS
   };

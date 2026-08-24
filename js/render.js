@@ -64,11 +64,11 @@
 
     // ---- grid (dots, KiCad style) ----
     const grid = state.grid || 0.25;
-    const tl = s2w(view, 0, 0, cw, ch), br = s2w(view, cw, ch, cw, ch);
     // Never draw sub-pixel grid dots, and hard-cap dots per frame: at the
     // default 3 px/mm a 0.25 mm grid would otherwise issue >1M canvas arcs
     // (the PCB-entry stall), and huge windows could still draw ~500k.
     let drawGrid = grid;
+    const tl = s2w(view, 0, 0, cw, ch), br = s2w(view, cw, ch, cw, ch);
     while ((drawGrid * view.zoom < 4) ||
            (((br[0] - tl[0]) / drawGrid) * ((br[1] - tl[1]) / drawGrid) > 40000)) {
       drawGrid *= 2;
@@ -237,9 +237,12 @@
         ctx.strokeRect(ax, ay, bx - ax, by - ay);
       }
 
-      // fab + silk
-      if (lib && lib.silk) {
-        for (const s of lib.silk) {
+      // fab + silk (library graphics when available, else graphics stored
+      // directly on the placed footprint — imported .kicad_mod parts and
+      // image-converter logos keep their art this way)
+      const silkItems = (lib && lib.silk && lib.silk.length) ? lib.silk : (fp.silk || []);
+      if (silkItems.length) {
+        for (const s of silkItems) {
           const layer = s.layer || 'F.SilkS';
           if (layer === 'F.Fab' && !isVisible(state, 'F.Fab')) continue;
           if (layer === 'F.SilkS' && !isVisible(state, 'F.SilkS')) continue;
@@ -257,6 +260,12 @@
           } else if (s.type === 'circle') {
             const [cx, cy] = w2s(view, ...t(s.at), cw, ch);
             ctx.beginPath(); ctx.arc(cx, cy, s.r * view.zoom, 0, Math.PI * 2); ctx.stroke();
+          } else if (s.type === 'rect') {
+            const a = t([Math.min(s.start[0], s.end[0]), Math.min(s.start[1], s.end[1])]);
+            const b = t([Math.max(s.start[0], s.end[0]), Math.max(s.start[1], s.end[1])]);
+            const [ax, ay] = w2s(view, a[0], a[1], cw, ch);
+            const [bx, by] = w2s(view, b[0], b[1], cw, ch);
+            ctx.strokeRect(ax, ay, bx - ax, by - ay);
           } else if (s.type === 'text') {
             const [tx, ty] = w2s(view, ...t(s.at), cw, ch);
             ctx.save(); ctx.translate(tx, ty); ctx.rotate(fp.angle * Math.PI / 180);
@@ -268,7 +277,8 @@
       }
 
       // pads
-      const onActive = fp.layer === (state.activeLayer || 'F.Cu') || fp.layer !== 'B.Cu';
+      // dim pads on the inactive side (tracks use the same rule)
+      const onActive = fp.layer === (state.activeLayer || 'F.Cu');
       for (const p of fp.pads) {
         const copper = LAYER_COLOR[fp.layer] || '#888';
         const color = (state.hiNet != null && p.netId === state.hiNet) ? NET_HI
@@ -303,8 +313,10 @@
       const color = (state.hiNet != null && v.netId === state.hiNet) ? NET_HI : '#c0c0c0';
       const [vx, vy] = w2s(view, v.at[0], v.at[1], cw, ch);
       ctx.strokeStyle = color;
+      // annulus between drill/2 and size/2: stroke a mid-radius circle whose
+      // half-width reaches exactly those edges
       ctx.lineWidth = Math.max(1.5, (v.size - v.drill) / 2 * view.zoom);
-      ctx.beginPath(); ctx.arc(vx, vy, v.size / 2 * view.zoom, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(vx, vy, (v.size + v.drill) / 4 * view.zoom, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = BG;
       ctx.beginPath(); ctx.arc(vx, vy, v.drill / 2 * view.zoom, 0, Math.PI * 2); ctx.fill();
     }
@@ -496,6 +508,27 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   for (const l of sch.labels) {
     const [sx, sy] = w2s(view, l.at[0], l.at[1], cw, ch);
     ctx.fillText(l.text, sx + 6, sy);
+  }
+
+  // ERC violation markers (KiCad-style X-in-circle, precomputed by app via
+  // KipadErc.markers — r is already in screen px)
+  if (state.ercMarkers && state.ercMarkers.length) {
+    for (const m of state.ercMarkers) {
+      const [sx, sy] = w2s(view, m.x, m.y, cw, ch);
+      const r = m.r;
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = m.color;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.stroke();
+      const k = r * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(sx - k, sy - k); ctx.lineTo(sx + k, sy + k);
+      ctx.moveTo(sx - k, sy + k); ctx.lineTo(sx + k, sy - k);
+      ctx.stroke();
+    }
   }
 
   // preview symbol following cursor
