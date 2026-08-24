@@ -196,6 +196,7 @@
       tracks: [],
       vias: [],
       texts: [],
+      zones: [],
       outline: []
     };
 
@@ -265,6 +266,7 @@
     var fpSeq = 0;
     var trSeq = 0;
     var viaSeq = 0;
+    var zoneSeq = 0;
     var textSeq = 0;
 
     function childLayer(node) {
@@ -592,7 +594,46 @@
           }
           break;
         }
-        // everything else (zones, texts, images, dimensions, groups, ...) is ignored
+        case 'zone': {
+          // Kipad copper pour round-trip: (zone (net N) (net_name "X")
+          //   (layer "F.Cu") (polygon (pts (xy ...) ...)))
+          var zNetId = 0, zNetName = '', zLayer = 'F.Cu', zOutline = [];
+          for (var zi = 1; zi < child.length; zi++) {
+            var zn = child[zi];
+            if (!isList(zn)) continue;
+            var zt = tag(zn);
+            if (zt === 'net') {
+              var zid = num(zn[1]);
+              if (!isNaN(zid)) zNetId = zid;
+            } else if (zt === 'net_name') {
+              zNetName = atom(zn[1]);
+            } else if (zt === 'layer') {
+              var zl = atom(zn[1]);
+              if (zl) zLayer = zl;
+            } else if (zt === 'polygon' || zt === 'filled_polygon') {
+              var zp = childAt(zn, 'pts');
+              if (zp && !zOutline.length) {
+                for (var qi = 1; qi < zp.length; qi++) {
+                  var qxy = zp[qi];
+                  if (isList(qxy) && tag(qxy) === 'xy') {
+                    var qx = num(qxy[1]), qy = num(qxy[2]);
+                    if (!isNaN(qx) && !isNaN(qy)) zOutline.push({ x: qx, y: qy });
+                  }
+                }
+              }
+            }
+          }
+          if (zOutline.length >= 3) {
+            board.zones.push({
+              id: 'Z' + (++zoneSeq),
+              net: zNetName || (idToName.get(zNetId) || ''),
+              layer: zLayer === 'B.Cu' ? 'B.Cu' : 'F.Cu',
+              outline: zOutline
+            });
+          }
+          break;
+        }
+        // everything else (images, dimensions, groups, ...) is ignored
       }
     }
 
@@ -712,6 +753,25 @@
         ['drill', r4str(v.drill)],
         ['layers', { q: 'F.Cu' }, { q: 'B.Cu' }],
         ['net', String(v.netId)]
+      ]);
+    }
+    for (var zi = 0; zi < (board.zones || []).length; zi++) {
+      var zz = board.zones[zi];
+      if (!zz.outline || zz.outline.length < 3) continue;
+      var zNetId = 0;
+      for (var ni2 = 0; ni2 < nets.length; ni2++) {
+        if (nets[ni2].name === zz.net) { zNetId = nets[ni2].id; break; }
+      }
+      var ptsN = ['pts'];
+      for (var pi2 = 0; pi2 < zz.outline.length; pi2++) {
+        ptsN.push(['xy', r4str(zz.outline[pi2].x), r4str(zz.outline[pi2].y)]);
+      }
+      root.push([
+        'zone',
+        ['net', String(zNetId)],
+        ['net_name', { q: str(zz.net || '') }],
+        ['layer', { q: str(zz.layer === 'B.Cu' ? 'B.Cu' : 'F.Cu') }],
+        ['polygon', ptsN]
       ]);
     }
     for (var xi = 0; xi < (board.texts || []).length; xi++) {
