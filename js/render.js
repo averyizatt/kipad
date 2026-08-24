@@ -492,19 +492,30 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   ctx.fillStyle = '#f5f4ef';   // KiCad schematic paper background
   ctx.fillRect(0, 0, cw, ch);
 
-  // grid
+  // grid — KiCad eeschema style: 1px dots in LAYER_SCHEMATIC_GRID grey
+  // (#B5B5B5, builtin_color_themes.h Kicad 2007 light theme), plus the grid
+  // axes cross through the world origin in LAYER_SCHEMATIC_GRID_AXES blue.
   const grid = state.grid || 0.25;
   const z = view.zoom;
   const step = grid * z;
   if (step > 3) {
     const x0 = (-view.x * z);
     const y0 = (-view.y * z);
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.fillStyle = 'rgb(181,181,181)';
+    const d = step > 10 ? 2 : 1;   // slightly larger dots when zoomed in
     for (let gx = x0 % step; gx < cw; gx += step) {
       for (let gy = y0 % step; gy < ch; gy += step) {
-        ctx.fillRect(gx, gy, 1.5, 1.5);
+        ctx.fillRect(gx, gy, d, d);
       }
     }
+    // axes at world origin (KiCad draws these by default in schematic mode)
+    const [ox, oy] = w2s(view, 0, 0, cw, ch);
+    ctx.strokeStyle = 'rgb(0,0,132)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, oy); ctx.lineTo(cw, oy);
+    ctx.moveTo(ox, 0); ctx.lineTo(ox, ch);
+    ctx.stroke();
   }
 
   // wires (KiCad: green)
@@ -563,13 +574,37 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
     drawSchematicSymbol(ctx, cw, ch, view, sym, def, sym.id === state.selSymId);
   }
 
-  // labels
-  ctx.fillStyle = '#0f0f0f';
-  ctx.font = '11px system-ui, sans-serif';
+  // labels — local: near-black text right of the anchor (LAYER_LOCLABEL
+  // #0F0F0F). global: KiCad flag/banner docked on the anchor, dark red
+  // outline + text (LAYER_GLOBLABEL #840000).
   ctx.textBaseline = 'middle';
   for (const l of sch.labels) {
     const [sx, sy] = w2s(view, l.at[0], l.at[1], cw, ch);
-    ctx.fillText(l.text, sx + 6, sy);
+    if ((l.type || 'local') === 'global') {
+      const h = Math.max(12, Math.min(1.905 * z, 40));   // banner height ~1.9 mm world, clamped
+      const pad = h * 0.35;
+      ctx.font = Math.round(h * 0.62) + 'px system-ui, sans-serif';
+      const tw = ctx.measureText(l.text).width;
+      const tip = 8;                                     // pointed end length
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + tip, sy - h / 2);
+      ctx.lineTo(sx + tip + tw + pad * 2, sy - h / 2);
+      ctx.lineTo(sx + tip + tw + pad * 2, sy + h / 2);
+      ctx.lineTo(sx + tip, sy + h / 2);
+      ctx.closePath();
+      ctx.fillStyle = '#f5f4ef';                          // paper fill so it occludes wires
+      ctx.fill();
+      ctx.strokeStyle = '#840000';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = '#840000';
+      ctx.fillText(l.text, sx + tip + pad, sy);
+    } else {
+      ctx.fillStyle = '#0f0f0f';
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillText(l.text, sx + 6, sy);
+    }
   }
 
   // ERC violation markers (KiCad-style X-in-circle, precomputed by app via
