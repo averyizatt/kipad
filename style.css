@@ -288,6 +288,8 @@ html, body {
 }
 #drc-panel h4 { margin: 0 0 6px; color: var(--danger); }
 #drc-panel .drc-item { padding: 2px 0; border-bottom: 1px solid var(--border); }
+#drc-panel .drc-item.warn { color: var(--warn); }
+#drc-panel .drc-item:hover { background: rgba(127,127,127,0.15); cursor: pointer; }
 #drc-panel .drc-clear { color: var(--ok); }
 
 /* ERC panel (schematic mode) — same floating panel family as DRC */
