@@ -501,7 +501,11 @@
       case 'g': case 'G': cycleGrid(); break;
       case 'n': case 'N': showRats = !showRats; $('btn-rats').classList.toggle('active', showRats); render(); break;
       case 'r': case 'R': doRotateSel(); break;
-      case 'Delete': case 'Backspace': e.preventDefault(); doDelete(); break;
+      case '/': cycleRoutePosture(); break;
+      case 'Delete': case 'Backspace':
+        e.preventDefault();
+        if (tool === 'track' && route && route.pts.length > 1) { route.pts.pop(); render(); break; }
+        doDelete(); break;
       case 'Enter':
         if (tool === 'track') finishRoute();
         else if (tool === 'zone' && zonePts) finishZone();
@@ -832,6 +836,7 @@
     showModal('Shortcuts', `
       S select · H net highlight · F / A footprint · X route · V via · Z zone · T text · L line · M measure<br>
       G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
+      Routing: 45° mode with / (diagonal/straight posture) · Backspace removes the last point while routing<br>
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>
       Schematic: S select · W wire · L net label · Ctrl+H global label · J junction · Q no-connect<br>

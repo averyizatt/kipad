@@ -244,7 +244,13 @@
     refreshLayers(); render();
   }
 
-  // routing
+  // routing (45°-constrained; posture toggled with /)
+  let routePosture = 'diag'; // 'diag' = diagonal first · 'straight' = straight first
+  function cycleRoutePosture() {
+    routePosture = routePosture === 'diag' ? 'straight' : 'diag';
+    setStatus('Route posture: ' + (routePosture === 'diag' ? 'diagonal first' : 'straight first'));
+    render();
+  }
   function startRoute(x, y) {
     const hit = B.hitPad(board, x, y, pickTol());
     let netId = 0;
@@ -252,22 +258,24 @@
     else if (hiNet != null) netId = hiNet;
     // default width comes from the net's class (W still cycles from there)
     trackWidth = B.netClassOfNet(board, netId).trackWidth;
-    route = { pts: [[snap(x), snap(y)]], netId, layer, width: trackWidth };
+    route = { pts: [[snap(x), snap(y)]], netId, layer, width: trackWidth, posture: routePosture };
     if (hit) route.pts = [[hit.pad.at[0], hit.pad.at[1]]];
-    setStatus('Routing net "' + B.netName(board, netId) + '" — tap points, double-tap/Enter to finish, V = via+layer');
+    setStatus('Routing net "' + B.netName(board, netId) + '" — tap points (/ = 45° posture, Backspace = undo point), Enter to finish, V = via+layer');
   }
   function extendRoute(x, y) {
     if (!route) return;
     const last = route.pts[route.pts.length - 1];
     const p = [snap(x), snap(y)];
     if (p[0] === last[0] && p[1] === last[1]) return;
-    route.pts.push(p);
+    for (const pt of KipadRoute.elbow(last, p, routePosture)) route.pts.push(pt);
   }
   function finishRoute() {
     if (!route || route.pts.length < 2) { route = null; render(); return; }
+    const clean = KipadRoute.cleanup(route.pts); // drop dups + collinear runs before commit
+    if (clean.length < 2) { route = null; routeCursor = null; render(); return; }
     pushUndo();
-    for (let i = 0; i < route.pts.length - 1; i++) {
-      B.addTrack(board, route.pts[i], route.pts[i + 1], route.width, route.layer, route.netId);
+    for (let i = 0; i < clean.length - 1; i++) {
+      B.addTrack(board, clean[i], clean[i + 1], route.width, route.layer, route.netId);
     }
     route = null; routeCursor = null;
     render(); refreshAll(); setStatus('Track placed');

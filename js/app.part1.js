@@ -146,7 +146,7 @@
       activeLayer: layer,
       crosshair: crosshair,
       grid,
-      route: route ? { ...route, cursor: routeCursor } : null,
+      route: route ? { ...route, cursor: routeCursor, posture: routePosture } : null,
       measure: measureA ? { a: measureA, b: measureB, cur: measureCur } : null,
       zoneDraft: (tool === 'zone' && zonePts) ? zonePts.pts : null,
       zoneFills,

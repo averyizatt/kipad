@@ -345,9 +345,15 @@
       ctx.setLineDash([]);
       if (state.route.cursor) {
         const last = state.route.pts[state.route.pts.length - 1];
-        const [cx0, cy0] = w2s(view, last[0], last[1], cw, ch);
-        const [cx1, cy1] = w2s(view, state.route.cursor[0], state.route.cursor[1], cw, ch);
-        ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx1, cy1); ctx.stroke();
+        // 45°-constrained preview: elbow path instead of a straight free-angle line
+        const tail = KipadRoute.elbow(last, state.route.cursor, state.route.posture || 'diag');
+        ctx.beginPath();
+        let started = false;
+        for (const p of [last].concat(tail)) {
+          const [sx, sy] = w2s(view, p[0], p[1], cw, ch);
+          if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
       }
     }
 
