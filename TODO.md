@@ -29,6 +29,10 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Import .kicad_mod / .kicad_sym files at runtime — 2026-08-22
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
 - [x] Drill/position file export (.drl, Excellon) — 2026-08-22
+- [x] BOM export (KiCad Tools → Generate BOM) — 2026-08-24
+  - [x] `js/bom.js` (KipadBom, UMD pure): non-power symbols grouped by Value + Footprint with refs + qty; power symbols excluded via `KipadSchematic.isPower` (same rule as ERC/netlist), `#`-prefixed annotation refs excluded too; natural sort (R2 < R10, groups ordered by first ref); RFC-4180 CSV quoting only where needed — 2026-08-24
+  - [x] UI: Schematic File menu → Export BOM (.csv) downloads kipad-bom.csv with part-line/component count in the status bar; cache-bust ?v=39 / sw kipad-v33 — 2026-08-24
+  - [x] test/test_bom.js (11 checks incl. serialize→parse round-trip smoke: grouping survives a file save/reopen) — 2026-08-24
 - [x] Pick-and-place export (.pos, KiCad component placement) — 2026-08-24
   - [x] `js/pos.js` (KipadPos, UMD pure): per-side tables (front/back from footprint layer), Ref/Val/Package/PosX/PosY/Rot/Side columns matching KiCad's format; only footprints with pads listed (pad-less logo/art excluded); rotation normalised to [0,360); coordinates straight from board frame (mm, Y-down passthrough) — 2026-08-24
   - [x] UI: File → Export component placement (.pos) downloads kipad-top.pos / kipad-bottom.pos (skips empty sides); cache-bust ?v=38 / sw kipad-v32 — 2026-08-24

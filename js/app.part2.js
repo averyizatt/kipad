@@ -496,6 +496,15 @@
     if (!n) { setStatus('No footprints to place'); return; }
     setStatus('Component placement exported (.pos)');
   }
+  function doBom() {
+    if (!Bom) { setStatus('BOM module not loaded'); return; }
+    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    const out = Bom.exportBom(sch);
+    if (!out.rows.length) { setStatus('No components for BOM'); return; }
+    download('kipad-bom.csv', out.csv, 'text/csv');
+    const qty = out.rows.reduce((n, r) => n + r.qty, 0);
+    setStatus('BOM exported: ' + out.rows.length + ' part line' + (out.rows.length === 1 ? '' : 's') + ', ' + qty + ' component' + (qty === 1 ? '' : 's'));
+  }
   function download(name, text, mime) {
     const blob = new Blob([text], { type: mime || 'text/plain' });
     const a = document.createElement('a');

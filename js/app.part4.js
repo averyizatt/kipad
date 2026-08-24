@@ -656,6 +656,7 @@
         ['Open .kicad_sch…', () => $('btn-open').click(), ''],
         ['Save .kicad_sch', schSave, ''],
         ['Update PCB from Schematic', doUpdatePCB, ''],
+        ['Export BOM (.csv)', doBom, ''],
         ['Switch to PCB Editor', () => setMode('pcb'), '']
       ],
       edit: [
