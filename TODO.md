@@ -61,6 +61,8 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Pure resolver `js/keys.js` (KipadKeys.resolve) runs before legacy single-key switches so modifier combos never leak into tools; test/test_keys.js (27 checks) — 2026-08-24
   - [x] Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z / +Shift+Z / +Y undo-redo (mode-aware); +/-/= zoom, Home zoom-fit; E opens Properties on PCB selection; A = Add Footprint (PCB, Library tab) / Add Symbol (schematic); arrow keys nudge footprint/text/symbol selection by one grid step — 2026-08-24
 - [ ] iPad polish: haptics, Apple Pencil tilt/eraser, two-finger tap undo
+  - [x] Two-finger tap = Undo on both canvases (iPadOS gesture): pure `KipadGestures.twoFingerTap()` recognizer (`js/gestures.js`) wired into the shared pointer handlers via the same undo path as Ctrl+Z; pinch/drag/3-finger/cancel all disambiguated — 2026-08-24
+  - [x] Schematic multi-touch guard: second+ fingers no longer fire `schPointerDown` (pinching no longer places symbols / adds wire points) — 2026-08-24
 
 ## Recurring rules (from Avery)
 

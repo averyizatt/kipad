@@ -2,6 +2,9 @@
 'use strict';
 
   // ---------- pointer handling ----------
+  // iPadOS-style two-finger tap = undo (recognizer is pure, see js/gestures.js)
+  const twoTap = KipadGestures.twoFingerTap();
+
   canvas.addEventListener('pointerdown', e => {
     const penHud = $('hud-pen');
     if (e.pointerType === 'pen') {
@@ -26,8 +29,13 @@
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
+    twoTap.feed({ type: 'down', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
 
-    if (mode === 'schematic') { schPointerDown(wx, wy, e); return; }
+    if (mode === 'schematic') {
+      // multi-touch (pinch zoom / two-finger tap) must not place parts or wire points
+      if (pointers.size < 2) schPointerDown(wx, wy, e);
+      return;
+    }
 
     if (pointers.size === 2) {
       const [p1, p2] = [...pointers.values()];
@@ -151,6 +159,7 @@
   canvas.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    twoTap.feed({ type: 'move', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
     const [wx, wy] = s2w(e.clientX, e.clientY);
     crosshair = [wx, wy];
 
@@ -219,6 +228,12 @@
     const wasDragging = dragging;
     dragging = null; lastPan = null;
 
+    if (twoTap.feed({ type: 'up', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp }) === 'undo') {
+      applyKeyAction('undo');
+      setStatus('Two-finger tap → Undo');
+      return;
+    }
+
     if (mode === 'schematic') {
       const now2 = Date.now();
       if (schTool === 'wire' && schWirePts.length >= 2 && now2 - lastTap < 350) {
@@ -249,6 +264,7 @@
   });
 
   canvas.addEventListener('pointercancel', e => {
+    twoTap.feed({ type: 'cancel', id: e.pointerId });
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
@@ -733,7 +749,8 @@
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
       <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
-      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br><br>
+      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br>
+      <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
     `);
@@ -745,7 +762,8 @@
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>
       Pinch to zoom · drag empty area to pan<br>
-      Pencil: double-tap → Select · palm rejection active
+      Pencil: double-tap → Select · palm rejection active<br>
+      Touch: two-finger tap → Undo · pinch zoom · drag pan
     `);
   }
   $('modal-cancel').addEventListener('click', hideModal);
