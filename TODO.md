@@ -128,7 +128,7 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] runDRC: `unconnected` error per remaining airwire (net + R1.2-style pad labels, tap-to-centre works); clearance violations got their missing `msg` (panel showed "undefined") — 2026-08-24
   - [x] test/test_ratsnest.js (26 checks); AABB prefilter keeps per-frame ratsnest ~1.8 ms on the real board; all 26 suites green — 2026-08-24
   - [x] Follow-up: zone fills count as connectivity (KiCad joins same-net pads through filled zones) — 2026-08-24
-- [ ] Mirror sync to origin via ClawLink — needs ONE full-app upload run: origin/main lacks the calculators/gerber-viewer file generations, so partial syncs would 404 the deployed app (see DEVLOG ~11:40)
+- [x] Mirror sync to origin via ClawLink — one full-app upload run completed 2026-08-24: origin/main content now byte-matches the canonical local tree (19 differing files upserted in batches; histories reconciled with reset --hard afterwards). Earlier partial-sync 404 risk resolved — see DEVLOG ~13:16
 
 ## Session 2026-08-24 (~04:35 UTC) — zone round-trip + PCB-view fidelity fixes
 - [x] Zone sexpr round-trip (parse + serialize + real-board smoke) — see DEVLOG; first sub-item of round-trip fidelity milestone — 2026-08-24

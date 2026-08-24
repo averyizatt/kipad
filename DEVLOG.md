@@ -297,3 +297,10 @@ Fixed a clearance/edge DRC blind spot: through-hole pads were only included when
 - `js/board.js`: both copper-item collectors now derive layer membership solely from the pad's layer list through the existing `padOnLayer()` helper. `*.Cu` pads are checked on F.Cu and B.Cu regardless of the parent footprint side; ordinary SMD pads remain side-specific through their explicit pad layer.
 - `test/test_drc2.js`: regression covers a B.Cu track violating and then clearing a front-footprint THT pad with `['*.Cu','*.Mask']` layers.
 - Cache-bust `?v=34`→`?v=35`; service-worker cache `kipad-v28`→`v29`. All test suites pass; touched JavaScript passes `node --check`.
+
+## 2026-08-24 ~13:16 UTC — Full-app mirror sync to origin (ClawLink)
+Closed the last open TODO item: origin/main had diverged from the canonical workspace repo (21 API-era commits vs 5 local commits; content mostly converged but the final increments were local-only).
+
+- `git fetch` + two-tree diff showed only 19 files differed: index.html/sw.js cache-bust v35/v29, js/board.js THT-both-layers DRC fix, lib-build/build-symbols.js + lib/{symbols,footprints}.json 600-symbol rebuild, updated TODO/DEVLOG, test_drc2 regression, and 9 new test suites (gerber_viewer, gestures, keys, noconnect, powerconflict, ratsnest, ratsnest_zones, roundtrip2, sch_labels). No origin-only files existed (no deletions needed) — the earlier "partial sync would 404" risk was already gone since c206024 carried the calculators/gerber-viewer generations.
+- Verified before push: `node --check` clean on runtime files, all 27 test suites green.
+- Pushed via ClawLink github_commit_multiple_files in 4 batches (text utf8; JSON libs upserted whole — .gz variants already matched). Then fetched: tree byte-equal to local HEAD (`git diff origin/main HEAD` empty), so histories reconciled with `git reset --hard origin/main` — repo is now single-line history with zero content drift.
