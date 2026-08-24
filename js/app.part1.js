@@ -7,6 +7,7 @@
   const Drill = window.KipadDrill || null;
   const Pos = window.KipadPos || null;
   const Bom = window.KipadBom || null;
+  const NetlistExp = window.KipadNetlist || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;

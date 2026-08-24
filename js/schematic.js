@@ -324,6 +324,7 @@
       L.push('    (uuid "' + (sym.uuid || '00000000-0000-0000-0000-000000000000') + '")');
       L.push('    (property "Reference" "' + sym.ref + '" (at 0 0 0) (effects (font (size 1.27 1.27))) (uuid "00000000-0000-0000-0000-000000000000"))');
       L.push('    (property "Value" "' + sym.value + '" (at 0 0 0) (effects (font (size 1.27 1.27))) (uuid "00000000-0000-0000-0000-000000000000"))');
+      if (sym.footprint) L.push('    (property "Footprint" "' + sym.footprint + '" (at 0 0 0) (effects (font (size 1.27 1.27)) hide) (uuid "00000000-0000-0000-0000-000000000000"))');
       L.push('    (instances (project "kipad" (path "/" (reference "' + sym.ref + '") (unit 1))))');
       L.push('  )');
     });
@@ -363,7 +364,7 @@
       else if (tag === 'symbol') {
         var libId = '';
         var at = [0, 0], angle = 0;
-        var ref = '', value = '';
+        var ref = '', value = '', fp = '';
         node.forEach(function (child, i) {
           if (i === 0) return;
           if (child[0] === 'lib_id') libId = str(child[1]);
@@ -372,13 +373,14 @@
             var key = str(child[1]);
             if (key === 'Reference') ref = str(child[2]);
             if (key === 'Value') value = str(child[2]);
+            if (key === 'Footprint') fp = str(child[2]);
           }
         });
         var name = libId.indexOf(':') >= 0 ? libId.slice(libId.indexOf(':') + 1) : libId;
         var def = getSymbol ? getSymbol(name) : null;
         sch.symbols.push({
           id: nid('sym'), libId: name, ref: ref || 'U', value: value || name,
-          at: at, angle: angle, unit: 1, footprint: (def && def.footprint) ? def.footprint : ''
+          at: at, angle: angle, unit: 1, footprint: fp || ((def && def.footprint) ? def.footprint : '')
         });
       } else if (tag === 'wire') {
         var pts = [];

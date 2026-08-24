@@ -663,6 +663,7 @@
         ['Save .kicad_sch', schSave, ''],
         ['Update PCB from Schematic', doUpdatePCB, ''],
         ['Export BOM (.csv)', doBom, ''],
+        ['Export Netlist (.net)', doNetlist, ''],
         ['Switch to PCB Editor', () => setMode('pcb'), '']
       ],
       edit: [

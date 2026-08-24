@@ -384,3 +384,14 @@ Closed the item deferred by the 15:15 Gerber increment: the concurrent lib-edito
 - Cache-bust ?v=40→?v=41 (28 refs); sw CACHE kipad-v34→v35. No new assets.
 - Tests: all **32 suites green**; node --check clean on the three touched app files.
 - No remaining unchecked TODO items except the two documented blockers (haptics: no iPadOS Safari API; cross-sheet ERC labels: single-sheet model).
+
+## 2026-08-24 ~16:05 UTC — KiCad netlist export (.net)
+
+All TODO items closed or blocked (haptics: no iPadOS Safari API; cross-sheet ERC: single-sheet model), so this increment added the standard KiCad netlist export — the interop sibling of BOM/.pos/Gerber and the bridge into real KiCad (File → Import → Netlist for footprint assignment).
+
+- js/netlist.js (new, KipadNetlist UMD): `collect(sch, getSymbol)` → {components, libparts, nets}; `formatNetlist(data, meta)` emits `(export (version "D") …)` with design header (source/date/tool, KiCad-style UTC date), components (ref/value/footprint/libsource/sheetpath), deduped libparts (Reference/Value fields + registry pins num/name/electrical-type) and nets (label / power-name / auto N-n, sequential quoted codes). Topology via `Sch.extractNets` — same union-find as ERC/BOM. Power symbols + `#`-refs excluded as components and their pins dropped from nodes; nets left with zero exported nodes are dropped. Natural sort R2<R10 for comps/nodes/libparts; net names sorted; escaping for backslash/quote.
+- Wiring: app.part1.js `const NetlistExp = window.KipadNetlist`; app.part2.js `doNetlist()` downloads kipad.net ("N nets, M components" status); app.part4.js schematic File menu gained "Export Netlist (.net)" after BOM. index.html ?v=41→42 + script tag after bom.js; sw CACHE kipad-v36 + ./js/netlist.js.
+- Bonus fidelity fix (found by the round-trip test): serializeSch/parseSch now emit/read the symbol `(property "Footprint" …)` — instance footprint assignments previously vanished on save/reopen (parser fell back to the library default silently).
+- Tests: test/test_netlist_export.js — 12 checks (empty-sch valid sexpr incl. `{q:'D'}` string shape, label-named shared net with node refs/pins, GND power exclusion from file entirely while naming its net, auto N-* names, natural sort, libpart dedupe + balanced pins block, footprint lib-prefix passthrough, missing-def tolerance, quote escaping, determinism with fixed date, serialize→parse round-trip incl. Footprint property, every node references an exported component).
+- Debug notes: KiCad's R symbol has VERTICAL pins (±3.81 y); GND pin sits at symbol origin; sexpr.js parses quoted strings as {q:"…"} objects. First draft had an unbalanced-paren bug in the libpart pins block (non-last lines left `(pin` open) — caught by Sexp.parse assertions.
+- All **33 suites green**; node --check clean on touched files.

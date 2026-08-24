@@ -46,6 +46,11 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] `js/bom.js` (KipadBom, UMD pure): non-power symbols grouped by Value + Footprint with refs + qty; power symbols excluded via `KipadSchematic.isPower` (same rule as ERC/netlist), `#`-prefixed annotation refs excluded too; natural sort (R2 < R10, groups ordered by first ref); RFC-4180 CSV quoting only where needed — 2026-08-24
   - [x] UI: Schematic File menu → Export BOM (.csv) downloads kipad-bom.csv with part-line/component count in the status bar; cache-bust ?v=39 / sw kipad-v33 — 2026-08-24
   - [x] test/test_bom.js (11 checks incl. serialize→parse round-trip smoke: grouping survives a file save/reopen) — 2026-08-24
+- [x] Netlist export (.net, KiCad `export version "D"`) — 2026-08-24
+  - [x] `js/netlist.js` (KipadNetlist, UMD pure): design header + components + libparts + nets; topology via `KipadSchematic.extractNets` so netlist/ERC/BOM agree; power symbols + `#`-refs excluded as components AND as nodes; nets keep schematic names (label / GND·VCC / auto N-n), natural sort R2<R10 with sequential codes; libparts deduped per lib+part carrying registry pin num/name/type; all strings quoted+escaped
+  - [x] UI: Schematic File menu → Export Netlist (.net) downloads kipad.net with net/component count status; cache-bust ?v=42 / sw kipad-v36
+  - [x] test/test_netlist_export.js (12 checks incl. serialize→parse round-trip)
+  - [x] Fidelity fix found by this work: `.kicad_sch` serializer/parser now round-trip the symbol Footprint property (`(property "Footprint" …)`), previously dropped on save/reopen
 - [x] Pick-and-place export (.pos, KiCad component placement) — 2026-08-24
   - [x] `js/pos.js` (KipadPos, UMD pure): per-side tables (front/back from footprint layer), Ref/Val/Package/PosX/PosY/Rot/Side columns matching KiCad's format; only footprints with pads listed (pad-less logo/art excluded); rotation normalised to [0,360); coordinates straight from board frame (mm, Y-down passthrough) — 2026-08-24
   - [x] UI: File → Export component placement (.pos) downloads kipad-top.pos / kipad-bottom.pos (skips empty sides); cache-bust ?v=38 / sw kipad-v32 — 2026-08-24

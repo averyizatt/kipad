@@ -506,6 +506,14 @@
     const qty = out.rows.reduce((n, r) => n + r.qty, 0);
     setStatus('BOM exported: ' + out.rows.length + ' part line' + (out.rows.length === 1 ? '' : 's') + ', ' + qty + ' component' + (qty === 1 ? '' : 's'));
   }
+  function doNetlist() {
+    if (!NetlistExp) { setStatus('Netlist module not loaded'); return; }
+    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    const out = NetlistExp.exportNetlist(sch, Syms.getSymbol);
+    if (!out.data.components.length) { setStatus('No components for netlist'); return; }
+    download('kipad.net', out.text, 'text/plain');
+    setStatus('Netlist exported: ' + out.data.nets.length + ' net' + (out.data.nets.length === 1 ? '' : 's') + ', ' + out.data.components.length + ' component' + (out.data.components.length === 1 ? '' : 's'));
+  }
   function download(name, text, mime) {
     const blob = new Blob([text], { type: mime || 'text/plain' });
     const a = document.createElement('a');
