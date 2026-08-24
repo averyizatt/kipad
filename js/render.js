@@ -131,7 +131,7 @@
         if (z.layer !== (state.activeLayer || 'F.Cu')) continue;
         if (!isVisible(state, z.layer)) continue;
         const zc = LAYER_COLOR[z.layer] || '#888';
-        const sel = state.selKind === 'zone' && state.selId === z.id;
+        const sel = (state.selKind === 'zone' && state.selId === z.id) || !!(state.selIds && state.selIds.has(z.id));
         const fill = state.zoneFills ? state.zoneFills.get(z.id) : null;
         if (fill && fill.runs && fill.runs.length) {
           ctx.fillStyle = hexA(zc, 0.6);
@@ -186,7 +186,7 @@
     for (const t of board.texts || []) {
       if (!isVisible(state, t.layer)) continue;
       const [tx, ty] = w2s(view, t.at[0], t.at[1], cw, ch);
-      const selected = state.selKind === 'text' && state.selId === t.id;
+      const selected = (state.selKind === 'text' && state.selId === t.id) || !!(state.selIds && state.selIds.has(t.id));
       const sizePx = Math.max(6, (t.size || 1.5) * view.zoom);
       ctx.save();
       ctx.translate(tx, ty);
@@ -218,7 +218,7 @@
 
     // ---- footprints ----
     for (const fp of board.footprints) {
-      const isSel = state.selId === fp.id;
+      const isSel = state.selIds ? state.selIds.has(fp.id) : state.selId === fp.id;
       const lib = (root.KipadFootprints || {}).getFootprint ? root.KipadFootprints.getFootprint(fp.lib) : null;
       const t = (pt) => {
         const r = fp.angle * Math.PI / 180;
@@ -298,7 +298,9 @@
     for (const t of board.tracks) {
       if (!isVisible(state, t.layer)) continue;
       const onActive = t.layer === (state.activeLayer || 'F.Cu');
+      const tSel = state.selIds && state.selIds.has(t.id);
       const color = (state.hiNet != null && t.netId === state.hiNet) ? NET_HI
+        : tSel ? SEL
         : dim(LAYER_COLOR[t.layer] || '#888', !onActive);
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(1, t.width * view.zoom);
@@ -318,7 +320,8 @@
 
     // ---- vias ----
     for (const v of board.vias) {
-      const color = (state.hiNet != null && v.netId === state.hiNet) ? NET_HI : '#c0c0c0';
+      const vSel = state.selIds && state.selIds.has(v.id);
+      const color = (state.hiNet != null && v.netId === state.hiNet) ? NET_HI : vSel ? SEL : '#c0c0c0';
       const [vx, vy] = w2s(view, v.at[0], v.at[1], cw, ch);
       ctx.strokeStyle = color;
       // annulus between drill/2 and size/2: stroke a mid-radius circle whose
@@ -327,6 +330,14 @@
       ctx.beginPath(); ctx.arc(vx, vy, (v.size + v.drill) / 4 * view.zoom, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = BG;
       ctx.beginPath(); ctx.arc(vx, vy, v.drill / 2 * view.zoom, 0, Math.PI * 2); ctx.fill();
+      if (vSel) {
+        // dashed halo so a selected via stays visible over copper
+        ctx.strokeStyle = SEL;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 2]);
+        ctx.beginPath(); ctx.arc(vx, vy, v.size / 2 * view.zoom + 3, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
 
     // ---- route in progress ----

@@ -165,31 +165,83 @@
     const trHit = B.hitTrack(board, wx, wy, pickTol(3));
     const viaHit = B.hitVia(board, wx, wy, pickTol(3));
     const textHit = B.hitText(board, wx, wy, pickTol());
+
+    // Shift/Cmd+tap adds to (or removes from) the group selection —
+    // KiCad shift-click multi-select. Modifier + empty space just pans.
+    if ((e.shiftKey || e.metaKey || e.ctrlKey) && (padHit || fpHit || trHit || viaHit || textHit)) {
+      const zh = hitZone(wx, wy);
+      const hitItem = padHit ? { id: padHit.fp.id, kind: 'footprint' }
+        : fpHit ? { id: fpHit.id, kind: 'footprint' }
+        : trHit ? { id: trHit.id, kind: 'track' }
+        : viaHit ? { id: viaHit.id, kind: 'via' }
+        : textHit ? { id: textHit.id, kind: 'text' }
+        : zh ? { id: zh.id, kind: 'zone' } : null;
+      if (hitItem) {
+        if (!selSet.length && selId && selKind) selSet = [{ id: selId, kind: selKind }];
+        const removing = MSel.has(selSet, hitItem.id);
+        selSet = MSel.toggle(selSet, hitItem.id, hitItem.kind);
+        if (!removing) { selId = hitItem.id; selKind = hitItem.kind; }
+        else if (selId === hitItem.id) {
+          const m = selSet[selSet.length - 1];
+          selId = m ? m.id : null; selKind = m ? m.kind : null;
+        }
+        dragging = { pan: true };
+        lastPan = { x: e.clientX, y: e.clientY };
+        setStatus(selSet.length
+          ? selSet.length + ' item' + (selSet.length === 1 ? '' : 's') + ' selected — drag a member to move the group'
+          : 'Selection cleared');
+        render(); refreshAll();
+        return;
+      }
+    }
+
     if (padHit) {
-      selId = padHit.fp.id; selKind = 'footprint';
       hiNet = padHit.pad.netId;
-      dragging = { fpId: padHit.fp.id, dx: wx - padHit.fp.at[0], dy: wy - padHit.fp.at[1], moved: false };
+      if (selSet.length && (MSel.has(selSet, padHit.fp.id) || selId === padHit.fp.id)) {
+        selId = padHit.fp.id; selKind = 'footprint';
+        dragging = startGroupDrag(padHit.fp.id, 'footprint', padHit.fp.at, wx - padHit.fp.at[0], wy - padHit.fp.at[1]);
+      } else {
+        selSet = [];
+        selId = padHit.fp.id; selKind = 'footprint';
+        dragging = { fpId: padHit.fp.id, dx: wx - padHit.fp.at[0], dy: wy - padHit.fp.at[1], moved: false };
+      }
     } else if (fpHit) {
-      selId = fpHit.id; selKind = 'footprint';
-      dragging = { fpId: fpHit.id, dx: wx - fpHit.at[0], dy: wy - fpHit.at[1], moved: false };
+      if (selSet.length && (MSel.has(selSet, fpHit.id) || selId === fpHit.id)) {
+        selId = fpHit.id; selKind = 'footprint';
+        dragging = startGroupDrag(fpHit.id, 'footprint', fpHit.at, wx - fpHit.at[0], wy - fpHit.at[1]);
+      } else {
+        selSet = [];
+        selId = fpHit.id; selKind = 'footprint';
+        dragging = { fpId: fpHit.id, dx: wx - fpHit.at[0], dy: wy - fpHit.at[1], moved: false };
+      }
     } else if (trHit) {
+      selSet = [];
       selId = trHit.id; selKind = 'track';
       dragging = { pan: true };
       lastPan = { x: e.clientX, y: e.clientY };
     } else if (viaHit) {
+      selSet = [];
       selId = viaHit.id; selKind = 'via';
       dragging = { pan: true };
       lastPan = { x: e.clientX, y: e.clientY };
     } else if (textHit) {
-      selId = textHit.id; selKind = 'text';
-      dragging = { textId: textHit.id, dx: wx - textHit.at[0], dy: wy - textHit.at[1], moved: false };
+      if (selSet.length && (MSel.has(selSet, textHit.id) || selId === textHit.id)) {
+        selId = textHit.id; selKind = 'text';
+        dragging = startGroupDrag(textHit.id, 'text', textHit.at, wx - textHit.at[0], wy - textHit.at[1]);
+      } else {
+        selSet = [];
+        selId = textHit.id; selKind = 'text';
+        dragging = { textId: textHit.id, dx: wx - textHit.at[0], dy: wy - textHit.at[1], moved: false };
+      }
     } else {
       const zHit = hitZone(wx, wy);
       if (zHit) {
+        selSet = [];
         selId = zHit.id; selKind = 'zone';
         dragging = { pan: true };
         lastPan = { x: e.clientX, y: e.clientY };
       } else {
+        selSet = [];
         selId = null; selKind = null; hiNet = null;
         dragging = { pan: true };
         lastPan = { x: e.clientX, y: e.clientY };
@@ -197,6 +249,15 @@
     }
     render(); refreshAll();
   });
+
+  // Group drag setup: every member of the group selection follows the same
+  // incremental delta as the grabbed item. `anchor` is the grabbed item's
+  // position at drag start.
+  function startGroupDrag(grabId, grabKind, anchor, dx, dy) {
+    const members = selSet.map(m => ({ id: m.id, kind: m.kind }));
+    if (!members.some(m => m.id === grabId)) members.unshift({ id: grabId, kind: grabKind });
+    return { group: true, anchor: [anchor[0], anchor[1]], dx: dx, dy: dy, members: members, moved: false };
+  }
 
   canvas.addEventListener('pointermove', e => {
     if (e.pointerType === 'pen') updatePenHud(e);
@@ -256,7 +317,16 @@
       render();
       return;
     }
-    if (dragging && dragging.fpId) {
+    if (dragging && dragging.group) {
+      if (!dragging.moved) { pushUndo(); dragging.moved = true; }
+      const target = [snap(wx - dragging.dx), snap(wy - dragging.dy)];
+      const ddx = target[0] - dragging.anchor[0], ddy = target[1] - dragging.anchor[1];
+      if (ddx || ddy) {
+        MSel.moveItems(board, dragging.members, ddx, ddy);
+        dragging.anchor = target;
+      }
+      render();
+    } else if (dragging && dragging.fpId) {
       const fp = board.footprints.find(f => f.id === dragging.fpId);
       if (fp) {
         if (!dragging.moved) { pushUndo(); dragging.moved = true; }
@@ -544,6 +614,7 @@
         break;
       case 'Escape':
         route = null; outlinePts = null; gfxStart = null; placeLib = null; measureA = null; measureB = null; zonePts = null;
+        if (selSet.length) { selSet = []; setStatus('Selection cleared'); }
         setTool('select'); break;
       case 'w': cycleTrackWidth(); break;
     }
@@ -577,6 +648,12 @@
         Sch.moveSymbol(sch, s.id, [s.at[0] + dx * grid, s.at[1] + dy * grid]);
         render(); refreshAll();
       }
+      return;
+    }
+    if (selSet.length && MSel) {
+      pushUndo();
+      MSel.moveItems(board, selSet, dx * grid, dy * grid);
+      render(); refreshProps();
       return;
     }
     const fp = board.footprints.find(f => f.id === selId);
@@ -846,7 +923,7 @@
   function showHelp() {
     showModal('Kipad — PCB Layout Editor', `
       <b>Tools (left rail)</b><br>
-      ➤ Select — tap pad/footprint to select (tap pad = highlight net), drag to move<br>
+      ➤ Select — tap pad/footprint to select (tap pad = highlight net), drag to move · Shift+tap adds to a multi-select, drag any member to move the group<br>
       ⌁ Net Highlight — tap a pad to highlight its net<br>
       ▣ Footprint — pick from Library panel, tap board to place, R rotates<br>
       ╱ Route Track — tap pad to start (uses its net), tap for corners, double-tap/Enter to finish, V = via + layer<br>
@@ -857,7 +934,7 @@
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Footprints (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection). The panel can be collapsed with the handle on its edge (View → Hide Side Panel).<br><br>
       <b>Library editors</b>: Project manager → Symbols / Footprints tiles (or Tools menu) open full editors — edit pins & pads on canvas or in tables, New/Import/Export .kicad_sym/.kicad_mod, Save keeps custom items across reloads.<br>
-      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
+      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate (group: about its centre) · W width · E properties · arrows nudge selection · Del delete (group: all selected) · Shift+tap multi-select · Esc clear · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
       <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = 9-layer fab set (F/B.Cu · Edge · F/B.SilkS · F/B.Mask · F/B.Paste) RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
@@ -867,7 +944,8 @@
   function showShortcuts() {
     showModal('Shortcuts', `
       S select · H net highlight · F / A footprint · X route · V via · Z zone · T text · L line · M measure<br>
-      G grid cycle · N ratsnest · R rotate · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
+      G grid cycle · N ratsnest · R rotate (multi-selection rotates as a group about its centre) · W track width · E Properties panel · arrow keys nudge selection by one grid step · Del delete<br>
+      Multi-select: Shift/Cmd+tap adds or removes items · drag any selected footprint/text moves the whole group · Del removes all selected · Esc clears<br>
       Routing: 45° mode with / (diagonal/straight posture) · Backspace removes the last point while routing · Track/Via dropdowns in the toolbar pick width & size for new tracks/vias (W cycles widths)<br>
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>

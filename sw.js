@@ -1,5 +1,5 @@
 /* Kipad service worker — offline-first PWA */
-const CACHE = 'kipad-v44';
+const CACHE = 'kipad-v45';
 const ASSETS = [
   './',
   './index.html',
@@ -31,6 +31,7 @@ const ASSETS = [
   './js/calculators.js',
   './js/keys.js',
   './js/route.js',
+  './js/multisel.js',
   './js/app.part1.js',
   './js/app.part2.js',
   './js/app.part3.js',

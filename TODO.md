@@ -191,7 +191,11 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] `KipadRoute.toggleRouteVia` / `currentLayer` / `cleanupRouted` / `commitPlan` (pure): V mid-route now STAGES a via on the route's last point and flips F.Cu↔B.Cu from there; second press at the same point removes it; commit is atomic on Enter (per-segment layers + vias in one undo step), Escape/Backspace discard staged vias (Backspace prunes stale ones); cleanup never merges away a via point
   - [x] Fixes real bug: finishRoute previously committed ALL segments on the final route.layer, so pre-switch tracks landed on the wrong copper side, and a cancelled route left an orphaned via behind
   - [x] Layer switching during routing also works from the L shortcut / toolbar button / Layers panel tap (target layer ≠ current → stage via); dashed preview draws per-segment colours + planned via annuli · test/test_route.js +21 checks (78) · cache v=49→v50 / sw kipad-v43→v44
-- [ ] Add multi-select and group move/rotate/delete
+- [x] Add multi-select and group move/rotate/delete — 2026-08-24
+  - [x] `js/multisel.js` (KipadMultisel, UMD pure): toggle/has set ops, bounds (pads included → group rotate pivot), moveItems (rigid delta for footprints+pads/texts/tracks/vias), rotateItems (anchors orbit the bbox centre AND each part spins; pads rebuilt from original local offsets rotated once), deletePlan (per-collection partition, stale ids dropped); zones selectable/deletable but immovable (KiCad pour behaviour) — test/test_multisel.js (30 checks) — 2026-08-24
+  - [x] UI: Shift/Cmd/Ctrl+tap toggles group membership (seeds from the current selection; primary follows adds/removals); drag any selected footprint/text moves the whole group (incremental snapped deltas, one undo step); R rotates the block 90° about its centre; Del deletes all selected; arrows nudge the group; Esc clears; status bar shows member count — 2026-08-24
+  - [x] render: highlights keyed off a selIds Set — tracks get green stroke + vias dashed halo when selected (fixes missing single-selection canvas feedback too) · cache v=50→v51 / sw kipad-v45 + ASSETS entry — 2026-08-24
+  - Deferred: rubber-band box select (needs gesture disambiguation vs drag-pan on touch) and Ctrl+A select-all (keys resolver action + menu row) — see DEVLOG ~18:20
 - [ ] Audit undo/redo so every PCB editing operation is reversible
 - [ ] Add board setup + net-class editor
 - [x] Add fabrication ZIP export containing Gerber, drill, .pos, and BOM — done as PCB File > Export fabrication package (.zip) — 2026-08-24

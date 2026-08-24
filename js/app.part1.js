@@ -16,6 +16,7 @@
   const KicadSym = window.KipadKicadSym || null;
   const Syms = window.KipadSymbols || null;
   const Z = window.KipadZones || null;
+  const MSel = window.KipadMultisel || null;
 
   // ---------- DOM ----------
   const $ = id => document.getElementById(id);
@@ -29,6 +30,7 @@
   let layer = 'F.Cu';         // active copper layer
   let selId = null;           // selected footprint id
   let selKind = null;         // 'footprint' | 'track' | 'via'
+  let selSet = [];            // group selection [{id, kind}] (Shift/Cmd+tap; drag any member moves all)
   let hiNet = null;           // highlighted net id
   let route = null;           // {pts, netId, layer, width}
   let outlinePts = null;      // current outline polyline being drawn
@@ -128,7 +130,7 @@
     board = JSON.parse(s);
     B.ensureNetClasses(board);
     selId = null; selKind = null; hiNet = null; route = null; outlinePts = null;
-    zonePts = null;
+    zonePts = null; selSet = [];
     markZonesDirty(true);
   }
   function undo() {
@@ -149,6 +151,7 @@
     if (mode === 'schematic') { renderSchematicView(); return; }
     const state = {
       selId, selKind, hiNet, showRats, layerVis,
+      selIds: (() => { const s = new Set(selSet.map(m => m.id)); if (selId) s.add(selId); return s; })(),
       activeLayer: layer,
       crosshair: crosshair,
       grid,

@@ -216,6 +216,20 @@
 
   // ---------- actions ----------
   function doDelete() {
+    if (selSet.length) {
+      pushUndo();
+      const plan = MSel.deletePlan(board, selSet);
+      board.footprints = board.footprints.filter(f => plan.footprints.indexOf(f.id) < 0);
+      board.tracks = board.tracks.filter(t => plan.tracks.indexOf(t.id) < 0);
+      board.vias = board.vias.filter(v => plan.vias.indexOf(v.id) < 0);
+      for (const id of plan.texts) B.removeText(board, id);
+      for (const id of plan.zones) B.removeZone(board, id);
+      const n = plan.footprints.length + plan.tracks.length + plan.vias.length + plan.texts.length + plan.zones.length;
+      selSet = []; selId = null; selKind = null;
+      render(); refreshAll();
+      setStatus('Deleted ' + n + ' item' + (n === 1 ? '' : 's'));
+      return;
+    }
     if (selId) {
       pushUndo();
       const fp = board.footprints.find(f => f.id === selId);
@@ -229,6 +243,16 @@
     }
   }
   function doRotateSel() {
+    if (selSet.length > 1) {
+      pushUndo();
+      const bds = MSel.bounds(board, selSet);
+      if (bds) {
+        const n = MSel.rotateItems(board, selSet, bds.center, 90);
+        setStatus('Rotated ' + n + ' items about the group centre');
+      }
+      render(); refreshProps();
+      return;
+    }
     if (selKind === 'text' && selId) {
       const t = board.texts.find(x => x.id === selId);
       if (t) { pushUndo(); t.angle = (t.angle + 90) % 360; render(); refreshProps(); }
