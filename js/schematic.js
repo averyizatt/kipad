@@ -491,6 +491,6 @@
     addLabel: addLabel, addJunction: addJunction, addNoConnect: addNoConnect, removeNoConnect: removeNoConnect,
     moveSymbol: moveSymbol, pinPositions: pinPositions,
     connectivity: connectivity, extractNets: extractNets, serializeSch: serializeSch, parseSch: parseSch,
-    updatePCB: updatePCB, renumberRefs: renumberRefs, EPS: EPS
+    updatePCB: updatePCB, renumberRefs: renumberRefs, isPower: isPower, EPS: EPS
   };
 });

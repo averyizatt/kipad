@@ -395,7 +395,7 @@
 
   // ---------- ERC (schematic electrical rules check) ----------
   function refreshErc() {
-    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol) : [];
+    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol, FPs ? FPs.getFootprint : null) : [];
     ercDirty = false;
     updateErcStatus();
   }

@@ -27,8 +27,10 @@ assert.strictEqual(Sch.pinPositions({ libId: 'R', at: [0, 0], angle: 0 }, Syms.g
 
 // ---- 1. clean schematic → zero violations ----
 const clean = Sch.makeSchematic();
-Sch.placeSymbol(clean, 'R', [0, 0], 0);
-Sch.placeSymbol(clean, 'C', [10, 0], 0);
+const cleanR = Sch.placeSymbol(clean, 'R', [0, 0], 0);
+cleanR.footprint = 'R_0603_1608Metric';            // assigned footprints: ERC counts missing ones
+const cleanC = Sch.placeSymbol(clean, 'C', [10, 0], 0);
+cleanC.footprint = 'C_0805_2012Metric';
 Sch.addWire(clean, [[0, 3.81], [10, 3.81]]);
 Sch.addLabel(clean, 'VCC', [5, 3.81], 0);
 Sch.addWire(clean, [[0, -3.81], [10, -3.81]]);
@@ -66,7 +68,8 @@ assert.strictEqual(Erc.runERC(lonePwrOut, Syms.getSymbol).length, 0, 'lone power
 Syms.loadLibrary([{ name: 'TEST_NC', ref: 'U', value: 'TEST_NC', footprint: '', desc: '',
   pins: [{ number: '1', name: 'NC', type: 'no_connect', at: [0, 0], angle: 0, length: 2.54 }], graphics: [] }]);
 const loneNc = Sch.makeSchematic();
-Sch.placeSymbol(loneNc, 'TEST_NC', [0, 0], 0);
+const ncSym = Sch.placeSymbol(loneNc, 'TEST_NC', [0, 0], 0);
+ncSym.footprint = 'TEST_PART';                     // no footprint getter → existence check skipped
 assert.strictEqual(Erc.runERC(loneNc, Syms.getSymbol).length, 0, 'no_connect pin is exempt from unconnected checks');
 
 // ---- 5. duplicate reference designators ----

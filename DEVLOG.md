@@ -305,3 +305,17 @@ Closed the last open TODO item: origin/main had diverged from the canonical work
 - ClawLink API upserts were impractical for the ~692 KB JSON libs (inline-content-only tools), so added a repo-scoped SSH deploy key instead: generated ~/.ssh/kipad_deploy (ed25519), registered via github_create_a_deploy_key as "homeops@thefrogbrain (kipad deploy, write)" (key id 161160200), ssh config alias `github-kipad`, origin switched to that URL.
 - Merged origin/main locally (three trivial conflicts — index.html/sw.js/lib-footprints.json add-add — resolved to canonical local generations; auto-merge clean elsewhere; merged tree still differs from origin by exactly the 19 intended files).
 - Native `git push` fast-forwarded origin c206024..464124f; ls-remote confirms origin == HEAD. Future syncs are a plain `git push` — no more context-heavy API pushes.
+
+## 2026-08-24 ~13:36 UTC — ERC: footprint assignment checks
+Closed the "missing footprint" half of the deferred ERC item. The blocker recorded earlier ("no UI to assign footprints") turned out not to block the *check*: symbols already carry a `footprint` string, and `updatePCB()` silently substitutes ref-prefix default footprints both for empty assignments **and** for assigned names the registry cannot resolve — a silent surprise worth surfacing.
+
+- js/erc.js:
+  - `runERC(sch, getSymbol, getFootprint?)` — new optional third arg; without it the existence check is skipped (pure-model callers unaffected).
+  - `MISSING_FOOTPRINT` warning: non-power symbol with empty/whitespace footprint; message names the ref and says a default will be used.
+  - `FOOTPRINT_NOT_FOUND` error: assigned footprint whose name after the first `:` is not in the registry — same strip rule as updatePCB, so ERC and the PCB exporter can never disagree. Message explains that Update PCB will substitute a default.
+  - Exemptions: power symbols (`Sch.isPower`, now exported from schematic.js) and KiCad `#`-prefixed refs (#PWR/#FLG-style) — the latter caught by test_erc's synthetic power_out symbol valued "3V3", which the value/libId regex alone misses.
+- js/app.part2.js: `refreshErc()` now passes `FPs.getFootprint` so the panel/canvas markers cover the registry check too (no other UI change needed — markers + tap-to-locate come free).
+- Fixtures updated to the stricter semantics: test/test_erc.js "clean" case assigns footprints to its R/C (KiCad also counts unassigned footprints as findings, so clean means assigned), TEST_NC gets a placeholder footprint.
+- Cache-bust ?v=35→?v=36 (25 refs); sw CACHE kipad-v29→v30. No new assets.
+- Tests: test/test_footprint_erc.js (18 checks: missing/whitespace/message-ref, GND + #-ref exemptions, lib:name and bare resolvable names pass, unknown → error shape, getter-less skip, lib-default footprints honoured, counts + determinism). All **28 suites green**; `node --check` clean on touched files.
+- Repo hygiene: added .gitignore for stray `repo/` (~297 MB duplicate clone from an earlier sync experiment) and `lib-build/attic/` so `git status` stays meaningful; both left on disk pending Avery's call on deleting them.

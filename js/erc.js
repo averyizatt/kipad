@@ -25,6 +25,11 @@
  *   DANGLING_WIRE    — wire end that touches nothing
  *   POWERPIN_CONFLICT— two different power nets shorted on one node
  *                      (e.g. a GND symbol wired to a VCC symbol)
+ *   MISSING_FOOTPRINT — non-power symbol with no footprint assigned; the
+ *                      PCB exporter will substitute a ref-prefix default
+ *   FOOTPRINT_NOT_FOUND — explicitly assigned footprint name that the
+ *                      footprint registry cannot resolve (Update PCB would
+ *                      silently fall back to the ref-prefix default)
  *
  * Topology comes from KipadSchematic.connectivity() — the same union-find
  * + label-to-wire merging used for the schematic→PCB netlist, so ERC and the
@@ -77,8 +82,9 @@
     return (pin.name && String(pin.name).trim()) || null;
   }
 
-  /** runERC(sch, getSymbol) -> violations array (deterministic order). */
-  function runERC(sch, getSymbol) {
+  /** runERC(sch, getSymbol [, getFootprint]) -> violations array (deterministic order).
+ *  getFootprint(name)->fp|null enables the FOOTPRINT_NOT_FOUND registry check. */
+  function runERC(sch, getSymbol, getFootprint) {
     var Sch = schMod();
     var violations = [];
     function add(v) { violations.push(v); }
@@ -191,6 +197,42 @@
           severity: 'warning',
           code: 'MISSING_VALUE',
           message: 'Missing value on ' + (ref || s.libId || 'symbol'),
+          symbolId: s.id,
+          x: s.at[0], y: s.at[1]
+        });
+      }
+    });
+
+    // ---- 4b. footprint assignment ----
+    // KiCad flags symbols without a footprint link. Here the PCB exporter
+    // substitutes a ref-prefix default (R -> 0603 chip resistor …), so an
+    // unassigned footprint is only a warning — but an explicitly assigned
+    // name the registry cannot resolve means the user's choice gets silently
+    // overridden during Update PCB from Schematic, which is an error.
+    var isPowerSym = Sch.isPower || function (s) {
+      return /^(GND|VCC|VP|VN|\+5V|\+3V3|-5V|VSS|VDD|PWR)/i.test(s.value || s.libId);
+    };
+    symbols.forEach(function (s) {
+      if (isPowerSym(s)) return;
+      if (String(s.ref || '').charAt(0) === '#') return; // KiCad #PWR/#FLG-style refs never take footprints
+      var fp = String(s.footprint || '').trim();
+      if (!fp) {
+        add({
+          severity: 'warning',
+          code: 'MISSING_FOOTPRINT',
+          message: 'Missing footprint on ' + (refOf[s.id] || s.libId || 'symbol') + ' — a ref-prefix default will be used',
+          symbolId: s.id,
+          x: s.at[0], y: s.at[1]
+        });
+        return;
+      }
+      if (typeof getFootprint !== 'function') return;   // no registry available
+      var fpName = fp.indexOf(':') >= 0 ? fp.slice(fp.indexOf(':') + 1) : fp; // same strip as updatePCB
+      if (fpName && !getFootprint(fpName)) {
+        add({
+          severity: 'error',
+          code: 'FOOTPRINT_NOT_FOUND',
+          message: 'Footprint "' + fp + '" not found in the library — Update PCB will substitute a default',
           symbolId: s.id,
           x: s.at[0], y: s.at[1]
         });
