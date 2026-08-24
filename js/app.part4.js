@@ -701,6 +701,7 @@
         ['Import .kicad_mod/.kicad_sym…', () => $('btn-import').click(), ''],
         ['Export Gerber', doGerber, ''],
         ['Export Drill file', doDrill, ''],
+        ['Export component placement (.pos)', doPos, ''],
         ['Switch to Schematic Editor', () => setMode('schematic'), '']
       ],
       edit: [

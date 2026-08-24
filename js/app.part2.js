@@ -487,6 +487,15 @@
     download('kipad.drl', text, 'text/plain');
     setStatus('Drill file exported (.drl)');
   }
+  function doPos() {
+    if (!Pos) { setStatus('Placement module not loaded'); return; }
+    const out = Pos.exportPos(board);
+    let n = 0;
+    if (out.front) { download('kipad-top.pos', out.front, 'text/plain'); n++; }
+    if (out.back) { download('kipad-bottom.pos', out.back, 'text/plain'); n++; }
+    if (!n) { setStatus('No footprints to place'); return; }
+    setStatus('Component placement exported (.pos)');
+  }
   function download(name, text, mime) {
     const blob = new Blob([text], { type: mime || 'text/plain' });
     const a = document.createElement('a');

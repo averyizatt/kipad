@@ -29,6 +29,10 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Import .kicad_mod / .kicad_sym files at runtime — 2026-08-22
 - [x] KiCad 10 .kicad_pcb support (named nets, wildcard layers) — 2026-08-22
 - [x] Drill/position file export (.drl, Excellon) — 2026-08-22
+- [x] Pick-and-place export (.pos, KiCad component placement) — 2026-08-24
+  - [x] `js/pos.js` (KipadPos, UMD pure): per-side tables (front/back from footprint layer), Ref/Val/Package/PosX/PosY/Rot/Side columns matching KiCad's format; only footprints with pads listed (pad-less logo/art excluded); rotation normalised to [0,360); coordinates straight from board frame (mm, Y-down passthrough) — 2026-08-24
+  - [x] UI: File → Export component placement (.pos) downloads kipad-top.pos / kipad-bottom.pos (skips empty sides); cache-bust ?v=38 / sw kipad-v32 — 2026-08-24
+  - [x] test/test_pos.js (12 checks incl. real-board smoke: every padded footprint appears exactly once across both files) — 2026-08-24
 - [x] Net class / clearance settings UI (Nets panel → Net Classes…, per-class DRC) — 2026-08-23
 - [x] Copper zones / pours (KiCad zone fills) — 2026-08-23
   - [x] Model: `board.zones[]` `{id, net (name), layer 'F.Cu'|'B.Cu', outline [{x,y}] closed ring, clearance? override, minArea?}` + `B.addZone/removeZone/zonesOn`; persists via the existing localStorage JSON save; kicad_pcb.js sexpr serialization untouched — 2026-08-23

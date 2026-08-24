@@ -5,6 +5,7 @@
   const Pcb = window.KipadPcb;
   const Gerber = window.KipadGerber;
   const Drill = window.KipadDrill || null;
+  const Pos = window.KipadPos || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
