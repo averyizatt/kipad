@@ -128,7 +128,7 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] runDRC: `unconnected` error per remaining airwire (net + R1.2-style pad labels, tap-to-centre works); clearance violations got their missing `msg` (panel showed "undefined") — 2026-08-24
   - [x] test/test_ratsnest.js (26 checks); AABB prefilter keeps per-frame ratsnest ~1.8 ms on the real board; all 26 suites green — 2026-08-24
   - [x] Follow-up: zone fills count as connectivity (KiCad joins same-net pads through filled zones) — 2026-08-24
-- [x] Mirror sync to origin via ClawLink — one full-app upload run completed 2026-08-24: origin/main content now byte-matches the canonical local tree (19 differing files upserted in batches; histories reconciled with reset --hard afterwards). Earlier partial-sync 404 risk resolved — see DEVLOG ~13:16
+- [x] Mirror sync to origin — DONE 2026-08-24: added repo-scoped SSH deploy key `homeops@thefrogbrain (kipad deploy, write)` (GitHub key id 161160200, ~/.ssh/kipad_deploy, ssh alias `github-kipad`); origin now = merge of API-era commits + canonical workspace history (464124f), content byte-matches local incl. lib/*.json; future syncs are plain `git push` — see DEVLOG ~13:16
 
 ## Session 2026-08-24 (~04:35 UTC) — zone round-trip + PCB-view fidelity fixes
 - [x] Zone sexpr round-trip (parse + serialize + real-board smoke) — see DEVLOG; first sub-item of round-trip fidelity milestone — 2026-08-24

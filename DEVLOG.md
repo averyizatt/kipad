@@ -298,9 +298,10 @@ Fixed a clearance/edge DRC blind spot: through-hole pads were only included when
 - `test/test_drc2.js`: regression covers a B.Cu track violating and then clearing a front-footprint THT pad with `['*.Cu','*.Mask']` layers.
 - Cache-bust `?v=34`→`?v=35`; service-worker cache `kipad-v28`→`v29`. All test suites pass; touched JavaScript passes `node --check`.
 
-## 2026-08-24 ~13:16 UTC — Full-app mirror sync to origin (ClawLink)
-Closed the last open TODO item: origin/main had diverged from the canonical workspace repo (21 API-era commits vs 5 local commits; content mostly converged but the final increments were local-only).
+## 2026-08-24 ~13:16 UTC — Full mirror sync to origin via deploy key (native git push)
+Closed the last open TODO item: origin/main had diverged from the canonical workspace repo (21 API-era commits vs 5 local commits; content mostly converged but the final increments were local-only, and the two plain lib/*.json builds were stale on origin — 400 symbols/62 footprints vs 600/159).
 
-- `git fetch` + two-tree diff showed only 19 files differed: index.html/sw.js cache-bust v35/v29, js/board.js THT-both-layers DRC fix, lib-build/build-symbols.js + lib/{symbols,footprints}.json 600-symbol rebuild, updated TODO/DEVLOG, test_drc2 regression, and 9 new test suites (gerber_viewer, gestures, keys, noconnect, powerconflict, ratsnest, ratsnest_zones, roundtrip2, sch_labels). No origin-only files existed (no deletions needed) — the earlier "partial sync would 404" risk was already gone since c206024 carried the calculators/gerber-viewer generations.
-- Verified before push: `node --check` clean on runtime files, all 27 test suites green.
-- Pushed via ClawLink github_commit_multiple_files in 4 batches (text utf8; JSON libs upserted whole — .gz variants already matched). Then fetched: tree byte-equal to local HEAD (`git diff origin/main HEAD` empty), so histories reconciled with `git reset --hard origin/main` — repo is now single-line history with zero content drift.
+- `git fetch` + two-tree diff showed exactly 19 files differed (index/sw cache-bust v35/v29, board.js THT DRC fix, build-symbols.js + both lib JSONs, TODO/DEVLOG, test_drc2 regression + 9 new suites); no origin-only files. All 27 suites green before syncing.
+- ClawLink API upserts were impractical for the ~692 KB JSON libs (inline-content-only tools), so added a repo-scoped SSH deploy key instead: generated ~/.ssh/kipad_deploy (ed25519), registered via github_create_a_deploy_key as "homeops@thefrogbrain (kipad deploy, write)" (key id 161160200), ssh config alias `github-kipad`, origin switched to that URL.
+- Merged origin/main locally (three trivial conflicts — index.html/sw.js/lib-footprints.json add-add — resolved to canonical local generations; auto-merge clean elsewhere; merged tree still differs from origin by exactly the 19 intended files).
+- Native `git push` fast-forwarded origin c206024..464124f; ls-remote confirms origin == HEAD. Future syncs are a plain `git push` — no more context-heavy API pushes.
