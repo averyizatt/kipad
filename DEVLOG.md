@@ -210,3 +210,90 @@ Closed the last open item of the 2026-08-23 visual-overhaul list (grid/labels), 
 - index.html: cache-bust ?v=25→?v=26 (24 refs incl. icons/add_label.png); sw.js CACHE kipad-v19→v20, ICONS precache += add_label.
 - Tests: test/test_sch_labels.js (model defaults/coercion, serializer both flavours + mixed file, parsing real KiCad text with angles, legacy plain-(label files, double round-trip stability, netlist equivalence — local+global with equal text merge into one net). All **23 suites green**; node --check clean on touched files; static $('id')↔index.html check passes (missing IDs are all JS-built, verified p-ref et al.).
 - Housekeeping: TODO.md round-trip sub-item checked off (was completed ~06:16 per DEVLOG but left unchecked).
+
+## 2026-08-24 ~09:00 UTC — PCB Calculator: placeholder → KiCad-style multi-tool
+Advanced the PCB-calculator TODO item. The launcher card previously opened a single IPC-2221 track-width dialog that also used the wrong k constant (0.024 for external; IPC-2221A is 0.048 external / 0.024 internal — old default showed 0.78 mm for 1 A/ΔT10/1 oz instead of the correct 0.30 mm).
+
+- js/calculators.js (new, KipadCalc UMD, pure): trackWidth(currentA,deltaT,oz,internal); viaStats({drillMm,platingUm,lengthMm,deltaT,currentA}) — annulus ampacity (internal-conductor k) + DC resistance/drop/loss (ρ=1.72e-8 Ω·m); spacing(voltageV) per IPC-2221A Table 6-1 (B1/B2/A5/A6/A7, mm); resistorFromColors/resistorToColors (4- and 5-band, gold/silver multipliers, tolerance reverse map, throws on non-representable values); voltageDivider(vin,r1,r2,rl) loaded/unloaded; eseriesNearest(target,'E12'|'E24'|'E96') with full IEC 60063 mantissa lists.
+- js/app.part3.js showCalc rebuilt: tab row reuses .gv-layers buttons (Track Width / Via Size / Spacing / Resistor Code / Divider / E-series), each tab renders into #cal-body and live-recalcs on input/change; resistor tab does both directions incl. coloured band chips; spacing tab shows the full B/A-column table.
+- index.html: js/calculators.js tag added before keys.js; cache-bust ?v=26→?v=27 (24 refs). sw.js CACHE kipad-v20→v21 + './js/calculators.js' in ASSETS.
+- Tests: test/test_calc.js — 52 checks (KiCad reference widths ext/int, area ratio 2^(1/c), degenerate inputs, via Imax/R/drop vs hand-computed 0.6 mm/25 µm/1.6 mm barrel, plating & ΔT monotonicity, every spacing boundary row, colour code round-trips across decades + gold-multiplier sub-10 Ω + invalid-band rejection, divider load math, E-series decade edges & relErr). All **24 suites green**; node --check clean on touched files.
+
+## 2026-08-24 ~09:16 UTC — Gerber viewer: real RS-274X files
+Completed the launcher-card placeholder as one focused increment.
+
+- `js/gerber_viewer.js` (new, pure UMD): parses common RS-274X format/unit statements, C/R/O aperture definitions, modal coordinates, D01 strokes, D02 moves, D03 flashes and G36/G37 filled regions; normalizes inch files to mm and computes aperture-aware image bounds.
+- `showGerberViewer()` now previews the board's generated F.Cu/B.Cu/Edge.Cuts Gerbers through the same parser, accepts multiple `.gbr/.ger/.gtl/.gbl/...` files, provides per-file layer tabs, fits each image to the canvas, and renders circle/rectangle/obround flashes plus strokes with object/dimension stats. Read and parse failures report through the status bar.
+- Added `test/test_gerber_viewer.js` covering exporter→viewer integration, flashes/strokes/regions, bounds, inch conversion and modal coordinates. Cache-bust `?v=28`; service worker `kipad-v22` precaches the new module.
+
+## 2026-08-24 ~10:00 UTC — PCB Calculator: antenna length
+Advanced one remaining PCB Calculator tool as a focused increment.
+
+- `js/calculators.js`: added pure `antennaLength(frequencyMHz, velocityFactor)` using the exact vacuum speed of light. It returns full-, half-, and quarter-wave physical lengths in millimetres, validates positive frequency, and accepts a propagation velocity factor in `(0, 1]`.
+- `js/app.part3.js`: added an Antenna tab with live frequency/velocity-factor inputs, common resonant lengths, and a reminder that finished antennas require geometry/environment tuning.
+- `test/test_calc.js`: added 7 checks covering 2.4 GHz reference lengths, velocity-factor scaling, returned normalized inputs, and invalid input rejection. All 25 test suites pass; touched JavaScript passes `node --check`.
+- Cache-bust `?v=29`; service-worker cache `kipad-v23`. No new assets.
+
+## 2026-08-24 ~10:16 UTC — PCB Calculator: adjustable regulator
+Advanced the next remaining PCB Calculator tool as one focused increment.
+
+- `js/calculators.js`: added pure `adjustableRegulator()` sizing for LM317-style three-terminal regulators (`Rset` from output to adjust, calculated `Rground` from adjust to ground). It includes optional Iadj, selects the nearest E12/E24/E96 resistor, and reports actual output voltage, percentage error, and set-resistor current with input validation.
+- `js/app.part3.js`: added a live Regulator tab for Vref, target Vout, Rset, Iadj and preferred-value series; results show exact and purchasable adjust-to-ground resistance plus the resulting output/error.
+- `test/test_calc.js`: added 9 checks covering ideal sizing, preferred-value rounding, bias-current contribution, unity-gain operation and invalid inputs. All 25 test suites pass; touched JavaScript passes `node --check`.
+- Cache-bust `?v=30`; service-worker cache `kipad-v24`. No new assets.
+
+## 2026-08-24 ~10:36 UTC — PCB Calculator: microstrip transmission line
+Advanced the remaining transmission-line calculator item as one focused increment.
+
+- `js/calculators.js`: added pure `microstrip()` analysis using a Hammerstad-style quasi-static approximation (impedance, effective dielectric constant, propagation velocity, delay and electrical length) plus `microstripWidth()` bisection synthesis for a target impedance.
+- `js/app.part3.js`: added a live Microstrip tab with analyse/synthesize modes, dielectric geometry, line length and frequency inputs. The UI labels the result as a thin-copper estimate and directs controlled-impedance designs to fabricator verification.
+- `test/test_calc.js`: added 7 checks covering a known FR-4 geometry, physical bounds, delay/electrical-length identities, 50 Ω synthesis convergence, impedance/width monotonicity and invalid inputs. All 25 test suites pass; touched JavaScript passes `node --check`.
+- Cache-bust `?v=31`; service-worker cache `kipad-v25`. No new assets.
+
+## 2026-08-24 ~11:16 UTC — PCB Calculator: board thickness (final tool)
+Completed the last remaining KiCad calculator item as one focused increment, finishing the PCB Calculator milestone.
+
+- `js/calculators.js`: added pure `boardThickness(layers)` — sums a fabrication stack (`copper|substrate|prepreg|soldermask|silkscreen|other`, µm) into total µm/mm/mil/inch plus copper-layer count and aggregate copper weight in oz/ft²; breakdown preserves input order for the UI. Added `ozToUm()` with the exported 1 oz = 34.7975 µm foil constant. Validates kinds/thicknesses.
+- `js/app.part3.js`: new Board Thickness tab — preset selector (2-layer & 4-layer 1.6 mm FR-4), editable per-layer rows (kind + thickness) with add/remove, live summary line. Fixed two latent WIP bugs before commit:
+  - The stackup branch was chained after the terminal `else { // microstrip }` → SyntaxError; microstrip is now an explicit `else if (cur === 'microstrip')`.
+  - Delegated row listeners were re-attached to the persistent `#cal-bt-rows` element on every add/delete/preset render (listener accumulation → double delete). Listeners now attach exactly once; renders only refresh innerHTML. Also fixed the 4-layer preset's doubled solder-mask row into proper silk+mask on each side (1.565 mm total).
+- `test/test_calc.js`: section 10 adds 17 checks — std2 stack totals (µm/mm/inch identities), order independence, bare-core case, copper-weight math, ozToUm round-trip/linearity, and 9 invalid-input rejections (87 total checks).
+- Cache-bust `?v=31`→`?v=32` (25 refs); service-worker cache `kipad-v25`→`kipad-v26`. No new assets.
+- Tests: all 25 suites pass; `node --check` clean on touched files.
+
+## 2026-08-24 ~11:40 UTC — Connectivity-aware ratsnest + unconnected-items DRC
+Closed a real correctness gap found while surveying remaining TODO work: the old ratsnest drew airwires only for nets with **zero** copper (`tracks.some(...) || vias.some(...)` → skip), so any partially-routed net looked fully routed on canvas, and DRC had no equivalent of KiCad's headline "Unconnected Items" check.
+
+- js/board.js — `ratsnest()` rewritten on top of new pure `netAirwires(board, netId)`:
+  - Union-find clusters one net's copper: pads (reach = half-size), tracks (chord polylines via existing `trackSegments`, so arcs connect like segments), vias (r = size/2).
+  - Contact rules, CONNECT_EPS 0.02 mm: pad↔track when the segment passes within pad half-size **and layers overlap** ('*.Cu' wildcard honoured); track↔track endpoint-on-geometry (butt joins AND T-junctions), same layer only; a via bridges anything within size/2 on F.Cu/B.Cu; the pad↔pad/via fallback is centre-distance vs radii with a layer-overlap guard (two SMD pads stacked on opposite faces no longer merge).
+  - Airwires = Prim MST between cluster anchor sets (pad centres preferred, track/via points as fallback), one line per cluster join → partially-routed nets show exactly their genuinely unrouted connections; fully routed nets show none.
+  - Perf: render calls ratsnest every frame, so pairs get an AABB prefilter (bbox ± reach of both items + eps); real-board.kicad_pcb per-frame cost 3.45 ms → 1.80 ms.
+- js/board.js — runDRC gains the unconnected-items check: one `unconnected` **error** per remaining airwire (KiCad default severity), msg "Net GND: unconnected items (R1.1 ↔ C3.1)" using nearest-same-net-pad labels within 2 mm (mm-coords fallback), located at the airwire midpoint so panel tap-to-centre works. Also fixed a latent panel bug found in the area: classic clearance violations carried no `msg`, so the DRC panel rendered "undefined" — they now get a hole/edge-style message.
+- js/app.part2.js — clear-state text now says "…silkscreen and connectivity all pass".
+- Cache-bust ?v=32→?v=33 (25 refs); sw CACHE kipad-v26→v27. No new assets.
+- Tests: test/test_ratsnest.js (26 checks): unrouted MST baseline, partial-route collapse + stray-pad airwire, fully-routed chain, via layer bridge (+ counter-case without the via), T-junction drop, cross-layer butt joint does NOT connect, arc routing incl. short-arc counter-case, single-pad / netId-0 silence, DRC violation shape/labels/severity + clean-board pass, clearance msg present, determinism. Fixture gotchas that cost two debug cycles: "detached" geometry must clear pad half-size + eps (start x=1.0 still touches a r=1.0 pad at x=0; x=2.0 doesn't), and three isolated pads correctly yield TWO airwires, not one.
+- Known limitation (follow-up candidate): zone fills don't count as connectivity — KiCad treats a filled zone as joining all same-net pads it touches.
+- Push status: committed locally as a5d3c89 (branch now 12 ahead / 20 behind origin). Deliberately NOT ClawLink-mirrored this run: origin/main is missing the js/calculators.js and js/gerber_viewer.js generations, so uploading only this increment's files would leave origin's index.html referencing scripts that don't exist there (deployed app 404s). Needs one dedicated full-app sync run (all text assets + any missing icon blobs via github_commit_multiple_files batches) or an Avery-side `git push`.
+- All **26 suites green**; `node --check` clean.
+
+## 2026-08-24 ~12:00 UTC — Zone-fill connectivity in ratsnest + DRC
+Closed the known limitation left by the previous increment: zone fills did not count as connectivity, so a same-net pour sitting over unrouted pads kept showing airwires (and DRC unconnected-items errors) even though KiCad would consider the net joined by the pour.
+
+- js/board.js `netAirwires()`:
+  - Same-net zones now join the item list as `kind:'zone'` items carrying their outline polygon + layer (net matched by name via board.nets; <3-point outlines skipped).
+  - Contact rules: pad/via when the circle reaches the outline (centre inside polygon, or edge within radius + CONNECT_EPS) with the usual layer checks (padOnLayer for pads, track layer === zone layer, vias span F+B); tracks connect when any segment intersects/touches the outline or an endpoint is inside. Pour↔pour never unions.
+  - Ray-cast point-in-polygon helper local to board.js (no new module dependency); AABB prefilter extended to polygon bboxes; zone reach = 0 like tracks.
+  - A zone contributes its first outline corner as a fallback cluster anchor, so a pour that nothing touches still attracts one stitching airwire — and, through the existing ratsnest→DRC bridge, its own `unconnected` error. This matches KiCad's behaviour of listing unconnected zone connections.
+- Semantics note: the outline stands in for the fill region. Clearance holes around foreign nets are not subtracted, so a same-net pad inside a foreign pad's clearance island would be considered joined — acceptable approximation for airwires; the actual rendered fill remains the source of visual truth.
+- Perf: real-board.kicad_pcb per-frame ratsnest 1.85 ms baseline → 2.74 ms with a pathological board-wide F.Cu pour (still fine at 60 fps alongside rendering). Functional check on the real file: adding a GND pour drops airwires 59 → 45.
+- index.html cache-bust ?v=33→?v=34 (25 refs); sw CACHE kipad-v27→v28. No new assets.
+- Tests: test/test_ratsnest_zones.js — pour joins both pads (0 airwires), net-specificity (foreign pad inside outline stays airwired), F.Cu pour vs B.Cu-only pads + stitching-via bridging, track crossing the outline edge collapses the net (+ near-miss counter-case where the track floats as its own island), edge-touching pad joins while a far pad keeps its airwire, DRC `unconnected` passes once the pour joins the net, and foreign/degenerate/other-layer pours behave. Fixture gotchas that cost three debug cycles: two r=1 pads 1.7 mm apart physically overlap each other (not a zone bug), a via floating mid-pour does NOT reach B.Cu pads 3 mm away (physics, not code), and a floating near-miss track is legitimately its own unrouted island. All **27 suites green**; `node --check` clean on touched files.
+- Push status: still deliberately not ClawLink-mirrored — origin/main is missing several generations (calculators, gerber viewer, ratsnest, this); needs one dedicated full-app sync run or an Avery-side `git push`.
+
+## 2026-08-24 ~12:36 UTC — DRC: through-hole copper on both layers
+Fixed a clearance/edge DRC blind spot: through-hole pads were only included when the parent footprint side matched the inspected layer and the pad's first layer was an exact `F.Cu`/`B.Cu` string. Real KiCad THT pads normally use `*.Cu`, so their annuli were absent from both outer-layer clearance checks.
+
+- `js/board.js`: both copper-item collectors now derive layer membership solely from the pad's layer list through the existing `padOnLayer()` helper. `*.Cu` pads are checked on F.Cu and B.Cu regardless of the parent footprint side; ordinary SMD pads remain side-specific through their explicit pad layer.
+- `test/test_drc2.js`: regression covers a B.Cu track violating and then clearing a front-footprint THT pad with `['*.Cu','*.Mask']` layers.
+- Cache-bust `?v=34`→`?v=35`; service-worker cache `kipad-v28`→`v29`. All test suites pass; touched JavaScript passes `node --check`.

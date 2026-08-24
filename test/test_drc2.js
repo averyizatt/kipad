@@ -75,6 +75,20 @@ g.window.KipadFootprints = { getFootprint: () => ({ pads: [], silk: fakeSilk }) 
   assert.strictEqual(vs[0].severity, 'error', 'via-drill violation is error');
 }
 
+// ---- 3b. through-hole annulus participates in copper DRC on both layers ----
+{
+  const b = B.makeBoard();
+  const na = B.addNet(b, 'THT'), nb = B.addNet(b, 'BACK');
+  mkFp(b, 'J1', [mkPad(10, 10, { netId: na, layers: ['*.Cu', '*.Mask'] })]);
+  B.addTrack(b, [11.25, 10], [16, 10], 0.2, 'B.Cu', nb); // gap .15mm < .2mm
+  const vs = B.runDRC(b).filter(v => v.type === 'pad-track' && v.layer === 'B.Cu');
+  assert.strictEqual(vs.length, 1, 'THT pad wildcard copper is checked against B.Cu');
+
+  b.tracks[0].start = [11.5, 10];
+  assert.strictEqual(B.runDRC(b).filter(v => v.type === 'pad-track' && v.layer === 'B.Cu').length, 0,
+    'THT pad to B.Cu track clears once the class gap is met');
+}
+
 // ---- 4. copper-to-board-edge ----
 {
   const b = B.makeBoard();

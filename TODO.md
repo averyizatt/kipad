@@ -45,6 +45,7 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Copper-to-edge: outline polygon vs copper items, 0.5mm edge clearance — `edge-*` errors — 2026-08-24
   - [x] Silkscreen-over-pad: board text + foreign-footprint silk art reaching a pad's central core → `silk-*` warnings (rotation-aware bbox, Liang–Barsky seg/rect test) — 2026-08-24
   - [x] DRC panel: error/warning counts + colouring, tap row to centre canvas on the violation; test/test_drc2.js (15 suites green) — 2026-08-24
+  - [x] Through-hole `*.Cu` pads participate in clearance and edge DRC on both copper layers, independent of footprint side — 2026-08-24
 - [x] ERC violation markers drawn on the schematic canvas — 2026-08-24
   - [x] KiCad-style X-in-circle markers at each violation's world coords; red `#cc0000` errors / amber `#b8860b` warnings, deduped per location, radius clamped to 5–16 screen px — 2026-08-24
   - [x] Pure geometry helper `KipadErc.markers()` (unit-tested); render.js just draws the precomputed list — 2026-08-24
@@ -57,6 +58,11 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Zones: `(zone (net) (net_name) (layer) (polygon|filled_polygon (pts)))` parse + serialize, name-first net mapping, degenerate outlines dropped; test/test_zone_rt.js — 2026-08-24
   - [x] Real-file smoke: lib-build/real-board.kicad_pcb (63 fp / 370 tracks / B.Cu GND zone) → parse → serialize → re-parse stable (~62 ms) — 2026-08-24
   - [x] Compare more element types field-by-field against additional real exports (pads with custom shapes, arcs in tracks, groups) — 2026-08-24 (test_roundtrip2.js: custom pads w/ primitives, arc tracks, groups; see DEVLOG ~06:16)
+- [x] Zone-fill connectivity in ratsnest + DRC — 2026-08-24
+  - [x] `netAirwires()` treats same-net zone outlines as copper (KiCad: a filled pour joins all same-net pads/tracks/vias it touches): outline-polygon contact tests with layer rules, AABB prefilter, first-corner fallback anchor so an untouched pour attracts its own stitching airwire + `unconnected` DRC error — 2026-08-24
+  - [x] Perf: real-board.kicad_pcb 1.85 ms/frame baseline → 2.74 ms with a pathological board-wide pour; GND pour drops airwires 59→45 on the real file — 2026-08-24
+  - [x] test/test_ratsnest_zones.js (pour joins pads, net-specificity, F.Cu/B.Cu layer rule + stitching vias, track crossing edge, edge-reach vs far pad, DRC unconnected pass, foreign/degenerate/other-layer pours) — 2026-08-24
+
 - [x] Keyboard: more KiCad shortcuts parity — 2026-08-24
   - [x] Pure resolver `js/keys.js` (KipadKeys.resolve) runs before legacy single-key switches so modifier combos never leak into tools; test/test_keys.js (27 checks) — 2026-08-24
   - [x] Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z / +Shift+Z / +Y undo-redo (mode-aware); +/-/= zoom, Home zoom-fit; E opens Properties on PCB selection; A = Add Footprint (PCB, Library tab) / Add Symbol (schematic); arrow keys nudge footprint/text/symbol selection by one grid step — 2026-08-24
@@ -85,13 +91,19 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Grid: 1px dots in LAYER_SCHEMATIC_GRID grey rgb(181,181,181) + dark-blue grid-axes cross through world origin rgb(0,0,132) (both from builtin_color_themes.h Kicad-2007 light theme); dot size scales at high zoom, same visibility threshold as before
   - [x] Labels typed local|global: local keeps LAYER_LOCLABEL #0F0F0F text; global renders the KiCad flag/banner (paper-filled, #840000 LAYER_GLOBLABEL outline+text, pointed end docked on the anchor, ~1.9 mm world height clamped to screen px); placement tool + Ctrl+H shortcut (KiCad legacy Add Global Label), official add_label_24.png icon for the label button, glabel.png now only on the global-label button
   - [x] Model/IO: Sch.addLabel(…, type), serializer emits (global_label … (shape input)), parser maps tag → type both ways, round-trip stable; test/test_sch_labels.js
-- [ ] Gerber viewer launcher card (placeholder now)
-- [ ] PCB Calculator launcher card (placeholder now)
+- [x] Gerber viewer launcher card: real RS-274X import, layer tabs, fit-to-view rendering, generated-board preview — 2026-08-24
+- [x] PCB Calculator launcher card (was track-width-only placeholder; expanded 2026-08-24)
+  - [x] Pure math module `js/calculators.js` (KipadCalc UMD): IPC-2221 track width (k = 0.048 ext / 0.024 int — fixes old dialog's swapped constant), via barrel ampacity + R/drop/loss, IPC-2221A Table 6-1 electrical spacing, resistor colour code both directions (4/5-band, gold/silver multipliers), loaded/unloaded voltage divider, nearest E12/E24/E96 value; test/test_calc.js (52 checks) — 2026-08-24
+  - [x] Dialog rebuilt as tabbed calculator (Track Width · Via Size · Spacing · Resistor Code · Divider · E-series), live recalc, coloured band chips; cache-bust v27 / sw kipad-v21 — 2026-08-24
+  - [x] Antenna-length calculator: full/half/quarter wavelength from frequency and velocity factor, with validation and live UI — 2026-08-24
+  - [x] Adjustable-regulator calculator: sizes the adjust-to-ground resistor from Vref/target/Rset/Iadj, rounds to E12/E24/E96, and reports actual output/error — 2026-08-24
+  - [x] Microstrip transmission-line calculator: analyse impedance/effective permittivity/delay/electrical length or synthesize trace width for a target impedance — 2026-08-24
+  - [x] Board-thickness calculator: pure `boardThickness()` stackup sum + `ozToUm()` (copper weight ↔ foil µm), live tabbed UI with editable per-layer rows (kind + µm), add/remove layer, and 2-layer/4-layer 1.6 mm FR-4 presets — 2026-08-24
 
 ## Session 2026-08-23 (evening) — library load fix + net classes
 - [x] Fix fetchJSON `.gz` detection with `?v=N` cache-busted URLs — `url.split('?')[0].endsWith('.gz')` — pushed 15cad007, live-verified in real Chromium: 600 symbols / 159 footprints / zero errors (was silently falling back to stale plain JSON: 400/13)
 - [x] index.html local copy synced to live (Symbols (600) / Footprints (159) labels)
-- [ ] Net classes & clearance UI (PCB side) — DELEGATED to subagent
+- [x] Net classes & clearance UI (PCB side) — DELEGATED to subagent
   - [x] Board model: `board.netClasses` (id/name/trackWidth/clearance/viaSize/viaDrill, Default = id 0) + `B.ensureNetClasses/addNetClass/getNetClass/netClassOfNet/setNetClass/renameNetClass/removeNetClass` — 2026-08-23
   - [x] DRC uses per-net-class clearance (max of the two classes), class names in violations — 2026-08-23
   - [x] Nets panel: class column + "Net Classes…" modal editor (KiCad Edit Net Classes dialog: editable fields, add/remove class, net chips + Add net dropdown, touch-friendly) — 2026-08-23
@@ -110,6 +122,13 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
 - [x] Polish fixes re-applied onto the app.part1–4 split structure; render.js grid batching ported; verified merged app differs from each parent only by that parent's missing changes — 2026-08-24
 - [x] Unified cache-bust back to ?v=17 across all index.html refs + lib URLs; sw.js CACHE kipad-v11 — 2026-08-24
 - [x] All 15 test suites green on the merged tree; node --check clean; static `$('id')` ↔ index.html wiring check passes (dynamic IDs all built in JS) — 2026-08-24
+
+- [x] Connectivity-aware ratsnest + DRC unconnected-items check — 2026-08-24
+  - [x] `ratsnest()` rewritten: union-find copper clustering per net (pads/tracks/arcs/vias, T-junctions, layer-aware contact, '*.Cu' wildcards, via F/B bridging) + Prim-MST airwires between disconnected clusters — partially-routed nets now show only their real unrouted connections — 2026-08-24
+  - [x] runDRC: `unconnected` error per remaining airwire (net + R1.2-style pad labels, tap-to-centre works); clearance violations got their missing `msg` (panel showed "undefined") — 2026-08-24
+  - [x] test/test_ratsnest.js (26 checks); AABB prefilter keeps per-frame ratsnest ~1.8 ms on the real board; all 26 suites green — 2026-08-24
+  - [x] Follow-up: zone fills count as connectivity (KiCad joins same-net pads through filled zones) — 2026-08-24
+- [ ] Mirror sync to origin via ClawLink — needs ONE full-app upload run: origin/main lacks the calculators/gerber-viewer file generations, so partial syncs would 404 the deployed app (see DEVLOG ~11:40)
 
 ## Session 2026-08-24 (~04:35 UTC) — zone round-trip + PCB-view fidelity fixes
 - [x] Zone sexpr round-trip (parse + serialize + real-board smoke) — see DEVLOG; first sub-item of round-trip fidelity milestone — 2026-08-24
