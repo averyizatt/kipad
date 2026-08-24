@@ -11,7 +11,8 @@
  *     symbols:  [ {id, libId, ref, value, at:[x,y], angle, unit, footprint} ],
  *     wires:    [ {id, pts:[[x,y],...]} ],
  *     labels:   [ {id, text, at:[x,y], angle} ],
- *     junctions:[ {id, at:[x,y]} ] }
+ *     junctions:[ {id, at:[x,y]} ],
+ *     noConnects:[ {id, at:[x,y]} ] }
  *
  * Pins are resolved from the symbol registry (KipadSymbols) at netlist time.
  * Supports .kicad_sch (KiCad 8) round-trip and "Update PCB from Schematic".
@@ -46,7 +47,7 @@
   // ---------- model ----------
 
   function makeSchematic() {
-    return { version: '20231120', paper: 'A4', symbols: [], wires: [], labels: [], junctions: [] };
+    return { version: '20231120', paper: 'A4', symbols: [], wires: [], labels: [], junctions: [], noConnects: [] };
   }
 
   /**
@@ -87,6 +88,25 @@
     var j = { id: nid('j'), at: [at[0], at[1]] };
     sch.junctions.push(j);
     return j;
+  }
+
+  /**
+   * addNoConnect(sch, at) — KiCad-style no-connect flag: an X marker placed
+   * on a pin tip to state "intentionally unconnected". Purely a marker — it
+   * does NOT join anything electrically; ERC just exempts the flagged pin.
+   */
+  function addNoConnect(sch, at) {
+    if (!Array.isArray(sch.noConnects)) sch.noConnects = [];
+    var nc = { id: nid('nc'), at: [at[0], at[1]] };
+    sch.noConnects.push(nc);
+    return nc;
+  }
+
+  function removeNoConnect(sch, id) {
+    if (!Array.isArray(sch.noConnects)) return false;
+    var before = sch.noConnects.length;
+    sch.noConnects = sch.noConnects.filter(function (n) { return n.id !== id; });
+    return sch.noConnects.length < before;
   }
 
   function moveSymbol(sch, symId, at) {
@@ -313,6 +333,9 @@
     sch.labels.forEach(function (l) {
       L.push('  (label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
     });
+    (sch.noConnects || []).forEach(function (nc) {
+      L.push('  (no_connect (at ' + fmt(nc.at[0]) + ' ' + fmt(nc.at[1]) + ') (uuid "00000000-0000-0000-0000-000000000000"))');
+    });
     L.push(')');
     return L.join('\n');
   }
@@ -360,6 +383,10 @@
         var jat = [0, 0];
         node.forEach(function (child) { if (child[0] === 'at') jat = [num(child[1]), num(child[2])]; });
         addJunction(sch, jat);
+      } else if (tag === 'no_connect') {
+        var nat = [0, 0];
+        node.forEach(function (child) { if (child[0] === 'at') nat = [num(child[1]), num(child[2])]; });
+        addNoConnect(sch, nat);
       } else if (tag === 'label' || tag === 'global_label') {
         var text = str(node[1]);
         var lat = [0, 0], lang = 0;
@@ -454,7 +481,8 @@
 
   return {
     makeSchematic: makeSchematic, placeSymbol: placeSymbol, addWire: addWire,
-    addLabel: addLabel, addJunction: addJunction, moveSymbol: moveSymbol, pinPositions: pinPositions,
+    addLabel: addLabel, addJunction: addJunction, addNoConnect: addNoConnect, removeNoConnect: removeNoConnect,
+    moveSymbol: moveSymbol, pinPositions: pinPositions,
     connectivity: connectivity, extractNets: extractNets, serializeSch: serializeSch, parseSch: parseSch,
     updatePCB: updatePCB, renumberRefs: renumberRefs, EPS: EPS
   };
