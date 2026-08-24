@@ -310,6 +310,27 @@
       render();
       return;
     }
+    if (schTool === 'noconn') {
+      // KiCad snaps the flag onto a pin tip when one is close; otherwise it
+      // lands on the grid point so a wire can be run to it later.
+      let at = [sx, sy], best = null, bestD = 0.635;
+      for (const sym of sch.symbols) {
+        for (const p of Sch.pinPositions(sym, Syms.getSymbol)) {
+          const d = Math.hypot(p.at[0] - wx, p.at[1] - wy);
+          if (d <= bestD) { bestD = d; best = [p.at[0], p.at[1]]; }
+        }
+      }
+      if (best) at = best;
+      if ((sch.noConnects || []).some(n => Math.hypot(n.at[0] - at[0], n.at[1] - at[1]) < 0.01)) {
+        setStatus('No-connect flag already here');
+        return;
+      }
+      schPushUndo();
+      Sch.addNoConnect(sch, at);
+      render();
+      setStatus(best ? 'No-connect flag on pin' : 'No-connect flag placed');
+      return;
+    }
     // select tool
     // ERC markers sit on top of the schematic — tapping one reports it before
     // symbol hit-testing (markers are drawn at the violation's exact coords).
@@ -328,12 +349,20 @@
         return;
       }
     }
+    const hitNcTol = Math.max(0.3, 10 / view.zoom);
+    const ncHit = (sch.noConnects || []).find(n => Math.hypot(n.at[0] - wx, n.at[1] - wy) <= hitNcTol);
+    if (ncHit) {
+      schSelId = null; schSelNc = ncHit.id;
+      setStatus('No-connect flag selected — ⌫ deletes');
+      render(); refreshAll();
+      return;
+    }
     const hit = schHitSymbol(wx, wy);
     if (hit) {
-      schSelId = hit.id;
+      schSelId = hit.id; schSelNc = null;
       schDrag = { symId: hit.id, dx: wx - hit.at[0], dy: wy - hit.at[1] };
     } else {
-      schSelId = null;
+      schSelId = null; schSelNc = null;
       schDrag = { pan: true };
       // seed from the real pointer position — stale (0,0) seeds here made the
       // first empty-canvas drag jump the schematic view
@@ -369,12 +398,13 @@
         case 'w': case 'W': setSchTool('wire'); break;
         case 'l': case 'L': setSchTool('label'); break;
         case 'j': case 'J': setSchTool('junction'); break;
+        case 'q': case 'Q': setSchTool('noconn'); break;
         case 'r': case 'R': schDoRotate(); break;
         case 'g': case 'G': cycleGrid(); break;
         case 'Delete': case 'Backspace': e.preventDefault(); schDoDelete(); break;
         case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
         case 'Escape':
-          schWirePts = []; schPlaceName = null; setSchTool('select'); break;
+          schWirePts = []; schPlaceName = null; schSelNc = null; setSchTool('select'); break;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? schRedoStep() : schUndoStep(); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); schRedoStep(); }
@@ -425,6 +455,7 @@
   $('sch-wire').addEventListener('click', () => setSchTool('wire'));
   $('sch-label').addEventListener('click', () => setSchTool('label'));
   $('sch-junction').addEventListener('click', () => setSchTool('junction'));
+  $('sch-noconn').addEventListener('click', () => setSchTool('noconn'));
   $('launch-sch').addEventListener('click', () => setMode('schematic'));
   $('launch-pcb').addEventListener('click', () => setMode('pcb'));
   // launcher PM toolbar + tree + cards (defensive: no-op if an element is missing)
@@ -526,7 +557,8 @@
         ['Symbol…', () => { setTab('symbols'); setSchTool('symbol'); }, 'S'],
         ['Wire', () => setSchTool('wire'), 'W'],
         ['Net Label', () => setSchTool('label'), 'L'],
-        ['Junction', () => setSchTool('junction'), 'J']
+        ['Junction', () => setSchTool('junction'), 'J'],
+        ['No-connect flag', () => setSchTool('noconn'), 'Q']
       ],
       inspect: [
         ['Electrical Rules Check…', showErc, ''],
@@ -604,7 +636,8 @@
       ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>
-      • Junction — tap to add a wire junction dot<br><br>
+      • Junction — tap to add a wire junction dot<br>
+      ✕ No-connect — tap a pin to mark it intentionally unconnected (suppresses its ERC warning); Q shortcut<br><br>
       <b>Flow</b>: place symbols → wire them → add labels → <b>Inspect → Electrical Rules Check…</b> to find unconnected pins, duplicate refs, label conflicts and more, then <b>File → Update PCB from Schematic</b> to continue in the PCB editor.<br><br>
       Violations are also drawn on the canvas as red/amber X markers — tap one for details (View menu toggles them).
     `);
