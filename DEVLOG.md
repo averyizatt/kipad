@@ -189,3 +189,12 @@ First sub-item of the iPad-polish milestone, matching the KiCad/iPadOS conventio
 - Tests: `test/test_gestures.js` (24 checks: clean tap fires once + no double-fire, single-tap isolation & reuse, late second finger restarts tracking from it, gap/duration boundary inclusivity, drag disarming by either finger incl. after partner lifted, sub-slop wiggle ok, three-finger reset + recovery, cancel, unknown ids ignored, custom options). All **22 suites green**; node --check clean on touched files.
 - Remaining in this milestone: haptics (iOS Safari has no navigator.vibrate — needs a strategy), Apple Pencil tilt/eraser.
 - Push status: branch main is 2 commits ahead of origin (7dcfa41 keyboard parity + cbbf5ba this feature). Direct `git push` impossible (no stored credentials, prompts disabled) and ClawLink's GitHub tools take inline file contents only — the union diff carries the regenerated lib/symbols.json (425 KB) + lib/footprints.json (267 KB), ~1 MB total, too large for a single tool call. Needs either a chunked blob-upload sequence or an Avery-side push.
+
+## 2026-08-24 ~07:36 UTC — Apple Pencil tilt + eraser support
+Advanced the next iPad-polish item while keeping PCB geometry independent of pen angle (as expected for CAD).
+
+- `js/gestures.js`: added pure `penInfo()` normalization for Pointer Events. It detects the standard pen eraser end (`button === 5` / `buttons & 32`), prefers native altitude/azimuth angles, and falls back to `tiltX`/`tiltY`.
+- `js/app.part4.js`: Pencil altitude is shown live in the canvas HUD. An eraser-end press deletes the item under the tip in either editor: footprints/pads, tracks, vias, text, zones, symbols, and no-connect flags. Deletion uses the existing undo snapshot paths; empty-space erasing is harmless. Help/shortcut text updated.
+- Cache-bust `?v=24` → `?v=25`; service-worker cache `kipad-v18` → `kipad-v19`. No new assets.
+- Tests: `test/test_gestures.js` now has 32 checks including eraser button/bit recognition, ordinary-tip isolation, native angle conversion, tilt fallback and non-pen isolation. All **22 suites green**; touched JavaScript passes `node --check`.
+- Haptics remains pending: iPadOS Safari exposes no vibration/haptic web API, so implementing it honestly requires a future supported API or native wrapper.

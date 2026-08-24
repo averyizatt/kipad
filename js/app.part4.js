@@ -5,11 +5,53 @@
   // iPadOS-style two-finger tap = undo (recognizer is pure, see js/gestures.js)
   const twoTap = KipadGestures.twoFingerTap();
 
+  function updatePenHud(e) {
+    const h = $('hud-pen');
+    if (!h) return;
+    const p = KipadGestures.penInfo(e);
+    if (!p.isPen) return;
+    h.classList.remove('hidden');
+    h.textContent = p.eraser ? '⌫ Eraser' : '✏' + (p.altitude == null ? '' : ' ' + Math.round(p.altitude) + '°');
+  }
+
+  function eraseAt(wx, wy) {
+    if (mode === 'schematic') {
+      const tol = Math.max(0.3, 10 / view.zoom);
+      const nc = (sch.noConnects || []).find(n => Math.hypot(n.at[0] - wx, n.at[1] - wy) <= tol);
+      const sym = nc ? null : schHitSymbol(wx, wy);
+      if (!nc && !sym) { setStatus('Eraser: nothing under Pencil'); return; }
+      schSelNc = nc ? nc.id : null;
+      schSelId = sym ? sym.id : null;
+      schDoDelete();
+      setStatus('Pencil eraser: deleted ' + (nc ? 'no-connect flag' : 'symbol'));
+      return;
+    }
+    const hit = B.hitPad(board, wx, wy, pickTol()) || B.hitFootprint(board, wx, wy, pickTol());
+    const tr = hit ? null : B.hitTrack(board, wx, wy, pickTol(6));
+    const via = hit || tr ? null : B.hitVia(board, wx, wy, pickTol(6));
+    const text = hit || tr || via ? null : B.hitText(board, wx, wy, pickTol());
+    const zone = hit || tr || via || text ? null : hitZone(wx, wy);
+    const id = hit ? (hit.fp ? hit.fp.id : hit.id) : tr ? tr.id : via ? via.id : text ? text.id : zone ? zone.id : null;
+    if (!id) { setStatus('Eraser: nothing under Pencil'); return; }
+    selId = id;
+    selKind = hit ? 'footprint' : tr ? 'track' : via ? 'via' : text ? 'text' : 'zone';
+    const erasedKind = selKind;
+    doDelete();
+    setStatus('Pencil eraser: deleted ' + erasedKind);
+  }
+
   canvas.addEventListener('pointerdown', e => {
     const penHud = $('hud-pen');
     if (e.pointerType === 'pen') {
       penDown = e.pointerId;
-      if (penHud) penHud.classList.remove('hidden');
+      updatePenHud(e);
+      if (KipadGestures.penInfo(e).eraser) {
+        eraserPointers.add(e.pointerId);
+        const [ex, ey] = s2w(e.clientX, e.clientY);
+        eraseAt(ex, ey);
+        e.preventDefault();
+        return;
+      }
       const now = Date.now();
       const drawing = mode === 'schematic'
         ? (schTool === 'wire' && schWirePts.length > 0) || schTool === 'symbol'
@@ -157,6 +199,7 @@
   });
 
   canvas.addEventListener('pointermove', e => {
+    if (e.pointerType === 'pen') updatePenHud(e);
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     twoTap.feed({ type: 'move', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
@@ -223,6 +266,7 @@
 
   canvas.addEventListener('pointerup', e => {
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
+    if (eraserPointers.delete(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     const wasDragging = dragging;
@@ -264,6 +308,10 @@
   });
 
   canvas.addEventListener('pointercancel', e => {
+    if (eraserPointers.delete(e.pointerId)) {
+      if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
+      return;
+    }
     twoTap.feed({ type: 'cancel', id: e.pointerId });
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
@@ -749,7 +797,7 @@
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
       <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
-      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · double-tap pencil to return to Select<br>
+      <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
       <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Gerber = F.Cu/B.Cu/Edge.Cuts RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
       Works offline. Add to Home Screen for fullscreen.
@@ -762,7 +810,7 @@
       Enter finish · Esc cancel · Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo<br>
       + / = zoom in · - zoom out · Home zoom to fit<br>
       Pinch to zoom · drag empty area to pan<br>
-      Pencil: double-tap → Select · palm rejection active<br>
+      Pencil: tilt in HUD · eraser end deletes · double-tap → Select · palm rejection active<br>
       Touch: two-finger tap → Undo · pinch zoom · drag pan
     `);
   }

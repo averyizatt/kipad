@@ -155,4 +155,26 @@ const cancel = (g, id) => g.feed({ type: 'cancel', id });
   ok(up(g2, 2, 30, 0, 100) === 'undo', 'custom windows inclusive');
 }
 
+// 13. stylus fields: standard eraser button/buttons and tilt fallback
+{
+  let p = KipadGestures.penInfo({ pointerType: 'pen', button: 5, buttons: 0, tiltX: 30, tiltY: 40 });
+  ok(p.isPen && p.eraser, 'pen button 5 is eraser');
+  ok(Math.abs(p.altitude - 40) < 1e-9, 'tilt fallback produces altitude');
+  ok(Math.abs(p.azimuth - 53.130102) < 0.001, 'tilt fallback produces azimuth');
+
+  p = KipadGestures.penInfo({ pointerType: 'pen', button: 0, buttons: 32 });
+  ok(p.eraser, 'eraser buttons bit is recognized');
+  p = KipadGestures.penInfo({ pointerType: 'pen', button: 0, buttons: 1 });
+  ok(!p.eraser, 'ordinary pen tip is not eraser');
+}
+
+// 14. native altitude/azimuth win; mouse input stays inert
+{
+  const p = KipadGestures.penInfo({ pointerType: 'pen', altitudeAngle: Math.PI / 3, azimuthAngle: Math.PI / 2, tiltX: 80 });
+  ok(Math.abs(p.altitude - 60) < 1e-9, 'native altitude converted to degrees');
+  ok(Math.abs(p.azimuth - 90) < 1e-9, 'native azimuth converted to degrees');
+  const mouse = KipadGestures.penInfo({ pointerType: 'mouse', button: 5, tiltX: 20 });
+  ok(!mouse.isPen && !mouse.eraser && mouse.altitude === null, 'non-pen input ignored');
+}
+
 console.log('test_gestures: ' + passed + ' checks passed');

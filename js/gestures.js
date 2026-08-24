@@ -68,5 +68,25 @@
     return { feed: feed };
   }
 
-  return { twoFingerTap: twoFingerTap };
+  // Normalize PointerEvent stylus fields.  Pointer Events reserves button 5
+  // (and bit 32 in `buttons`) for a pen's eraser end.  Altitude/azimuth are
+  // preferred when supplied; tiltX/tiltY provide a useful fallback.
+  function penInfo(ev) {
+    ev = ev || {};
+    const isPen = ev.pointerType === 'pen';
+    const eraser = isPen && (ev.button === 5 || ((ev.buttons || 0) & 32) !== 0);
+    let altitude = null, azimuth = null;
+    if (isPen && Number.isFinite(ev.altitudeAngle)) {
+      altitude = ev.altitudeAngle * 180 / Math.PI;
+      if (Number.isFinite(ev.azimuthAngle)) azimuth = ev.azimuthAngle * 180 / Math.PI;
+    } else if (isPen && (Number.isFinite(ev.tiltX) || Number.isFinite(ev.tiltY))) {
+      const tx = Number.isFinite(ev.tiltX) ? ev.tiltX : 0;
+      const ty = Number.isFinite(ev.tiltY) ? ev.tiltY : 0;
+      altitude = Math.max(0, 90 - Math.min(90, Math.hypot(tx, ty)));
+      azimuth = (Math.atan2(ty, tx) * 180 / Math.PI + 360) % 360;
+    }
+    return { isPen: isPen, eraser: eraser, altitude: altitude, azimuth: azimuth };
+  }
+
+  return { twoFingerTap: twoFingerTap, penInfo: penInfo };
 }));
