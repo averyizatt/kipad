@@ -69,6 +69,7 @@
   let schWireCur = null;
   let ercViolations = [];       // cached ERC results (recomputed on change)
   let ercDirty = true;
+  let showErcMarkers = true;    // View-menu toggle for on-canvas ERC markers
   const PLUGINS_KEY = 'kipad.plugins.v1';
   let plugins = {};             // name -> {name, enabled}
   let installedPlugins = [];    // {name, fn} loaded from files
@@ -429,12 +430,20 @@
       const plyr = $('p-layer');
       if (plyr) plyr.addEventListener('change', e => {
         pushUndo();
-        fp.layer = e.target.value;
-        for (const p of fp.pads) {
-          const cu = p.layers[0];
-          p.layers[0] = fp.layer;
-          if (cu === 'F.Cu' || cu === 'B.Cu') p.layers = p.layers.map((l, i) => i === 0 ? fp.layer : (l === cu ? cu : l));
-          else p.layers = [fp.layer].concat(p.layers.filter(l => l !== 'F.Cu' && l !== 'B.Cu'));
+        const to = e.target.value === 'B.Cu' ? 'B.Cu' : 'F.Cu';
+        if (to !== fp.layer) {
+          fp.layer = to;
+          // proper side flip: copper/paste/mask/fab/courtyard swap sides;
+          // through-hole pads span both sides and stay unchanged
+          const FLIP = { 'F.Cu':'B.Cu','B.Cu':'F.Cu','F.Paste':'B.Paste','B.Paste':'F.Paste',
+            'F.Mask':'B.Mask','B.Mask':'F.Mask','F.Fab':'B.Fab','B.Fab':'F.Fab',
+            'F.CrtYd':'B.CrtYd','B.CrtYd':'F.CrtYd','F.SilkS':'B.SilkS','B.SilkS':'F.SilkS' };
+          const flip = l => FLIP[l] || l;
+          for (const p of fp.pads) {
+            const tht = p.type === 'tht' ||
+              (p.layers.indexOf('F.Cu') !== -1 && p.layers.indexOf('B.Cu') !== -1);
+            if (!tht) p.layers = p.layers.map(flip);
+          }
         }
         render();
       });
@@ -531,4 +540,3 @@
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-
