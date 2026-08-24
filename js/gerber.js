@@ -193,9 +193,12 @@
 
   /* ---- solder mask ------------------------------------------------------ */
 
-  // Openings at every pad on this side (SMD + THT, '*.Cu'/'*.Mask'
-  // wildcards included), expanded by MASK_EXPANSION. Vias stay tented.
+  // Openings at every pad on this side (SMD + THT), derived from copper
+  // membership ('*.Cu' wildcards / empty lists fall back to footprint side)
+  // so files that omit explicit F.Mask/B.Mask entries still open correctly.
+  // Expanded by MASK_EXPANSION. Vias stay tented.
   function exportMaskLayer(board, layer) {
+    var cu = layer.replace('Mask', 'Cu');
     var list = [];
     var byKey = Object.create(null);
     var nextId = FIRST_APERTURE;
@@ -207,17 +210,7 @@
       var pads = fp.pads || [];
       for (var j = 0; j < pads.length; j++) {
         var pad = pads[j];
-        var L = (Array.isArray(pad.layers) && pad.layers.length) ? pad.layers : null;
-        var on;
-        if (!L) {
-          on = (fp.layer === layer.replace('Mask', 'Cu'));
-        } else {
-          on = false;
-          for (var k = 0; k < L.length; k++) {
-            if (L[k] === layer || L[k] === '*.Mask' || L[k] === '*.Cu') { on = true; break; }
-          }
-        }
-        if (!on) continue;
+        if (!padOnCopper(pad, fp, cu)) continue;
         var params = padApertureParams(pad);
         var size = expand(params.size, MASK_EXPANSION);
         var key = apertureKey(params.shape, size, null);
@@ -236,9 +229,11 @@
 
   /* ---- solder paste ----------------------------------------------------- */
 
-  // Stencil openings: SMD pads only (THT holes get no paste), same shape
-  // and size as the copper aperture.
+  // Stencil openings: SMD pads only (THT holes get no paste), same shape and
+  // size as the copper aperture. Side comes from copper membership, not from
+  // an explicit F.Paste entry — many real files omit it.
   function exportPasteLayer(board, layer) {
+    var cu = layer.replace('Paste', 'Cu');
     var list = [];
     var byKey = Object.create(null);
     var nextId = FIRST_APERTURE;
@@ -251,17 +246,7 @@
       for (var j = 0; j < pads.length; j++) {
         var pad = pads[j];
         if (pad.type === 'tht' || pad.type === 'npth') continue;
-        var L = (Array.isArray(pad.layers) && pad.layers.length) ? pad.layers : null;
-        var on;
-        if (!L) {
-          on = (fp.layer === layer.replace('Paste', 'Cu'));
-        } else {
-          on = false;
-          for (var k = 0; k < L.length; k++) {
-            if (L[k] === layer || L[k] === '*.Paste') { on = true; break; }
-          }
-        }
-        if (!on) continue;
+        if (!padOnCopper(pad, fp, cu)) continue;
         var params = padApertureParams(pad);
         var key = apertureKey(params.shape, params.size, null);
         var id = byKey[key];

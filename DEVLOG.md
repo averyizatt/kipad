@@ -359,3 +359,17 @@ All TODO items were closed or blocked (haptics: no web API; cross-sheet ERC: mul
 - Serializers live next to their parsers: `KipadKicadSym.serializeKicadSym` emits properties + `_0_1` graphics unit + `_1_1` pins unit; `KipadKicadMod.serializeKicadMod` emits descr / fp_line+fp_circle silk (model rect → 4 lines) / exact F.CrtYd courtyard outline / pads mapped thru_hole·np_thru_hole·oval. Both verified round-trip through their own parsers.
 - Concurrency: BOM increment (610b73b, other session) landed mid-flight and had already bumped ?v=39/sw-v33; this increment rebased onto that state → cache-bust v39→v40, sw kipad-v34, ./js/editors.js added to ASSETS. Caught + fixed one self-inflicted menu regression before commit (sch Tools had lost Switch-to-PCB + How-to-use during wiring).
 - Tests: test/test_editors.js — 10 checks; full run **32/32 suites green**; `node --check` clean on all touched files.
+
+## 2026-08-24 ~15:15 UTC — Gerber: full nine-layer fabrication set
+
+Extended the Gerber exporter from 3 layers (F.Cu/B.Cu/Edge.Cuts) to KiCad's standard fab set: + F/B.SilkS, F/B.Mask, F/B.Paste.
+
+- js/gerber.js (pure UMD, additive):
+  - `buildImage(flashes, draws, apertures)` shared RS-274X assembler (same header/format as exportLayer).
+  - `exportMaskLayer`: openings at every pad on the side (SMD + THT), expanded 0.05 mm/edge; vias tented. Side derived from **copper membership** (`*.Cu` wildcard / empty list → footprint side) after the real-board smoke showed real exports whose pad lists carry no `F.Mask`/`*.Mask` entries at all (e.g. `[B.Cu, B.Mask]`, `[F.Cu,B.Cu,F.Mask,B.Mask]`) — matching mask labels literally missed them.
+  - `exportPasteLayer`: SMD pads only, copper-size apertures, same copper-membership side rule (real files also omit `*.Paste`).
+  - `exportSilkLayer(board, layer, getFootprint?)`: footprint silk art as strokes through one D10 C,0.12 aperture — polylines, rects, 32-chord circles; text items skipped (vector stroking not implemented). Art layer mapped to the part's actual side (fp.layer==='B.Cu' swaps F↔B SilkS labels): the flip tool swaps pad layer lists but leaves stored art labels alone. Coordinates rotate fp-local → world exactly like render.js (no mirror — model never mirrors local geometry).
+  - `exportAll(board, getFootprint?)` returns all nine layers; doGerber and the viewer iterate it generically so downloads/viewer tabs appear without app changes.
+- Tests: test_gerber.js extended (~25 new checks: nine-key contract, mask expansion/tenting/THT-both-sides, paste SMD-only + exact sizes, bare-[F.Cu] regression for label-less pads, silk stroke counts incl. circle chords, rotation+side-mapping of back art, per-layer M02 completeness, real-board smoke parsing all nine outputs through gerber_viewer.parse). test_integration.js key-set assertion updated to nine layers.
+- All **32 suites green**; node --check clean.
+- Coordination note: a concurrent session was actively editing index.html/app.part1–4/sw.js for the lib editors while this ran (mtimes 14:48–15:01), so this increment deliberately touches ONLY js/gerber.js + tests + state files. Deferred to next committer (TODO has the checklist): doGerber status/help strings still say three layers; pass FPs.getFootprint into exportAll for library silk art; viewer colors array covers 6 of 9 tabs; no ?v=/sw bump here — the editors commit must bump anyway and will pick up these changes.

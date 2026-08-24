@@ -31,7 +31,10 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] Vias + layer switching mid-route — 2026-08-22
 - [x] Undo / redo — 2026-08-22
 - [x] Save modified boards (.kicad_pcb) + validation that saved files reopen — 2026-08-22
-- [x] Gerber export (F.Cu, B.Cu, Edge.Cuts) — 2026-08-22
+- [x] Gerber export — full fabrication layer set (9 layers) — 2026-08-22, extended 2026-08-24
+  - [x] Copper + Edge.Cuts RS-274X (F.Cu, B.Cu, outline polylines) — 2026-08-22
+  - [x] F/B.Mask (pads only, vias tented, 0.05 mm expansion, side from copper membership so bare [F.Cu]-style lists work), F/B.Paste (SMD only, copper-size apertures), F/B.SilkS (footprint art as fixed 0.12 mm strokes: lines / rects / 32-chord circles; art mapped to the part's actual side since the flip tool relayers pads but not stored art labels; `getFootprint` resolver param like erc.js; text items skipped until vector stroking exists) — 2026-08-24
+  - [ ] Wiring follow-up (blocked by concurrent lib-editor session owning app/index/sw): pass `FPs.getFootprint` into doGerber's `exportAll`, refresh status/help strings (still say F.Cu/B.Cu/Edge.Cuts), extend viewer colors past 6 layers, cache-bust + sw bump picks up gerber.js automatically
 - [x] Clearance DRC — 2026-08-22
 - [x] Real KiCad footprint library (lib/footprints.json, ~170 parts) — 2026-08-22
 - [x] Real KiCad symbol library (lib/symbols.json) + browser/preview — 2026-08-22

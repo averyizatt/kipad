@@ -73,7 +73,9 @@ console.log('DRC violations: ' + viol.length);
 
 // ---- 6. Gerber ----
 const gb = g.KipadGerber.exportAll(b2);
-assert.deepStrictEqual(Object.keys(gb).sort(), ['B.Cu', 'Edge.Cuts', 'F.Cu'], 'gerber layers');
+assert.deepStrictEqual(Object.keys(gb).sort(),
+  ['B.Cu', 'B.Mask', 'B.Paste', 'B.SilkS', 'Edge.Cuts', 'F.Cu', 'F.Mask', 'F.Paste', 'F.SilkS'],
+  'gerber layers');
 
 // ---- 7. hit tests ----
 assert.ok(B.hitPad(board, 0, 0, 0.3), 'hitPad at R pad');
