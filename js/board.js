@@ -372,41 +372,213 @@
     return null;
   }
 
-  // ---------- ratsnest ----------
-  // Minimal spanning-ish: for each net, connect unconnected pad centers
-  // (pads with no track on that net) using greedy nearest neighbor.
+  // ---------- ratsnest (connectivity-aware airwires) ----------
+  const CONNECT_EPS = 0.02; // mm slop when deciding same-net copper touches
+
+  function padHalfSize(p) { return Math.max(p.size[0], p.size[1]) / 2; }
+  function padOnLayer(p, layer) {
+    const L = Array.isArray(p.layers) && p.layers.length ? p.layers : ['*.Cu'];
+    for (const l of L) if (l === layer || l === '*.Cu' || layer === '*.Cu') return true;
+    return false;
+  }
+  function itLayers(it) {
+    if (it.kind === 'via') return ['F.Cu', 'B.Cu'];
+    if (it.kind === 'track') return [it.layer];
+    return Array.isArray(it.pad.layers) && it.pad.layers.length ? it.pad.layers : ['*.Cu'];
+  }
+
+  // Union-find one net's copper (pads + tracks + vias) into physically
+  // connected clusters, then emit minimal-spanning airwires between clusters.
+  // Pads joined by tracks/vias (any layer path) collapse into one cluster, so
+  // partially-routed nets only show their genuinely unrouted connections.
+  function netAirwires(board, netId) {
+    const items = [];
+    for (const fp of board.footprints)
+      for (const p of fp.pads)
+        if (p.netId === netId)
+          items.push({ kind: 'pad', pt: [p.at[0], p.at[1]], r: padHalfSize(p), pad: p });
+    for (const t of board.tracks)
+      if (t.netId === netId) {
+        const segs = trackSegments(t);
+        const ends = [];
+        for (const s of segs) { ends.push([s.ax, s.ay]); ends.push([s.bx, s.by]); }
+        items.push({ kind: 'track', layer: t.layer, segs, ends });
+      }
+    for (const v of board.vias)
+      if (v.netId === netId)
+        items.push({ kind: 'via', pt: [v.at[0], v.at[1]], r: v.size / 2 });
+    // A filled pour joins all same-net copper it touches (KiCad behaviour), so
+    // same-net zones participate in connectivity using their outline polygon
+    // as a stand-in for the fill region.
+    const zname = netName(board, netId);
+    if (zname && Array.isArray(board.zones))
+      for (const z of board.zones)
+        if (z.net === zname && Array.isArray(z.outline) && z.outline.length >= 3)
+          items.push({ kind: 'zone', layer: z.layer === 'B.Cu' ? 'B.Cu' : 'F.Cu', poly: z.outline });
+
+    const parent = items.map((_, i) => i);
+    function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+    function union(i, j) { const a = find(i), b = find(j); if (a !== b) parent[b] = a; }
+
+    // per-item bbox + contact reach for a cheap AABB reject before exact tests
+    for (const it of items) {
+      let bb;
+      if (it.poly) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const p of it.poly) {
+          x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+          y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+        }
+        bb = [x0, y0, x1, y1];
+      } else if (it.segs) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const s of it.segs) {
+          x0 = Math.min(x0, s.ax, s.bx); x1 = Math.max(x1, s.ax, s.bx);
+          y0 = Math.min(y0, s.ay, s.by); y1 = Math.max(y1, s.ay, s.by);
+        }
+        bb = [x0, y0, x1, y1];
+      } else {
+        bb = [it.pt[0] - it.r, it.pt[1] - it.r, it.pt[0] + it.r, it.pt[1] + it.r];
+      }
+      it.bb = bb;
+      it.reach = (it.kind === 'track' || it.kind === 'zone') ? 0 : it.r;
+    }
+
+    function pointInPoly(x, y, poly) {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    // copper geometry touches a same-net pour: centre/ends inside the outline,
+    // or the shape's edge reaches within its radius (+eps) of the outline
+    function circTouchesPoly(x, y, r, poly) {
+      if (pointInPoly(x, y, poly)) return true;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+        if (pointSegDist(x, y, poly[j].x, poly[j].y, poly[i].x, poly[i].y) <= r + CONNECT_EPS) return true;
+      return false;
+    }
+    function segTouchesPoly(seg, poly) {
+      if (pointInPoly(seg.ax, seg.ay, poly) || pointInPoly(seg.bx, seg.by, poly)) return true;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+        if (segSegDist(seg.ax, seg.ay, seg.bx, seg.by, poly[j].x, poly[j].y, poly[i].x, poly[i].y) <= CONNECT_EPS) return true;
+      return false;
+    }
+    function touches(a, b) {
+      const za = a.kind === 'zone', zb = b.kind === 'zone';
+      if (za || zb) {
+        if (za && zb) return false; // pours never need an airwire between them
+        const z = za ? a : b, o = za ? b : a;
+        if (o.kind === 'pad') {
+          if (!padOnLayer(o.pad, z.layer)) return false;
+          return circTouchesPoly(o.pt[0], o.pt[1], o.r, z.poly);
+        }
+        if (o.kind === 'via') return circTouchesPoly(o.pt[0], o.pt[1], o.r, z.poly);
+        if (o.kind === 'track') {
+          if (o.layer !== z.layer) return false; // no copper bridge across layers
+          for (const s of o.segs) if (segTouchesPoly(s, z.poly)) return true;
+          return false;
+        }
+        return false;
+      }
+      if (a.kind === 'track' && b.kind === 'track') {
+        if (a.layer !== b.layer) return false; // no copper bridge across layers
+        // endpoint-on-geometry covers butt joins and T-junctions alike
+        for (const s of b.segs)
+          for (const e of a.ends)
+            if (pointSegDist(e[0], e[1], s.ax, s.ay, s.bx, s.by) <= CONNECT_EPS) return true;
+        for (const s of a.segs)
+          for (const e of b.ends)
+            if (pointSegDist(e[0], e[1], s.ax, s.ay, s.bx, s.by) <= CONNECT_EPS) return true;
+        return false;
+      }
+      if (a.kind === 'pad' && b.kind === 'track' || a.kind === 'track' && b.kind === 'pad') {
+        const pad = a.kind === 'pad' ? a : b, tr = a.kind === 'pad' ? b : a;
+        if (!padOnLayer(pad.pad, tr.layer)) return false;
+        for (const s of tr.segs)
+          if (pointSegDist(pad.pt[0], pad.pt[1], s.ax, s.ay, s.bx, s.by) <= pad.r + CONNECT_EPS) return true;
+        return false;
+      }
+      if (a.kind === 'pad' && b.kind === 'via' || a.kind === 'via' && b.kind === 'pad') {
+        const pad = a.kind === 'pad' ? a : b, via = a.kind === 'pad' ? b : a;
+        if (!padOnLayer(pad.pad, 'F.Cu') && !padOnLayer(pad.pad, 'B.Cu')) return false;
+        return Math.sqrt(dist2(pad.pt[0], pad.pt[1], via.pt[0], via.pt[1])) <= pad.r + via.r + CONNECT_EPS;
+      }
+      if (a.kind === 'track' && b.kind === 'via' || a.kind === 'via' && b.kind === 'track') {
+        const tr = a.kind === 'track' ? a : b, via = a.kind === 'track' ? b : a;
+        for (const s of tr.segs)
+          if (pointSegDist(via.pt[0], via.pt[1], s.ax, s.ay, s.bx, s.by) <= via.r + CONNECT_EPS) return true;
+        return false;
+      }
+      const ra = a.r, rb = b.r;
+      const La = itLayers(a), Lb = itLayers(b);
+      let overlap = false;
+      for (const x of La)
+        for (const y of Lb)
+          if (x === y || x === '*.Cu' || y === '*.Cu') overlap = true;
+      if (!overlap) return false;
+      return Math.sqrt(dist2(a.pt[0], a.pt[1], b.pt[0], b.pt[1])) <= ra + rb + CONNECT_EPS;
+    }
+
+    for (let i = 0; i < items.length; i++)
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j];
+        const m = a.reach + b.reach + CONNECT_EPS;
+        if (a.bb[2] < b.bb[0] - m || b.bb[2] < a.bb[0] - m ||
+            a.bb[3] < b.bb[1] - m || b.bb[3] < a.bb[1] - m) continue;
+        if (touches(a, b)) union(i, j);
+      }
+
+    const clusters = new Map(); // root → {pads:[pt], spares:[pt]}
+    for (let i = 0; i < items.length; i++) {
+      const root = find(i), it = items[i];
+      let c = clusters.get(root);
+      if (!c) { c = { pads: [], spares: [] }; clusters.set(root, c); }
+      if (it.kind === 'pad') c.pads.push(it.pt);
+      // a zone contributes its first outline corner as a fallback anchor so a
+      // pour that nothing touches still attracts an airwire (and a DRC error)
+      else c.spares.push(it.kind === 'zone' ? [it.poly[0].x, it.poly[0].y]
+                                            : it.kind === 'track' ? it.ends[0] : it.pt);
+    }
+    const groups = [...clusters.values()].map(c => c.pads.length ? c.pads : c.spares);
+    if (groups.length < 2) return [];
+
+    const inTree = new Array(groups.length).fill(false);
+    inTree[0] = true;
+    let count = 1;
+    const lines = [];
+    while (count < groups.length) {
+      let best = null;
+      for (let i = 0; i < groups.length; i++) {
+        if (!inTree[i]) continue;
+        for (const pa of groups[i])
+          for (let j = 0; j < groups.length; j++) {
+            if (inTree[j]) continue;
+            for (const pb of groups[j]) {
+              const d = dist2(pa[0], pa[1], pb[0], pb[1]);
+              if (!best || d < best.d) best = { d, pa, pb, j };
+            }
+          }
+      }
+      if (!best) break;
+      inTree[best.j] = true; count++;
+      lines.push({ a: best.pa, b: best.pb, netId });
+    }
+    return lines;
+  }
+
   function ratsnest(board) {
     const lines = [];
-    const byNet = {};
+    const padCount = {};
     for (const fp of board.footprints)
-      for (const p of fp.pads) {
-        if (!byNet[p.netId]) byNet[p.netId] = [];
-        byNet[p.netId].push(p);
-      }
-    for (const [netId, pads] of Object.entries(byNet)) {
-      const id = Number(netId);
-      if (id === 0 || pads.length < 2) continue;
-      // has any track on this net?
-      const routed = board.tracks.some(t => t.netId === id) || board.vias.some(v => v.netId === id);
-      if (routed) continue;
-      const pts = pads.map(p => p.at);
-      const visited = new Array(pts.length).fill(false);
-      visited[0] = true;
-      let count = 1;
-      while (count < pts.length) {
-        let bestD = Infinity, bestI = -1, bestJ = -1;
-        for (let i = 0; i < pts.length; i++) {
-          if (!visited[i]) continue;
-          for (let j = 0; j < pts.length; j++) {
-            if (visited[j]) continue;
-            const d = dist2(pts[i][0], pts[i][1], pts[j][0], pts[j][1]);
-            if (d < bestD) { bestD = d; bestI = i; bestJ = j; }
-          }
-        }
-        if (bestJ < 0) break;
-        visited[bestJ] = true; count++;
-        lines.push({ a: pts[bestI], b: pts[bestJ], netId: id });
-      }
+      for (const p of fp.pads)
+        if (p.netId) padCount[p.netId] = (padCount[p.netId] || 0) + 1;
+    const ids = Object.keys(padCount).map(Number).sort((a, b) => a - b);
+    for (const id of ids) {
+      if (padCount[id] < 2) continue;
+      for (const l of netAirwires(board, id)) lines.push(l);
     }
     return lines;
   }
@@ -632,6 +804,7 @@
             violations.push({
               type: `${a.kind}-${b.kind}`,
               severity: 'error',
+              msg: `${a.kind} (${netName(board, a.netId)}) too close to ${b.kind} (${netName(board, b.netId)}): gap ${Math.round(d * 1000) / 1000}mm < ${minCl}mm clearance`,
               netA: netName(board, a.netId), netB: netName(board, b.netId),
               dist: Math.round(d * 1000) / 1000,
               clearance: minCl,
@@ -694,7 +867,32 @@
     }
     // silkscreen over exposed pads (warnings)
     for (const sv of silkViolations(board)) violations.push(sv);
+    // unconnected items (KiCad reports each remaining airwire as its own error)
+    for (const l of ratsnest(board)) {
+      const na = netName(board, l.netId);
+      violations.push({
+        type: 'unconnected', severity: 'error',
+        msg: `Net ${na}: unconnected items (${padLabelAt(board, l.netId, l.a)} ↔ ${padLabelAt(board, l.netId, l.b)})`,
+        netA: na, netB: '',
+        x: Math.round((l.a[0] + l.b[0]) / 2 * 1000) / 1000,
+        y: Math.round((l.a[1] + l.b[1]) / 2 * 1000) / 1000
+      });
+    }
     return violations;
+  }
+
+  // "R1.2" for the nearest same-net pad within 2mm of an airwire endpoint,
+  // else the raw mm coordinates.
+  function padLabelAt(board, netId, pt) {
+    let best = null, bd = Infinity;
+    for (const fp of board.footprints)
+      for (const p of fp.pads) {
+        if (p.netId !== netId) continue;
+        const d = Math.sqrt(dist2(pt[0], pt[1], p.at[0], p.at[1]));
+        if (d < bd) { bd = d; best = p; best.ref = fp.ref; }
+      }
+    if (best && bd <= 2) return `${best.ref}.${best.number}`;
+    return `${Math.round(pt[0] * 100) / 100},${Math.round(pt[1] * 100) / 100}mm`;
   }
 
   return {
