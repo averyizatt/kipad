@@ -101,3 +101,98 @@ ok(KR.resolveVia({ size: 1.0, drill: 0.5 }, { viaSize: 0.8, viaDrill: 0.4 }).siz
 ok(KR.widthChoices(0.25, [1.0])[0] === 0.25 && KR.viaChoices(0.8, 0.4, []).length === 1, 'choices: class-only inputs survive');
 
 console.log('test_route.js: ' + pass + ' checks passed');
+
+// --- via-in-route: toggleRouteVia / currentLayer ---
+{
+  const r = { pts: [[0, 0], [5, 0], [5, 8]], layer0: 'F.Cu', layer: 'F.Cu', vias: [] };
+  ok(KR.currentLayer('F.Cu', []) === 'F.Cu' && KR.currentLayer('F.Cu', [{ idx: 1 }]) === 'B.Cu', 'currentLayer: flips per via');
+  ok(KR.currentLayer('F.Cu', [{ idx: 1 }, { idx: 2 }]) === 'F.Cu', 'currentLayer: double flip returns home');
+  KR.toggleRouteVia(r, 0.8, 0.4);
+  ok(r.vias.length === 1 && r.vias[0].idx === 2 && r.vias[0].size === 0.8 && r.vias[0].drill === 0.4, 'toggleRouteVia: via lands on the LAST point');
+  ok(r.layer === 'B.Cu', 'toggleRouteVia: layer flipped to B.Cu');
+  KR.toggleRouteVia(r, 0.8, 0.4);
+  ok(r.vias.length === 0 && r.layer === 'F.Cu', 'toggleRouteVia: second press removes the via and flips back');
+  const empty = { pts: [], vias: [] };
+  ok(KR.toggleRouteVia(empty, 1, 0.5) === empty && empty.vias.length === 0, 'toggleRouteVia: no points → no-op, no crash');
+}
+
+// --- commitPlan: plain route (no vias) keeps legacy behaviour ---
+{
+  const plan = KR.commitPlan({ pts: [[0, 0], [4, 4], [10, 4]], width: 0.25, layer0: 'F.Cu', vias: [] });
+  ok(plan && plan.segments.length === 2 && plan.vias.length === 0, 'commitPlan: two clean segments, no vias');
+  ok(plan.segments.every(s => s.layer === 'F.Cu'), 'commitPlan: all segments on the starting layer without vias');
+  ok(plan.segments.every(s => s.width === 0.25), 'commitPlan: widths carried through');
+}
+
+// --- commitPlan: mid-route via splits layers at the right segment ---
+{
+  // F.Cu: (0,0)->(5,0); via at (5,0); B.Cu: (5,0)->(5,8)
+  const r = { pts: [[0, 0], [5, 0], [5, 8]], layer0: 'F.Cu', layer: 'B.Cu', width: 0.3, vias: [{ idx: 1, size: 0.8, drill: 0.4 }] };
+  const plan = KR.commitPlan(r);
+  ok(plan.segments.length === 2, 'commitPlan: via splits into two segments');
+  ok(plan.segments[0].layer === 'F.Cu' && plan.segments[1].layer === 'B.Cu', 'commitPlan: pre-via F.Cu / post-via B.Cu');
+  ok(plan.vias.length === 1 && plan.vias[0].at[0] === 5 && plan.vias[0].at[1] === 0, 'commitPlan: via placed at the marked point');
+  ok(plan.vias[0].size === 0.8 && plan.vias[0].drill === 0.4, 'commitPlan: resolved size/drill carried onto the board via');
+
+  // double flip F -> B -> F
+  const r2 = { pts: [[0, 0], [5, 0], [5, 8], [9, 8]], layer0: 'F.Cu', width: 0.3, vias: [{ idx: 1, size: 0.6, drill: 0.3 }, { idx: 2, size: 0.9, drill: 0.45 }] };
+  const p2 = KR.commitPlan(r2);
+  ok(p2.segments.map(s => s.layer).join(',') === 'F.Cu,B.Cu,F.Cu', 'commitPlan: two vias give F/B/F sandwich');
+  ok(p2.vias.length === 2, 'commitPlan: both vias committed');
+
+  // via on the FIRST point (pad sits on F, route continues on B)
+  const r3 = { pts: [[2, 2], [7, 2]], layer0: 'F.Cu', width: 0.3, vias: [{ idx: 0, size: 0.8, drill: 0.4 }] };
+  const p3 = KR.commitPlan(r3);
+  ok(p3.segments[0].layer === 'B.Cu' && p3.vias[0].at[0] === 2, 'commitPlan: start-point via flips from segment one');
+
+  // trailing via (V then Enter): via commits, no segment inherits a bogus layer
+  const r4 = { pts: [[0, 0], [5, 0]], layer0: 'F.Cu', width: 0.3, vias: [{ idx: 1, size: 0.8, drill: 0.4 }] };
+  const p4 = KR.commitPlan(r4);
+  ok(p4.segments.length === 1 && p4.segments[0].layer === 'F.Cu' && p4.vias.length === 1, 'commitPlan: end-of-route via kept, segments untouched');
+
+  // stale via (idx past the last point after Backspace) is dropped
+  const r5 = { pts: [[0, 0], [5, 0]], layer0: 'F.Cu', width: 0.3, vias: [{ idx: 3, size: 0.8, drill: 0.4 }] };
+  const p5 = KR.commitPlan(r5);
+  ok(p5.vias.length === 0 && p5.segments.every(s => s.layer === 'F.Cu'), 'commitPlan: stale via dropped');
+}
+
+// --- cleanupRouted protects via points ---
+{
+  // collinear straight-through: (0,0) -> (5,0) [via] -> (10,0)
+  const cr = KR.cleanupRouted([[0, 0], [5, 0], [10, 0]], [{ idx: 1, size: 0.8, drill: 0.4 }]);
+  ok(cr.pts.length === 3 && cr.vias.length === 1 && cr.vias[0].idx === 1, 'cleanupRouted: collinear middle with a via survives');
+  // same shape without a via collapses
+  const cr2 = KR.cleanupRouted([[0, 0], [5, 0], [10, 0]], []);
+  ok(cr2.pts.length === 2 && cr2.vias.length === 0, 'cleanupRouted: collinear middle without a via still merges');
+  // duplicate points merge, survivor keeps the via flag
+  const cr3 = KR.cleanupRouted([[0, 0], [5, 0], [5, 0], [5, 8]], [{ idx: 2, size: 0.8, drill: 0.4 }]);
+  ok(cr3.pts.length === 3 && cr3.vias.length === 1 && cr3.vias[0].idx === 1, 'cleanupRouted: duplicate merge keeps the via on the survivor');
+  // full commitPlan on the straight-through case: three segments split around the via
+  const p = KR.commitPlan({ pts: [[0, 0], [5, 0], [10, 0]], layer0: 'F.Cu', width: 0.3, vias: [{ idx: 1, size: 0.8, drill: 0.4 }] });
+  ok(p.segments.length === 2 && p.segments[0].layer === 'F.Cu' && p.segments[1].layer === 'B.Cu', 'commitPlan: straight-through via splits layers mid-line');
+}
+
+// --- commitPlan degenerate cases ---
+ok(KR.commitPlan({ pts: [[1, 1]], vias: [{ idx: 0, size: 1, drill: 0.5 }] }) === null, 'commitPlan: single point → null (nothing to commit)');
+ok(KR.commitPlan(null) === null, 'commitPlan: null route → null');
+
+// --- simulated tap flow with a mid-route via through the real pipeline ---
+{
+  const pts = [[0, 0]];
+  for (const p of KR.elbow(pts[pts.length - 1], [8, 3])) pts.push(p); // tap 1: diagonal up to the elbow
+  const route = { pts, layer0: 'F.Cu', layer: 'F.Cu', width: 0.25, posture: 'diag', vias: [] };
+  KR.toggleRouteVia(route, 0.8, 0.4); // V pressed at the elbow before descending
+  for (const p of KR.elbow(pts[pts.length - 1], [8, 12])) {
+    if (!(p[0] === pts[pts.length - 1][0] && p[1] === pts[pts.length - 1][1])) pts.push(p); // tap 2 continues on B.Cu
+  }
+  const plan = KR.commitPlan(route);
+  let allowed = true;
+  for (let i = 0; i < plan.segments.length; i++) {
+    const s = plan.segments[i];
+    if (!KR.isAllowed(s.a, s.b)) allowed = false;
+  }
+  ok(allowed, 'simulated via route: every committed segment stays H/V/45');
+  ok(plan.vias.length === 1, 'simulated via route: exactly one via staged+committed');
+  const layers = plan.segments.map(s => s.layer);
+  ok(layers.indexOf('F.Cu') < layers.lastIndexOf('B.Cu'), 'simulated via route: F.Cu run precedes B.Cu run');
+}

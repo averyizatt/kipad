@@ -331,22 +331,38 @@
 
     // ---- route in progress ----
     if (state.route && state.route.pts.length) {
-      const layer = state.route.layer;
-      ctx.strokeStyle = LAYER_COLOR[layer] || '#888';
+      const r = state.route;
       ctx.setLineDash([4, 4]);
-      ctx.lineWidth = Math.max(1, state.route.width * view.zoom);
       ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (let i = 0; i < state.route.pts.length; i++) {
-        const [sx, sy] = w2s(view, state.route.pts[i][0], state.route.pts[i][1], cw, ch);
-        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      // per-segment colour: each staged via flips F.Cu <-> B.Cu from its point on
+      let cur = r.layer0 || r.layer || 'F.Cu';
+      const viaIdxs = (r.vias || []).map(v => v.idx);
+      for (let i = 0; i < r.pts.length - 1; i++) {
+        if (viaIdxs.includes(i)) cur = cur === 'F.Cu' ? 'B.Cu' : 'F.Cu';
+        const [ax, ay] = w2s(view, r.pts[i][0], r.pts[i][1], cw, ch);
+        const [bx, by] = w2s(view, r.pts[i + 1][0], r.pts[i + 1][1], cw, ch);
+        ctx.strokeStyle = LAYER_COLOR[cur] || '#888';
+        ctx.lineWidth = Math.max(1, r.width * view.zoom);
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
       }
-      ctx.stroke();
+      // staged vias: annulus + drilled hole, like placed vias
       ctx.setLineDash([]);
-      if (state.route.cursor) {
-        const last = state.route.pts[state.route.pts.length - 1];
+      for (const v of (r.vias || [])) {
+        const p = r.pts[v.idx]; if (!p) continue;
+        const [vx, vy] = w2s(view, p[0], p[1], cw, ch);
+        ctx.strokeStyle = '#c0c0c0';
+        ctx.lineWidth = Math.max(1.5, Math.max(0.05, v.size - v.drill) / 2 * view.zoom);
+        ctx.beginPath(); ctx.arc(vx, vy, (v.size + v.drill) / 4 * view.zoom, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = BG;
+        ctx.beginPath(); ctx.arc(vx, vy, Math.max(1, v.drill / 2 * view.zoom), 0, Math.PI * 2); ctx.fill();
+      }
+      if (r.cursor) {
+        const last = r.pts[r.pts.length - 1];
         // 45°-constrained preview: elbow path instead of a straight free-angle line
-        const tail = KipadRoute.elbow(last, state.route.cursor, state.route.posture || 'diag');
+        const tail = KipadRoute.elbow(last, r.cursor, r.posture || 'diag');
+        ctx.strokeStyle = LAYER_COLOR[r.layer] || '#888';
+        ctx.lineWidth = Math.max(1, r.width * view.zoom);
+        ctx.setLineDash([4, 4]);
         ctx.beginPath();
         let started = false;
         for (const p of [last].concat(tail)) {
@@ -541,7 +557,8 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
     ctx.strokeStyle = 'rgba(0,150,0,0.55)';
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    const all = state.wirePts.concat(state.wireCur ? [state.wireCur] : []);
+    const curPts = state.wireCur ? (Array.isArray(state.wireCur[0]) ? state.wireCur : [state.wireCur]) : [];
+    const all = state.wirePts.concat(curPts);
     for (let i = 0; i < all.length; i++) {
       const [sx, sy] = w2s(view, all[i][0], all[i][1], cw, ch);
       if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);

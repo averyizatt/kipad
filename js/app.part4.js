@@ -207,7 +207,15 @@
     crosshair = [wx, wy];
 
     if (mode === 'schematic') {
-      schWireCur = (schTool === 'wire' && schWirePts.length) ? [snap(wx), snap(wy)] : null;
+      if (schTool === 'wire' && schWirePts.length) {
+        const lastP = schWirePts[schWirePts.length - 1];
+        const hitP = SchWires.pick(schTargets(), wx, wy, schPickThr());
+        const bx = hitP ? hitP.at[0] : snap(wx);
+        const by = hitP ? hitP.at[1] : snap(wy);
+        schWireCur = SchWires.elbow(lastP, [bx, by]).concat([[bx, by]]);
+      } else {
+        schWireCur = null;
+      }
       if (schDrag && schDrag.pan) {
         const dx = (e.clientX - lastPan.x) / view.zoom;
         const dy = (e.clientY - lastPan.y) / view.zoom;
@@ -343,17 +351,33 @@
       return;
     }
     if (schTool === 'wire') {
+      const hit = SchWires.pick(schTargets(), wx, wy, schPickThr());
+      const tx = hit ? hit.at[0] : sx;
+      const ty = hit ? hit.at[1] : sy;
+      const onT = !hit && SchWires.hitsAnySegment([tx, ty], sch.wires, 1e-6);
       if (!schWirePts.length) {
-        schWirePts = [[sx, sy]];
-        setStatus('Wire: tap to add corner, double-tap to finish');
+        schWirePts = [[tx, ty]];
+        setStatus(hit ? 'Wire from ' + hit.label + ' — tap corners; land on a pin / wire end to finish'
+                      : 'Wire: tap to draw; snaps to pins, wire ends, junctions');
       } else {
-        // finish on double-tap (handled in pointerup) or continue
         const last = schWirePts[schWirePts.length - 1];
         if (Math.abs(last[0] - sx) > 1e-9 || Math.abs(last[1] - sy) > 1e-9) {
-          schWirePts.push([sx, sy]);
+          void last; // superseded by snapped target below
         }
-        // junction when landing on existing wire/pin
-        maybeJunction(sx, sy);
+        if (Math.abs(last[0] - tx) > 1e-9 || Math.abs(last[1] - ty) > 1e-9) {
+          for (const p of SchWires.elbow(last, [tx, ty])) {
+            const lp = schWirePts[schWirePts.length - 1];
+            if (Math.abs(lp[0] - p[0]) > 1e-9 || Math.abs(lp[1] - p[1]) > 1e-9) schWirePts.push(p);
+          }
+          schWirePts.push([tx, ty]);
+        }
+        // landing on a connection (or mid-run T-joint) ends the run automatically
+        if ((hit || onT) && schWirePts.length >= 2) {
+          finishSchWire();
+          render();
+          return;
+        }
+        setStatus('Wire: tap next corner — double-tap / Enter finishes');
       }
       render();
       return;
@@ -436,19 +460,21 @@
     render(); refreshAll();
   }
 
-  function maybeJunction(x, y) {
-    // add junction if another wire/pin point coincides
-    for (const w of sch.wires) {
-      for (const p of w.pts) {
-        if (Math.hypot(p[0] - x, p[1] - y) < 0.01) { Sch.addJunction(sch, [x, y]); return; }
-      }
-    }
+  function schPickThr() {
+    return Math.min(0.8, Math.max(0.3, grid));
   }
-
+  function schTargets() {
+    return SchWires.collectTargets(sch, s => Sch.pinPositions(s, Syms.getSymbol));
+  }
   function finishSchWire() {
     if (schWirePts.length < 2) { schWirePts = []; render(); return; }
+    const myPts = schWirePts.map(p => p.slice());
+    const others = sch.wires.slice();
     schPushUndo();
-    Sch.addWire(sch, schWirePts);
+    for (let i = 0; i < myPts.length; i++) {
+      if (SchWires.junctionNeeded(myPts, i, others, 1e-6)) Sch.addJunction(sch, myPts[i].slice());
+    }
+    Sch.addWire(sch, myPts);
     schWirePts = [];
     render(); refreshAll();
     setStatus('Wire placed');
@@ -491,7 +517,7 @@
       case 'x': case 'X': setTool('track'); break;
       case 'v': case 'V':
         if (tool === 'track' && route && route.pts.length) {
-          addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]);
+          placeViaInRoute();
         } else setTool('via');
         break;
       case 'z': case 'Z': setTool('zone'); break;
@@ -504,7 +530,15 @@
       case '/': cycleRoutePosture(); break;
       case 'Delete': case 'Backspace':
         e.preventDefault();
-        if (tool === 'track' && route && route.pts.length > 1) { route.pts.pop(); render(); break; }
+        if (tool === 'track' && route && route.pts.length > 1) {
+          route.pts.pop();
+          if (route.vias && route.vias.length) {
+            // drop vias whose point no longer exists, recompute the active layer
+            route.vias = route.vias.filter(v => v.idx <= route.pts.length - 1);
+            route.layer = KipadRoute.currentLayer(route.layer0 || 'F.Cu', route.vias);
+          }
+          render(); break;
+        }
         doDelete(); break;
       case 'Enter':
         if (tool === 'track') finishRoute();
@@ -746,7 +780,7 @@
       ],
       route: [
         ['Finish track', () => { if (tool === 'track') finishRoute(); }, 'Enter'],
-        ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) addViaHere(route.pts[route.pts.length - 1][0], route.pts[route.pts.length - 1][1]); }, 'V'],
+        ['Via + switch layer', () => { if (tool === 'track' && route && route.pts.length) placeViaInRoute(); }, 'V'],
         ['Track width: ' + (widthOverride == null ? 'net class default' : trackWidth + ' mm'), cycleTrackWidth, 'W'],
         ['Via size: ' + (viaOverride == null ? 'net class default' : viaOverride.size + '/' + viaOverride.drill + ' mm'), cycleViaSize, '']
       ],

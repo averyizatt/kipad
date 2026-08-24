@@ -10,6 +10,7 @@
   const NetlistExp = window.KipadNetlist || null;
   const SymFields = window.KipadSymFields || null;
   const Zip = window.KipadZip || null;
+  const SchWires = window.KipadSchWires || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
@@ -224,7 +225,13 @@
         }
         if (l === 'F.Cu' || l === 'B.Cu') {
           if (zonePts && tool === 'zone') { zonePts = null; setStatus('Layer switched — zone draft cancelled'); }
-          layer = l; $('st-layer').textContent = l;
+          // mid-route: picking the other copper layer stages a via instead of moving the board view
+          if (typeof placeViaInRoute === 'function' && tool === 'track' && route && route.pts.length) {
+            if (l !== route.layer) placeViaInRoute();
+            else setStatus('Already routing on ' + l);
+          } else {
+            layer = l; $('st-layer').textContent = l;
+          }
         }
         render(); refreshLayers();
       });

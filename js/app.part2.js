@@ -238,6 +238,8 @@
     else if (tool === 'text' && textPlace) { textPlace.angle = (textPlace.angle + 90) % 360; render(); }
   }
   function switchLayer() {
+    // mid-route a layer switch means: stage a via at the current end and continue on the other side
+    if (tool === 'track' && route && route.pts.length) { placeViaInRoute(); return; }
     if (zonePts && tool === 'zone') { zonePts = null; setStatus('Layer switched — zone draft cancelled'); }
     layer = layer === 'F.Cu' ? 'B.Cu' : 'F.Cu';
     $('st-layer').textContent = layer;
@@ -258,7 +260,7 @@
     else if (hiNet != null) netId = hiNet;
     // default width comes from the net's class unless the user picked one (toolbar / W)
     trackWidth = KipadRoute.resolveTrackWidth(widthOverride, B.netClassOfNet(board, netId).trackWidth);
-    route = { pts: [[snap(x), snap(y)]], netId, layer, width: trackWidth, posture: routePosture };
+    route = { pts: [[snap(x), snap(y)]], netId, layer, layer0: layer, width: trackWidth, posture: routePosture, vias: [] };
     if (hit) route.pts = [[hit.pad.at[0], hit.pad.at[1]]];
     setStatus('Routing net "' + B.netName(board, netId) + '" — tap points (/ = 45° posture, Backspace = undo point), Enter to finish, V = via+layer');
     if (typeof syncRouteControls === 'function') syncRouteControls();
@@ -272,22 +274,37 @@
   }
   function finishRoute() {
     if (!route || route.pts.length < 2) { route = null; render(); return; }
-    const clean = KipadRoute.cleanup(route.pts); // drop dups + collinear runs before commit
-    if (clean.length < 2) { route = null; routeCursor = null; render(); return; }
+    const netId = route.netId;
+    const plan = KipadRoute.commitPlan(route); // per-segment layers + staged vias in one atomic plan
+    if (!plan) { route = null; routeCursor = null; render(); return; }
     pushUndo();
-    for (let i = 0; i < clean.length - 1; i++) {
-      B.addTrack(board, clean[i], clean[i + 1], route.width, route.layer, route.netId);
-    }
+    for (const seg of plan.segments) B.addTrack(board, seg.a, seg.b, seg.width, seg.layer, netId);
+    for (const v of plan.vias) B.addVia(board, v.at, v.size, v.drill, netId);
+    const nv = plan.vias.length;
     route = null; routeCursor = null;
-    render(); refreshAll(); setStatus('Track placed');
+    render(); refreshAll();
+    setStatus('Track placed' + (nv ? ' +' + nv + ' via' + (nv > 1 ? 's' : '') : ''));
+  }
+  // Stage/remove a via on the route's last point without touching the board:
+  // committed together with the tracks on Enter, discarded on Escape/Backspace.
+  function placeViaInRoute() {
+    if (!route || !route.pts.length) return false;
+    const cls = B.netClassOfNet(board, route.netId);
+    const v = KipadRoute.resolveVia(viaOverride, cls);
+    const had = !!(route.vias || []).some(x => x.idx === route.pts.length - 1);
+    KipadRoute.toggleRouteVia(route, v.size, v.drill);
+    syncRouteControls();
+    setStatus(had ? 'Via removed — routing on ' + route.layer
+                  : 'Via staged at ' + route.layer + ' end — now routing on ' + route.layer);
+    render();
+    return true;
   }
   function addViaHere(x, y) {
     pushUndo();
-    const netId = route ? route.netId : (hiNet != null ? hiNet : 0);
+    const netId = hiNet != null ? hiNet : 0;
     // vias take size/drill from the net's class unless overridden in the toolbar
     const v = KipadRoute.resolveVia(viaOverride, B.netClassOfNet(board, netId));
     const via = B.addVia(board, [snap(x), snap(y)], v.size, v.drill, netId);
-    if (route) route.layer = route.layer === 'F.Cu' ? 'B.Cu' : 'F.Cu';
     render(); refreshAll();
     return via;
   }

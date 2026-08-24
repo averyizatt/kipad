@@ -187,7 +187,10 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] Pure helpers in `js/route.js`: `widthChoices` (class default merged with presets, deduped/ascending), `viaChoices` (size-deduped {size,drill} pairs, class pair wins clashes, missing drill = half size), `resolveTrackWidth` / `resolveVia` (override-or-class) — test/test_route.js +13 checks
   - [x] KiCad-style toolbar comboboxes in PCB mode: Track width select (net-class default entry + presets 0.15–2.0 mm, custom widths stay visible) and Via size select (default + 0.6/0.3 … 1.2/0.6 mm); selections persist in localStorage, override the net class for NEW tracks/vias until reset to "default"; live route re-widths on change
   - [x] W now cycles "net class default → ascending presets → back to default"; new Route-menu row cycles via sizes; Route menu labels show current state; syncs on mode enter / route start; cache v=49 / sw kipad-v43
-- [ ] Add route layer switching that automatically inserts a via
+- [x] Add route layer switching that automatically inserts a via — 2026-08-24
+  - [x] `KipadRoute.toggleRouteVia` / `currentLayer` / `cleanupRouted` / `commitPlan` (pure): V mid-route now STAGES a via on the route's last point and flips F.Cu↔B.Cu from there; second press at the same point removes it; commit is atomic on Enter (per-segment layers + vias in one undo step), Escape/Backspace discard staged vias (Backspace prunes stale ones); cleanup never merges away a via point
+  - [x] Fixes real bug: finishRoute previously committed ALL segments on the final route.layer, so pre-switch tracks landed on the wrong copper side, and a cancelled route left an orphaned via behind
+  - [x] Layer switching during routing also works from the L shortcut / toolbar button / Layers panel tap (target layer ≠ current → stage via); dashed preview draws per-segment colours + planned via annuli · test/test_route.js +21 checks (78) · cache v=49→v50 / sw kipad-v43→v44
 - [ ] Add multi-select and group move/rotate/delete
 - [ ] Audit undo/redo so every PCB editing operation is reversible
 - [ ] Add board setup + net-class editor
