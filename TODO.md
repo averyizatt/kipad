@@ -178,7 +178,9 @@ Per Avery: keep iterating autonomously until polished; refine/bug-fix only.
   - [x] Fixture boards tracked in git for the first time: lib-build/raw/{custom_pads,groups_load_save,tracks_arcs_vias,pic_programmer,video}.kicad_pcb + lib-build/real-board.kicad_pcb — previously untracked, five existing suites depended on files a fresh clone would not have
   - [x] test/test_roundtrip_fixtures.js sweeps all six real exports: ground-truth element counts scanned from the raw sexpr must match the parsed model (footprints incl. legacy `(module`, segments, arcs, vias, zones, groups); parse→serialize→re-parse structural snapshot stability (nets, per-fp ref/side/angle/pad-shape fingerprint, track kinds, via geometry+netId, silk texts, zone net/layer/outline length, outline segs, groups); second serialization cycle byte-stable — 43 checks
   - [x] Precision finding: serializer emits r4str 4-decimal coords, so cycle-2 geometry sits ≤5e-5 off raw-source floats (video.kicad_pcb vias, e.g. 108.45799 → 108.458); snapshots compare at output precision (q4), same tolerance as the arc field tests
-- [ ] Preserve unsupported KiCad S-expression nodes during round trip
+- [x] Preserve unsupported KiCad S-expression nodes during round trip — 2026-08-24
+  - [x] `board.extra[]` / `fp.extra[]` hold raw parsed subtrees verbatim (JSON-safe): top-level dimension/setup/title_block/paper/images/targets/gr_curve, non-silk gr_text, non-edge gr_line/rect/arc/poly/circle; footprint-level fp_line/fp_text/graphics, model, attr, descr/tags, custom properties — 2026-08-24
+  - [x] `generator` modeled (`board.generator`), synthesized `(general (thickness 1.6))` suppressed when extras carry one; cycle-2 output byte-stable; test/test_extra_rt.js incl. video.kicad_pcb real-file gate (2 dimensions / 175 models) — 38/38 suites green; cache v=47 / kipad-v41 — 2026-08-24
 - [ ] Improve interactive trace routing with 45-degree routing and route cleanup
 - [ ] Add trace width and via-size controls
 - [ ] Add route layer switching that automatically inserts a via

@@ -28,6 +28,8 @@
  *       netId: number
  *     } ]
  *   } ],
+ *   extra: [ <raw sexpr subtree>, ... ]  // unsupported top-level nodes,
+ *                                        // preserved verbatim for lossless saves
  *   tracks: [ { id, start:[x,y], end:[x,y], width, layer, netId } ],
  *   vias:   [ { id, at:[x,y], size, drill, netId } ],
  *   outline: [ [[x,y], [x,y], ...], ... ]   // Edge.Cuts polylines
@@ -76,6 +78,14 @@
 
   function str(x) {
     return (x === null || x === undefined) ? '' : String(x);
+  }
+
+  // true when the extras list already carries a node with this tag
+  function hasExtraTag(extras, t) {
+    for (var i = 0; i < extras.length; i++) {
+      if (isList(extras[i]) && tag(extras[i]) === t) return true;
+    }
+    return false;
   }
 
   function r4(v) {
@@ -198,7 +208,8 @@
       texts: [],
       zones: [],
       outline: [],
-      groups: []
+      groups: [],
+      extra: []
     };
 
     // ---- net table: supports BOTH legacy numeric ids ((nets N (net 1 "GND")))
@@ -402,6 +413,7 @@
       var ref = '';
       var value = '';
       var pads = [];
+      var extra = []; // unsupported footprint-level nodes (fp_line, model, …)
 
       for (var ci = 2; ci < node.length; ci++) {
         var c = node[ci];
@@ -419,6 +431,7 @@
             var val = c.length > 2 ? atom(c[2]) : '';
             if (key === 'Reference') ref = val;
             else if (key === 'Value') value = val;
+            else extra.push(c); // custom properties: preserved verbatim
             break;
           }
           case 'pad': {
@@ -426,6 +439,9 @@
             if (p) pads.push(p);
             break;
           }
+          default:
+            extra.push(c);
+            break;
         }
       }
 
@@ -437,7 +453,8 @@
         at: at,
         angle: normAngle(angle),
         layer: layer,
-        pads: pads
+        pads: pads,
+        extra: extra
       };
     }
 
@@ -565,10 +582,18 @@
           board.version = atom(child[1]);
           break;
 
+        case 'generator':
+          board.generator = atom(child[1]);
+          break;
+
         case 'nets': {
           // (nets N (net id "name") ...) — already handled by scanForNets
           break;
         }
+
+        case 'layers':
+          // regenerated from the fixed layer table on save — never preserve
+          break;
 
         case 'footprint':
         case 'module': {
@@ -615,11 +640,12 @@
         case 'gr_text': {
           var txt = parseText(child);
           if (txt) board.texts.push(txt);
+          else board.extra.push(child); // non-silk text: preserved verbatim
           break;
         }
 
         case 'gr_line': {
-          if (childLayer(child) !== 'Edge.Cuts') break;
+          if (childLayer(child) !== 'Edge.Cuts') { board.extra.push(child); break; }
           var gs = childAt(child, 'start');
           var ge = childAt(child, 'end');
           if (gs && ge) {
@@ -629,7 +655,7 @@
         }
 
         case 'gr_rect': {
-          if (childLayer(child) !== 'Edge.Cuts') break;
+          if (childLayer(child) !== 'Edge.Cuts') { board.extra.push(child); break; }
           var rs = childAt(child, 'start');
           var re = childAt(child, 'end');
           if (rs && re) {
@@ -646,7 +672,7 @@
         }
 
         case 'gr_arc': {
-          if (childLayer(child) !== 'Edge.Cuts') break;
+          if (childLayer(child) !== 'Edge.Cuts') { board.extra.push(child); break; }
           var as = childAt(child, 'start');
           var am = childAt(child, 'mid');
           var ae = childAt(child, 'end');
@@ -664,7 +690,7 @@
         }
 
         case 'gr_poly': {
-          if (childLayer(child) !== 'Edge.Cuts') break;
+          if (childLayer(child) !== 'Edge.Cuts') { board.extra.push(child); break; }
           var ptsNode = childAt(child, 'pts');
           if (ptsNode) {
             var pts = [];
@@ -680,7 +706,7 @@
         }
 
         case 'gr_circle': {
-          if (childLayer(child) !== 'Edge.Cuts') break;
+          if (childLayer(child) !== 'Edge.Cuts') { board.extra.push(child); break; }
           var ctr = childAt(child, 'center');
           var ce = childAt(child, 'end');
           if (ctr && ce) {
@@ -736,7 +762,11 @@
           }
           break;
         }
-        // everything else (images, dimensions, groups, ...) is ignored
+        default:
+          // Unsupported node (dimensions, setup/stackup, title_block, images,
+          // targets, curves, …): keep the raw subtree for lossless round trips.
+          board.extra.push(child);
+          break;
       }
     }
 
@@ -839,6 +869,10 @@
       node.push(padNode);
     }
 
+    // preserved unsupported nodes (fp_line, fp_text, model, attr, …)
+    var fpExtras = fp.extra || [];
+    for (var ei = 0; ei < fpExtras.length; ei++) node.push(fpExtras[ei]);
+
     return node;
   }
 
@@ -847,11 +881,16 @@
     var nets = (board.nets || []).slice().sort(function (a, b) { return a.id - b.id; });
     var netName = new Map(nets.map(function (n) { return [n.id, n.name === null || n.name === undefined ? '' : n.name]; }));
 
+    var extras = board.extra || [];
     var root = [
       'kicad_pcb',
       ['version', str(board.version || '20240108')],
-      ['generator', { q: 'kipad' }],
-      ['general', ['thickness', '1.6']],
+      ['generator', { q: str(board.generator || 'kipad') }]
+    ];
+    if (!hasExtraTag(extras, 'general')) {
+      root.push(['general', ['thickness', '1.6']]);
+    }
+    root.push(
       ['layers',
         ['0', { q: 'F.Cu' }, 'signal'],
         ['31', { q: 'B.Cu' }, 'signal'],
@@ -862,7 +901,7 @@
       ['nets', String(nets.length)].concat(nets.map(function (n) {
         return ['net', String(n.id), { q: str(n.name) }];
       }))
-    ];
+    );
 
     for (var i = 0; i < (board.footprints || []).length; i++) {
       root.push(serializeFootprint(board.footprints[i], netName));
@@ -949,6 +988,10 @@
           ['stroke', ['width', '0.1'], ['type', 'solid']]
         ]);
       }
+    }
+
+    for (var xi2 = 0; xi2 < extras.length; xi2++) {
+      if (isList(extras[xi2])) root.push(extras[xi2]);
     }
 
     return KipadSexpr.stringify(root);
