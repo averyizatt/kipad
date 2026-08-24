@@ -1,6 +1,5 @@
 /* Kipad — KiCad-like PCB editor for iPad. Main app, part 1: state, panels, tools, DRC/ERC, file IO. */
 'use strict';
-
   const B = window.KipadBoard;
   const R = window.KipadRender;
   const Pcb = window.KipadPcb;
@@ -51,6 +50,9 @@
   let currentTab = 'layers';
   let libQuery = '', symQuery = '';
   let libSel = null, symSel = null;
+
+  // selection tolerance in world mm that stays ~4 px on screen at any zoom
+  function pickTol(px) { return Math.max(0.2, (px || 4) / view.zoom); }
 
   // ---------- mode + schematic state ----------
   const Sch = window.KipadSchematic;
@@ -207,7 +209,10 @@
           render(); refreshLayers();
           return;
         }
-        if (l === 'F.Cu' || l === 'B.Cu') { layer = l; $('st-layer').textContent = l; }
+        if (l === 'F.Cu' || l === 'B.Cu') {
+          if (zonePts && tool === 'zone') { zonePts = null; setStatus('Layer switched — zone draft cancelled'); }
+          layer = l; $('st-layer').textContent = l;
+        }
         render(); refreshLayers();
       });
       el.appendChild(row);
@@ -526,4 +531,4 @@
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-[PART1_TAIL]
+

@@ -1,114 +1,5 @@
-if (prot) prot.addEventListener('change', e => {
-        pushUndo();
-        const a = parseFloat(e.target.value);
-        if (!isNaN(a)) { const d = ((a - fp.angle) % 360 + 360) % 360; B.rotateFootprint(board, fp.id, d); }
-        render();
-      });
-      const plyr = $('p-layer');
-      if (plyr) plyr.addEventListener('change', e => {
-        pushUndo();
-        fp.layer = e.target.value;
-        for (const p of fp.pads) {
-          const cu = p.layers[0];
-          p.layers[0] = fp.layer;
-          if (cu === 'F.Cu' || cu === 'B.Cu') p.layers = p.layers.map((l, i) => i === 0 ? fp.layer : (l === cu ? cu : l));
-          else p.layers = [fp.layer].concat(p.layers.filter(l => l !== 'F.Cu' && l !== 'B.Cu'));
-        }
-        render();
-      });
-      const rb = $('p-rot-btn');
-      if (rb) rb.addEventListener('click', () => { pushUndo(); B.rotateFootprint(board, fp.id, 90); refreshProps(); render(); });
-      const db = $('p-del-btn');
-      if (db) db.addEventListener('click', doDelete);
-      return;
-    }
-    const tr = board.tracks.find(t => t.id === selId);
-    if (tr) {
-      el.innerHTML = `<div class="prop-group"><h5>Track</h5>
-        <div class="prop-row"><label>Width</label><input id="p-w" value="${tr.width}"></div>
-        <div class="prop-row"><label>Layer</label><span>${tr.layer}</span></div>
-        <div class="prop-row"><label>Net</label><span>${esc(B.netName(board, tr.netId) || '—')}</span></div>
-        <div class="lib-actions"><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
-      const w = $('p-w');
-      if (w) w.addEventListener('change', e => {
-        const v = parseFloat(e.target.value);
-        if (!isNaN(v) && v > 0) { pushUndo(); tr.width = v; render(); }
-      });
-      const db = $('p-del-btn');
-      if (db) db.addEventListener('click', () => { pushUndo(); board.tracks = board.tracks.filter(t => t.id !== selId); selId = null; selKind = null; refreshProps(); render(); });
-      return;
-    }
-    const via = board.vias.find(v => v.id === selId);
-    if (via) {
-      el.innerHTML = `<div class="prop-group"><h5>Via</h5>
-        <div class="prop-row"><label>Size</label><input id="p-s" value="${via.size}"></div>
-        <div class="prop-row"><label>Drill</label><input id="p-d" value="${via.drill}"></div>
-        <div class="prop-row"><label>Net</label><span>${esc(B.netName(board, via.netId) || '—')}</span></div>
-        <div class="lib-actions"><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
-      const s = $('p-s'), d = $('p-d');
-      const apply = () => {
-        const sv = parseFloat(s.value), dv = parseFloat(d.value);
-        if (!isNaN(sv) && sv > 0) { pushUndo(); via.size = sv; }
-        if (!isNaN(dv) && dv > 0 && dv < via.size) { pushUndo(); via.drill = dv; }
-        render();
-      };
-      if (s) s.addEventListener('change', apply);
-      if (d) d.addEventListener('change', apply);
-      const db = $('p-del-btn');
-      if (db) db.addEventListener('click', () => { pushUndo(); board.vias = board.vias.filter(v => v.id !== selId); selId = null; selKind = null; refreshProps(); render(); });
-      return;
-    }
-    const txt = (board.texts || []).find(t => t.id === selId);
-    if (txt) {
-      el.innerHTML = `<div class="prop-group"><h5>Board Text</h5>
-        <div class="prop-row"><label>Text</label><input id="p-txt" value="${esc(txt.text)}"></div>
-        <div class="prop-row"><label>Layer</label><select id="p-tlayer"><option ${txt.layer==='F.SilkS'?'selected':''}>F.SilkS</option><option ${txt.layer==='B.SilkS'?'selected':''}>B.SilkS</option></select></div>
-        <div class="prop-row"><label>Height</label><input id="p-tsize" type="number" step="0.1" min="0.1" value="${txt.size}"><span class="u">mm</span></div>
-        <div class="prop-row"><label>Thickness</label><input id="p-tth" type="number" step="0.05" min="0.01" value="${txt.thickness}"><span class="u">mm</span></div>
-        <div class="prop-row"><label>Rotation</label><input id="p-tangle" type="number" step="1" value="${txt.angle}"><span class="u">°</span></div>
-        <div class="prop-row"><label>Align</label><select id="p-tjust"><option ${txt.justify==='left'?'selected':''}>left</option><option ${txt.justify==='center'?'selected':''}>center</option><option ${txt.justify==='right'?'selected':''}>right</option></select></div>
-        <div class="lib-actions"><button class="btn" id="p-rot-btn">Rotate 90°</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
-      const updateText = () => {
-        pushUndo();
-        txt.text = $('p-txt').value;
-        txt.layer = $('p-tlayer').value;
-        txt.size = Math.max(0.1, parseFloat($('p-tsize').value) || txt.size);
-        txt.thickness = Math.max(0.01, parseFloat($('p-tth').value) || txt.thickness);
-        txt.angle = ((parseFloat($('p-tangle').value) || 0) % 360 + 360) % 360;
-        txt.justify = $('p-tjust').value;
-        render();
-      };
-      ['p-txt','p-tlayer','p-tsize','p-tth','p-tangle','p-tjust'].forEach(id => $(id).addEventListener('change', updateText));
-      $('p-rot-btn').addEventListener('click', () => { pushUndo(); txt.angle = (txt.angle + 90) % 360; refreshProps(); render(); });
-      $('p-del-btn').addEventListener('click', doDelete);
-      return;
-    }
-    const zn = (board.zones || []).find(z => z.id === selId);
-    if (zn) {
-      const fill = zoneFills.get(zn.id);
-      el.innerHTML = `<div class="prop-group"><h5>Zone</h5>
-        <div class="prop-row"><label>Net</label><span>${esc(zn.net || '—')}</span></div>
-        <div class="prop-row"><label>Layer</label><span>${zn.layer}</span></div>
-        <div class="prop-row"><label>Clearance</label><input id="p-zcl" type="number" step="0.05" min="0" value="${zn.clearance != null ? zn.clearance : ''}" placeholder="net class"></div>
-        <div class="prop-row"><label>Filled area</label><span>${fill ? fill.area.toFixed(1) + ' mm²' : '—'}</span></div>
-        <div class="lib-actions"><button class="btn" id="p-zrefill">Refill</button><button class="btn danger" id="p-del-btn">Delete</button></div></div>`;
-      const zcl = $('p-zcl');
-      if (zcl) zcl.addEventListener('change', e => {
-        pushUndo();
-        const v = parseFloat(e.target.value);
-        if (isNaN(v)) delete zn.clearance; else zn.clearance = Math.max(0, v);
-        markZonesDirty(true);
-      });
-      const zr = $('p-zrefill');
-      if (zr) zr.addEventListener('click', () => { markZonesDirty(true); setStatus('Zones refilled'); });
-      const db = $('p-del-btn');
-      if (db) db.addEventListener('click', () => { pushUndo(); B.removeZone(board, zn.id); selId = null; selKind = null; refreshProps(); render(); });
-    }
-  }
-
-  function esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+/* Kipad main app, part 2: previews, tools, copper zones, actions, routing, outline drawing, DRC/ERC panels, save/open/export. */
+'use strict';
 
   // ---------- previews ----------
   function drawFpPreview(cv, fp) {
@@ -416,8 +307,215 @@ if (prot) prot.addEventListener('change', e => {
       else {
         pushUndo();
         const [x0, y0] = gfxStart, [x1, y1] = p;
-        board.outline.push([[x0, y0], [x1, y0], [x1, y1], [x0, y0]]);
+        board.outline.push([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]);
         outlinePts = null; gfxStart = null;
         render(); setStatus('Rectangle added to outline');
       }
     } else if (tool === 'circle') {
+      const r = Math.hypot(p[0] - gfxStart[0], p[1] - gfxStart[1]);
+      pushUndo();
+      const pts = [];
+      for (let i = 0; i <= 48; i++) {
+        const a = i / 48 * Math.PI * 2;
+        pts.push([gfxStart[0] + r * Math.cos(a), gfxStart[1] + r * Math.sin(a)]);
+      }
+      board.outline.push(pts);
+      outlinePts = null; gfxStart = null;
+      render(); setStatus('Circle added to outline');
+    } else if (tool === 'arc') {
+      if (outlinePts.length === 1) outlinePts.push(p);
+      else {
+        // 3-point arc through start, mid, end
+        pushUndo();
+        const a = outlinePts[0], b = outlinePts[1], c = p;
+        const pts = arcPolyline(a, b, c);
+        board.outline.push(pts);
+        outlinePts = null; gfxStart = null;
+        render(); setStatus('Arc added to outline');
+      }
+    }
+  }
+  function arcPolyline(a, b, c) {
+    // circle through 3 points, sample from a to c passing b
+    const ax = a[0], ay = a[1], bx = b[0], by = b[1], cx = c[0], cy = c[1];
+    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    if (Math.abs(d) < 1e-9) return [a, c];
+    const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+    const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+    const r = Math.hypot(ax - ux, ay - uy);
+    const a0 = Math.atan2(ay - uy, ax - ux);
+    const a1 = Math.atan2(by - uy, bx - ux);
+    const a2 = Math.atan2(cy - uy, cx - ux);
+    let sweep = a2 - a0;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    // check midpoint direction
+    let mid = a1 - a0;
+    while (mid < -Math.PI) mid += 2 * Math.PI;
+    while (mid > Math.PI) mid -= 2 * Math.PI;
+    if (Math.sign(mid) !== Math.sign(sweep)) sweep = (sweep > 0 ? sweep - 2 * Math.PI : sweep + 2 * Math.PI);
+    const n = 32;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const ang = a0 + sweep * i / n;
+      pts.push([ux + r * Math.cos(ang), uy + r * Math.sin(ang)]);
+    }
+    return pts;
+  }
+
+  // ---------- DRC ----------
+  let drcViolations = [];
+  function runDRC() {
+    const panel = $('drc-panel');
+    drcViolations = B.runDRC(board);
+    panel.classList.remove('hidden');
+    if (!drcViolations.length) {
+      panel.innerHTML = '<h4>DRC</h4><div class="drc-clear">✓ No violations — clearances, holes, edges, silkscreen all pass</div>';
+      return;
+    }
+    const errs = drcViolations.filter(v => v.severity !== 'warning').length;
+    const warns = drcViolations.length - errs;
+    panel.innerHTML = '<h4>DRC — ' + errs + ' error(s), ' + warns + ' warning(s)</h4>' +
+      drcViolations.slice(0, 40).map((v, i) =>
+        `<div class="drc-item${v.severity === 'warning' ? ' warn' : ''}" data-i="${i}">${esc(v.msg)} @${v.x},${v.y}</div>`
+      ).join('');
+    panel.querySelectorAll('.drc-item').forEach(el => el.addEventListener('click', () => {
+      const v = drcViolations[Number(el.dataset.i)];
+      if (!v) return;
+      view.x = v.x; view.y = v.y;   // centre canvas on the violation
+      render();
+      setStatus(v.msg);
+    }));
+  }
+
+  // ---------- ERC (schematic electrical rules check) ----------
+  function refreshErc() {
+    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol) : [];
+    ercDirty = false;
+    updateErcStatus();
+  }
+  function updateErcStatus() {
+    const el = $('st-erc');
+    if (!el || !Erc) return;
+    const c = Erc.counts(ercViolations);
+    el.textContent = 'ERC: ' + c.errors + ' error' + (c.errors === 1 ? '' : 's') + ', ' +
+      c.warnings + ' warning' + (c.warnings === 1 ? '' : 's');
+    el.classList.toggle('clean', c.errors === 0 && c.warnings === 0);
+    el.classList.toggle('dirty', c.errors + c.warnings > 0);
+  }
+  // centre the canvas on a violation and select its symbol (if any)
+  function ercLocate(v) {
+    if (!v) return;
+    if (v.symbolId) schSelId = v.symbolId;
+    view.x = v.x; view.y = v.y;    // w2s puts view.x/view.y at canvas centre
+    render(); refreshAll();
+    setStatus(v.code + ': ' + v.message);
+  }
+  function showErc() {
+    refreshErc();
+    const panel = $('erc-panel');
+    if (!panel || !Erc) return;
+    panel.classList.remove('hidden');
+    const c = Erc.counts(ercViolations);
+    if (!ercViolations.length) {
+      panel.innerHTML = '<div class="erc-head"><h4>ERC — Electrical Rules Check</h4><button class="erc-close" title="Close">✕</button></div>' +
+        '<div class="erc-summary">✓ No ERC violations</div>';
+    } else {
+      let html = '<div class="erc-head"><h4>ERC — Electrical Rules Check</h4><button class="erc-close" title="Close">✕</button></div>' +
+        '<div class="erc-summary">' + c.errors + ' error' + (c.errors === 1 ? '' : 's') + ', ' +
+        c.warnings + ' warning' + (c.warnings === 1 ? '' : 's') + '</div>';
+      let startedErr = false, startedWarn = false;
+      ercViolations.forEach((v, i) => {
+        if (v.severity === 'error' && !startedErr) { html += '<div class="erc-group-title">Errors</div>'; startedErr = true; }
+        if (v.severity === 'warning' && !startedWarn) { html += '<div class="erc-group-title">Warnings</div>'; startedWarn = true; }
+        html += `<div class="erc-item ${v.severity}" data-idx="${i}"><span class="erc-code">${v.code}</span><span class="erc-msg">${esc(v.message)}</span></div>`;
+      });
+      panel.innerHTML = html;
+      panel.querySelectorAll('.erc-item').forEach(row => row.addEventListener('click', () => {
+        const v = ercViolations[Number(row.dataset.idx)];
+        ercLocate(v);
+        panel.querySelectorAll('.erc-item').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+      }));
+    }
+    const close = panel.querySelector('.erc-close');
+    if (close) close.addEventListener('click', () => panel.classList.add('hidden'));
+  }
+
+  // ---------- save/open/export ----------
+  function doSave() {
+    if (!Pcb) { setStatus('kicad_pcb module not loaded'); return; }
+    const text = Pcb.serializeBoard(board);
+    download('kipad.kicad_pcb', text, 'application/x-kicad-pcb');
+    setStatus('Saved .kicad_pcb');
+  }
+  function doOpen(file) {
+    if (!Pcb) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        pushUndo();
+        board = Pcb.parseBoard(r.result);
+        B.ensureNetClasses(board);
+        if (!Array.isArray(board.zones)) board.zones = [];
+        if (!Array.isArray(board.texts)) board.texts = [];
+        selId = null; hiNet = null; route = null; outlinePts = null;
+        markZonesDirty(true);
+        render(); refreshAll(); setStatus('Opened ' + file.name);
+      } catch (e) { setStatus('Open failed: ' + e.message); }
+    };
+    r.readAsText(file);
+  }
+  function doGerber() {
+    if (!Gerber) { setStatus('Gerber module not loaded'); return; }
+    const out = Gerber.exportAll(board);
+    for (const [l, g] of Object.entries(out)) {
+      download(`kipad-${l.replace(/[^A-Za-z0-9]/g, '')}.gbr`, g, 'application/gerber');
+    }
+    setStatus('Gerber exported (F.Cu, B.Cu, Edge.Cuts)');
+  }
+  function doDrill() {
+    if (!Drill) { setStatus('Drill module not loaded'); return; }
+    const text = Drill.exportDrill(board);
+    if (!text) { setStatus('No holes to export'); return; }
+    download('kipad.drl', text, 'text/plain');
+    setStatus('Drill file exported (.drl)');
+  }
+  function download(name, text, mime) {
+    const blob = new Blob([text], { type: mime || 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  function doImport(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      const name = file.name;
+      try {
+        if (name.endsWith('.kicad_mod')) {
+          if (!KicadMod) { setStatus('kicad_mod importer not loaded'); return; }
+          const fp = KicadMod.parseKicadMod(r.result);
+          if (!fp) { setStatus('Import failed: bad .kicad_mod'); return; }
+          FPs.loadLibrary([fp]);
+          libSel = fp.name;
+          refreshLibrary();
+          setTool('footprint'); placeLib = fp.name; placeAngle = 0;
+          setStatus('Imported ' + fp.name + ' — tap to place');
+        } else if (name.endsWith('.kicad_sym')) {
+          if (!KicadSym || !Syms) { setStatus('symbol importer not loaded'); return; }
+          const syms = KicadSym.parseKicadSym(r.result);
+          if (!syms || !syms.length) { setStatus('Import failed: bad .kicad_sym'); return; }
+          Syms.loadLibrary(syms);
+          symSel = syms[0].name;
+          refreshSymbols();
+          setStatus('Imported ' + syms.length + ' symbol(s)');
+        } else {
+          doOpen(file);
+        }
+      } catch (e) { setStatus('Import failed: ' + e.message); }
+    };
+    r.readAsText(file);
+  }
+
