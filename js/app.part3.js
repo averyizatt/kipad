@@ -131,6 +131,7 @@
   function schOpen(file) {
     if (!Sch) return;
     const r = new FileReader();
+    r.onerror = () => setStatus('Could not read ' + file.name);
     r.onload = () => {
       try {
         schPushUndo();
