@@ -48,7 +48,7 @@
   }
 
   function schToolName() {
-    const m = { select: 'Select', symbol: 'Place Symbol', wire: 'Wire', label: 'Net Label', junction: 'Junction' };
+    const m = { select: 'Select', symbol: 'Place Symbol', wire: 'Wire', label: 'Net Label', junction: 'Junction', noconn: 'No Connect' };
     return m[schTool] || schTool;
   }
 
@@ -76,6 +76,13 @@
   }
 
   function schDoDelete() {
+    if (schSelNc) {
+      schPushUndo();
+      Sch.removeNoConnect(sch, schSelNc);
+      schSelNc = null;
+      render(); refreshAll();
+      return;
+    }
     if (!schSelId) return;
     schPushUndo();
     sch.symbols = sch.symbols.filter(s => s.id !== schSelId);
@@ -83,7 +90,7 @@
     render(); refreshAll();
   }
   function schDoRotate() {
-    if (!schSelId) return;
+    if (!schSelId || schSelNc) return;
     const s = sch.symbols.find(x => x.id === schSelId);
     if (!s) return;
     schPushUndo();
