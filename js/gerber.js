@@ -22,6 +22,9 @@
   var COORD_SCALE = 10000;        // 1e-4 mm units
   var FIRST_APERTURE = 10;        // D10, increment
   var EDGE_LINE_WIDTH = 0.15;     // mm, line aperture for Edge.Cuts
+  var SILK_LINE_WIDTH = 0.12;     // mm stroke for silkscreen graphics
+  var MASK_EXPANSION = 0.05;      // mm solder-mask opening growth per edge
+  var CIRCLE_SEGMENTS = 32;       // chord count for circle outlines
 
   /* ---- small helpers --------------------------------------------------- */
 
@@ -140,6 +143,213 @@
       fmtApertureSize(ap.size[0]) + 'X' + fmtApertureSize(ap.size[1]) + '*%';
   }
 
+  /* ---- generic image builder ------------------------------------------- */
+
+  // Assemble a standard RS-274X image: header, aperture definitions,
+  // flash operations ({apertureId, x, y}) and polyline draws
+  // ({apertureId, pts: [[x,y],...]}).
+  function buildImage(flashes, draws, apertureList) {
+    var out = [];
+    out.push('%FSLAX44Y44*%');
+    out.push('%MOMM*%');
+    out.push('%LPD*%');
+    for (var i = 0; i < apertureList.length; i++) {
+      out.push(apertureDefinition(apertureList[i]));
+    }
+    for (var f = 0; f < flashes.length; f++) {
+      var fl = flashes[f];
+      out.push(fl.apertureId + '*');
+      out.push('X' + fmtCoord(fl.x) + 'Y' + fmtCoord(fl.y) + 'D03*');
+    }
+    for (var d = 0; d < draws.length; d++) {
+      var dr = draws[d];
+      if (!dr.pts || dr.pts.length < 2) continue;
+      out.push(dr.apertureId + '*');
+      out.push('X' + fmtCoord(dr.pts[0][0]) + 'Y' + fmtCoord(dr.pts[0][1]) + 'D02*');
+      for (var p = 1; p < dr.pts.length; p++) {
+        out.push('X' + fmtCoord(dr.pts[p][0]) + 'Y' + fmtCoord(dr.pts[p][1]) + 'D01*');
+      }
+      out.push('D02*');
+    }
+    out.push('M02*');
+    return out.join('\n') + '\n';
+  }
+
+  // Copper-layer membership for a pad, tolerating '*.Cu' wildcards and an
+  // absent layer list (falls back to the footprint side). Mirrors the
+  // padOnLayer rule used by clearance/edge DRC.
+  function padOnCopper(pad, fp, cu) {
+    var L = (Array.isArray(pad.layers) && pad.layers.length) ? pad.layers : null;
+    if (!L) return (fp.layer === cu);
+    for (var i = 0; i < L.length; i++) {
+      if (L[i] === cu || L[i] === '*.Cu') return true;
+    }
+    return false;
+  }
+
+  function expand(size, by) {
+    return [size[0] + 2 * by, size[1] + 2 * by];
+  }
+
+  /* ---- solder mask ------------------------------------------------------ */
+
+  // Openings at every pad on this side (SMD + THT, '*.Cu'/'*.Mask'
+  // wildcards included), expanded by MASK_EXPANSION. Vias stay tented.
+  function exportMaskLayer(board, layer) {
+    var list = [];
+    var byKey = Object.create(null);
+    var nextId = FIRST_APERTURE;
+    var flashes = [];
+
+    var footprints = board.footprints || [];
+    for (var i = 0; i < footprints.length; i++) {
+      var fp = footprints[i];
+      var pads = fp.pads || [];
+      for (var j = 0; j < pads.length; j++) {
+        var pad = pads[j];
+        var L = (Array.isArray(pad.layers) && pad.layers.length) ? pad.layers : null;
+        var on;
+        if (!L) {
+          on = (fp.layer === layer.replace('Mask', 'Cu'));
+        } else {
+          on = false;
+          for (var k = 0; k < L.length; k++) {
+            if (L[k] === layer || L[k] === '*.Mask' || L[k] === '*.Cu') { on = true; break; }
+          }
+        }
+        if (!on) continue;
+        var params = padApertureParams(pad);
+        var size = expand(params.size, MASK_EXPANSION);
+        var key = apertureKey(params.shape, size, null);
+        var id = byKey[key];
+        if (id === undefined) {
+          id = 'D' + nextId;
+          nextId += 1;
+          byKey[key] = id;
+          list.push({ id: id, shape: params.shape, size: size, drill: null });
+        }
+        flashes.push({ apertureId: id, x: pad.at[0], y: pad.at[1] });
+      }
+    }
+    return buildImage(flashes, [], list);
+  }
+
+  /* ---- solder paste ----------------------------------------------------- */
+
+  // Stencil openings: SMD pads only (THT holes get no paste), same shape
+  // and size as the copper aperture.
+  function exportPasteLayer(board, layer) {
+    var list = [];
+    var byKey = Object.create(null);
+    var nextId = FIRST_APERTURE;
+    var flashes = [];
+
+    var footprints = board.footprints || [];
+    for (var i = 0; i < footprints.length; i++) {
+      var fp = footprints[i];
+      var pads = fp.pads || [];
+      for (var j = 0; j < pads.length; j++) {
+        var pad = pads[j];
+        if (pad.type === 'tht' || pad.type === 'npth') continue;
+        var L = (Array.isArray(pad.layers) && pad.layers.length) ? pad.layers : null;
+        var on;
+        if (!L) {
+          on = (fp.layer === layer.replace('Paste', 'Cu'));
+        } else {
+          on = false;
+          for (var k = 0; k < L.length; k++) {
+            if (L[k] === layer || L[k] === '*.Paste') { on = true; break; }
+          }
+        }
+        if (!on) continue;
+        var params = padApertureParams(pad);
+        var key = apertureKey(params.shape, params.size, null);
+        var id = byKey[key];
+        if (id === undefined) {
+          id = 'D' + nextId;
+          nextId += 1;
+          byKey[key] = id;
+          list.push({ id: id, shape: params.shape, size: params.size, drill: null });
+        }
+        flashes.push({ apertureId: id, x: pad.at[0], y: pad.at[1] });
+      }
+    }
+    return buildImage(flashes, [], list);
+  }
+
+  /* ---- silkscreen -------------------------------------------------------- */
+
+  // Rotate a footprint-local point into world coordinates (same transform
+  // as the canvas renderer: rotation about the footprint origin, no
+  // mirroring — the model never mirrors local geometry on side flips).
+  function fpToWorld(fp, p) {
+    var dx = p[0], dy = p[1];
+    if (!fp.angle) return [fp.at[0] + dx, fp.at[1] + dy];
+    var r = fp.angle * Math.PI / 180;
+    var c = Math.cos(r), s = Math.sin(r);
+    return [fp.at[0] + dx * c - dy * s, fp.at[1] + dx * s + dy * c];
+  }
+
+  // Art items carry F./B.-prefixed layers; a part placed on the back shows
+  // its art on the back silk (the flip tool swaps pad layers explicitly but
+  // leaves stored art labels alone, so derive the effective layer here).
+  function effectiveArtLayer(fp, raw) {
+    var layer = raw || 'F.SilkS';
+    if (fp.layer === 'B.Cu') {
+      if (layer === 'F.SilkS') return 'B.SilkS';
+      if (layer === 'B.SilkS') return 'F.SilkS';
+    }
+    return layer;
+  }
+
+  function circlePoly(cx, cy, r) {
+    var pts = [];
+    for (var i = 0; i <= CIRCLE_SEGMENTS; i++) {
+      var a = 2 * Math.PI * i / CIRCLE_SEGMENTS;
+      pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  function rectPoly(start, end) {
+    var x0 = Math.min(start[0], end[0]), y0 = Math.min(start[1], end[1]);
+    var x1 = Math.max(start[0], end[0]), y1 = Math.max(start[1], end[1]);
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+  }
+
+  // Silkscreen graphics: footprints' silk art (library defs resolved through
+  // the optional getFootprint(name) callback, falling back to art stored on
+  // the placed instance) drawn as fixed-width strokes. Text items are
+  // skipped — vector font stroking is not implemented yet.
+  function exportSilkLayer(board, layer, getFootprint) {
+    var list = [{ id: 'D' + FIRST_APERTURE, shape: 'C', size: [SILK_LINE_WIDTH, SILK_LINE_WIDTH], drill: null }];
+    var strokeId = 'D' + FIRST_APERTURE;
+    var draws = [];
+
+    var footprints = board.footprints || [];
+    for (var i = 0; i < footprints.length; i++) {
+      var fp = footprints[i];
+      var lib = (typeof getFootprint === 'function') ? getFootprint(fp.lib) : null;
+      var items = (lib && lib.silk && lib.silk.length) ? lib.silk : (fp.silk || []);
+      for (var j = 0; j < items.length; j++) {
+        var s = items[j];
+        if (effectiveArtLayer(fp, s.layer) !== layer) continue;
+        if (s.type === 'line' && Array.isArray(s.pts) && s.pts.length >= 2) {
+          var pts = [];
+          for (var k = 0; k < s.pts.length; k++) pts.push(fpToWorld(fp, s.pts[k]));
+          draws.push({ apertureId: strokeId, pts: pts });
+        } else if (s.type === 'rect' && s.start && s.end) {
+          draws.push({ apertureId: strokeId, pts: rectPoly(s.start, s.end).map(function (p) { return fpToWorld(fp, p); }) });
+        } else if (s.type === 'circle' && s.at && s.r > 0) {
+          var centre = fpToWorld(fp, s.at);
+          draws.push({ apertureId: strokeId, pts: circlePoly(centre[0], centre[1], s.r) });
+        }
+        // 'text' and unknown types: skipped (no vector stroking yet)
+      }
+    }
+    return buildImage([], draws, list);
+  }
+
   /* ---- layer export ----------------------------------------------------- */
 
   function exportLayer(board, layer) {
@@ -198,11 +408,17 @@
     return out.join('\n') + '\n';
   }
 
-  function exportAll(board) {
+  function exportAll(board, getFootprint) {
     return {
       'F.Cu': exportLayer(board, 'F.Cu'),
       'B.Cu': exportLayer(board, 'B.Cu'),
-      'Edge.Cuts': exportLayer(board, 'Edge.Cuts')
+      'Edge.Cuts': exportLayer(board, 'Edge.Cuts'),
+      'F.SilkS': exportSilkLayer(board, 'F.SilkS', getFootprint),
+      'B.SilkS': exportSilkLayer(board, 'B.SilkS', getFootprint),
+      'F.Mask': exportMaskLayer(board, 'F.Mask'),
+      'B.Mask': exportMaskLayer(board, 'B.Mask'),
+      'F.Paste': exportPasteLayer(board, 'F.Paste'),
+      'B.Paste': exportPasteLayer(board, 'B.Paste')
     };
   }
 
@@ -225,6 +441,9 @@
   return {
     exportLayer: exportLayer,
     exportAll: exportAll,
-    getApertures: getApertures
+    getApertures: getApertures,
+    exportMaskLayer: exportMaskLayer,
+    exportPasteLayer: exportPasteLayer,
+    exportSilkLayer: exportSilkLayer
   };
 });

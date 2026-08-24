@@ -17,6 +17,24 @@
     const ercPanel = $('erc-panel');
     if (ercPanel && m !== 'schematic') ercPanel.classList.add('hidden');
     setTool('select');
+    applyPanelHidden();
+    resize();
+  }
+
+  // ---------- collapsible side panel (per-mode, remembered) ----------
+  function applyPanelHidden() {
+    const hid = mode !== 'launcher' && localStorage.getItem('kipad.panel.hidden.' + mode) === '1';
+    $('main').classList.toggle('panel-hidden', hid);
+    const col = $('panel-collapse');
+    if (col) col.classList.toggle('hidden', mode === 'launcher');
+    const res = $('panel-restore');
+    if (res) res.classList.toggle('hidden', !hid);
+  }
+  function togglePanelHidden() {
+    if (mode === 'launcher') return;
+    const key = 'kipad.panel.hidden.' + mode;
+    localStorage.setItem(key, localStorage.getItem(key) === '1' ? '0' : '1');
+    applyPanelHidden();
     resize();
   }
 

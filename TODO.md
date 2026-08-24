@@ -4,6 +4,16 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Milestones
 
+- [x] Collapsible side panel (schematic + PCB editors) — 2026-08-24
+  - [x] Edge handle hides the right panel, floating ‹ restore tab brings it back; state remembered per mode via localStorage (`kipad.panel.hidden.<mode>`) — 2026-08-24
+  - [x] View → Show/Hide Side Panel toggle in both editors' menus — 2026-08-24
+- [x] Library separation: dedicated Symbol Editor + Footprint Editor — 2026-08-24
+  - [x] Serializers: `serializeKicadSym` (js/kicad_sym.js) + `serializeKicadMod` (js/kicad_mod.js) — model → KiCad sexpr text, round-trippable through the existing parsers — 2026-08-24
+  - [x] `js/editors.js`: full-screen overlay editor shared by both kinds — filterable item list, interactive canvas (mm grid, pan / pinch / wheel zoom, tap-select pin/pad, drag-move snapped 1.27 mm for pins / 0.5 mm for pads), property tables: pins (number/name/X/Y/dir/length/electrical type) and pads (number/X/Y/W/H/drill/type smd-tht-npth/shape) with layer presets + drill↔type coupling, Auto-courtyard (pads+silk bounds + 0.25 mm), New / Import / Export — 2026-08-24
+  - [x] Custom library persistence: Save upserts the live registry AND localStorage (`kipad.lib.custom.symbols.v1` / `.footprints.v1`, replace-by-name, rename-safe); customs merged over built-ins at boot (`leMergeCustomLibs` in loadLibraries) so edited parts shadow their stock versions everywhere — 2026-08-24
+  - [x] Launch points: project-manager tiles (Symbols / Footprints), launcher Tools menu, schematic Tools → Open Symbol Editor…, PCB Tools → Open Footprint Editor… — 2026-08-24
+  - [x] Distinction polish: PCB side tab renamed "Library" → "Footprints"; PCB/schematic help text updated — 2026-08-24
+  - [x] test/test_editors.js (10 checks: symbol props/pins/graphics round trip, second-cycle stability, empty symbol, footprint header/pads/silk/courtyard round trip, oval+npth mappings) · cache-bust v39→v40 / sw kipad-v34 — 2026-08-24
 - [x] ERC (Electrical Rules Check) for the schematic editor — 2026-08-23
   - [x] Model: `js/erc.js` (KipadErc) — 7 checks: UNCONNECTED_PIN, SINGLE_PIN_NET, DUPLICATE_REF, MISSING_REF, MISSING_VALUE, LABEL_CONFLICT, DANGLING_WIRE; power-pin (GND/VCC) + no_connect exemptions; topology shared with netlist via `KipadSchematic.connectivity()` — 2026-08-23
   - [x] UI: Inspect → Electrical Rules Check… + toolbar ERC button, floating panel grouped by severity with counts, tap row to locate (centre + select symbol), status-bar "ERC: N errors, M warnings" indicator in schematic mode — 2026-08-23

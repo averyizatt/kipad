@@ -590,6 +590,10 @@
   wire('launch-calc2', showCalc);
   wire('launch-bitmap', showBitmapConv);
   wire('launch-pcm', showPlugins);
+  wire('launch-symed', () => showLibEditor('symbol'));
+  wire('launch-fped', () => showLibEditor('footprint'));
+  wire('panel-collapse', togglePanelHidden);
+  wire('panel-restore', togglePanelHidden);
   $('tool-highlight').addEventListener('click', () => setTool('highlight'));
   $('tool-footprint').addEventListener('click', () => setTool('footprint'));
   $('tool-track').addEventListener('click', () => setTool('track'));
@@ -643,6 +647,8 @@
         ['Grid: ' + grid + ' mm', cycleGrid, 'G']
       ],
       tools: [
+        ['Symbol Editor…', () => showLibEditor('symbol'), ''],
+        ['Footprint Editor…', () => showLibEditor('footprint'), ''],
         ['Plugin and Content Manager…', showPlugins, '']
       ],
       help: [
@@ -670,7 +676,8 @@
         ['Zoom out', () => $('btn-zoomout').click(), ''],
         ['Zoom to fit', zoomFit, ''],
         ['Grid: ' + grid + ' mm', cycleGrid, 'G'],
-        ['ERC markers: ' + (showErcMarkers ? 'on' : 'off'), toggleErcMarkers, '']
+        ['ERC markers: ' + (showErcMarkers ? 'on' : 'off'), toggleErcMarkers, ''],
+        [$('main').classList.contains('panel-hidden') ? 'Show Side Panel' : 'Hide Side Panel', togglePanelHidden, '']
       ],
       place: [
         ['Symbol…', () => { setTab('symbols'); setSchTool('symbol'); }, 'S'],
@@ -686,8 +693,9 @@
         ['Measure', () => setSchTool('select'), 'M']
       ],
       tools: [
-        ['Plugin and Content Manager…', showPlugins, ''],
-        ['Switch to PCB Editor', () => setMode('pcb'), '']
+        ['Open Symbol Editor…', () => showLibEditor('symbol'), ''],
+        ['Switch to PCB Editor', () => setMode('pcb'), ''],
+        ['Plugin and Content Manager…', showPlugins, '']
       ],
       help: [
         ['How to use', showSchHelp, ''],
@@ -717,7 +725,8 @@
         ['Zoom to fit', zoomFit, ''],
         ['Grid: ' + grid + ' mm', cycleGrid, 'G'],
         ['Ratsnest: ' + (showRats ? 'on' : 'off'), () => $('btn-rats').click(), 'N'],
-        ['Layer: ' + layer, switchLayer, 'L']
+        ['Layer: ' + layer, switchLayer, 'L'],
+        [$('main').classList.contains('panel-hidden') ? 'Show Side Panel' : 'Hide Side Panel', togglePanelHidden, '']
       ],
       place: [
         ['Footprint…', () => { setTab('library'); setTool('footprint'); }, 'F'],
@@ -736,6 +745,7 @@
         ['Measure', () => setTool('measure'), 'M']
       ],
       tools: [
+        ['Open Footprint Editor…', () => showLibEditor('footprint'), ''],
         ['Plugin and Content Manager…', showPlugins, '']
       ],
       help: [
@@ -804,7 +814,8 @@
       T Text — place editable text on F.SilkS/B.SilkS; select it to edit content, size, stroke, rotation, alignment or layer<br>
       ╲ ▭ ◯ ◠ — draw line / rectangle / circle / arc on the board outline (Edge.Cuts)<br>
       📏 Measure — tap two points to read distance<br><br>
-      <b>Right panel</b>: Layers (visibility + active layer) · Library (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection)<br><br>
+      <b>Right panel</b>: Layers (visibility + active layer) · Footprints (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection). The panel can be collapsed with the handle on its edge (View → Hide Side Panel).<br><br>
+      <b>Library editors</b>: Project manager → Symbols / Footprints tiles (or Tools menu) open full editors — edit pins & pads on canvas or in tables, New/Import/Export .kicad_sym/.kicad_mod, Save keeps custom items across reloads.<br>
       <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate · W width · E properties · arrows nudge selection · Del delete · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
       <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
@@ -894,7 +905,10 @@
         });
       }).catch(() => {}));
     }
-    Promise.all(jobs).then(() => { refreshLibrary(); refreshSymbols(); });
+    Promise.all(jobs).then(() => {
+      if (typeof leMergeCustomLibs === 'function') leMergeCustomLibs();
+      refreshLibrary(); refreshSymbols();
+    });
   }
 
   // ---------- init ----------

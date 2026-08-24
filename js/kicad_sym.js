@@ -364,5 +364,97 @@
     return out;
   }
 
-  return { parseKicadSym: parseKicadSym };
+  // ------------------------------------------------------------------
+  // serializer (Kipad model -> kicad_symbol_lib sexpr text)
+  // ------------------------------------------------------------------
+
+  function rnd(v) {
+    var n = typeof v === 'string' ? parseFloat(v) : v;
+    if (!isFinite(n)) n = 0;
+    n = Math.round(n * 1e4) / 1e4;
+    return Object.is(n, -0) ? 0 : n;
+  }
+
+  function q(s) { return { q: String(s == null ? '' : s) }; }
+
+  function symProp(key, val) {
+    return ['property', q(key), q(val == null ? '' : val),
+      ['at', 0, 0, 0],
+      ['effects', ['font', ['size', 1.27, 1.27]]]];
+  }
+
+  function graphicNode(g) {
+    if (!g || !g.type) return null;
+    var deco = [['stroke', ['width', 0.254], ['type', 'default']], ['fill', ['type', 'none']]];
+    if (g.type === 'rect') {
+      return [['rectangle', ['start', rnd(g.start[0]), rnd(g.start[1])],
+        ['end', rnd(g.end[0]), rnd(g.end[1])]].concat(deco)];
+    }
+    if (g.type === 'circle') {
+      return [['circle', ['center', rnd(g.center[0]), rnd(g.center[1])],
+        ['radius', rnd(g.r)]].concat(deco)];
+    }
+    if (g.type === 'polyline') {
+      var pl = ['polyline', ['pts']];
+      for (var i = 0; i < (g.pts || []).length; i++) {
+        pl[1].push(['xy', rnd(g.pts[i][0]), rnd(g.pts[i][1])]);
+      }
+      return [pl.concat(deco)];
+    }
+    if (g.type === 'arc') {
+      return [['arc', ['start', rnd(g.start[0]), rnd(g.start[1])],
+        ['mid', rnd(g.mid[0]), rnd(g.mid[1])],
+        ['end', rnd(g.end[0]), rnd(g.end[1])]].concat(deco)];
+    }
+    if (g.type === 'text') {
+      var sz = rnd(g.size || 1.27);
+      var at = ['at', rnd(g.at[0]), rnd(g.at[1])];
+      if (g.angle) at.push(rnd(g.angle));
+      return [['text', q(g.text || ''), at,
+        ['effects', ['font', ['size', sz, sz]]]]];
+    }
+    return null;
+  }
+
+  function pinNode(p) {
+    var type = p.type && PIN_TYPES[p.type] ? p.type : 'passive';
+    var ang = rnd(p.angle || 0);
+    return ['pin', type, 'line',
+      ['at', rnd(p.at[0]), rnd(p.at[1]), ang],
+      ['length', rnd(p.length || 2.54)],
+      ['name', q(p.name || '')],
+      ['number', q(p.number || '')]];
+  }
+
+  /**
+   * serializeKicadSym(sym) -> text of a one-symbol kicad_symbol_lib,
+   * round-trippable through parseKicadSym.
+   */
+  function serializeKicadSym(sym) {
+    var s = sym || {};
+    var name = String(s.name || 'SYMBOL');
+    var node = ['symbol', q(name)];
+    node.push(symProp('Reference', s.ref || 'U'));
+    node.push(symProp('Value', s.value != null && s.value !== '' ? s.value : name));
+    node.push(symProp('Footprint', s.footprint || ''));
+    node.push(symProp('Datasheet', ''));
+    if (s.desc) node.push(symProp('Description', s.desc));
+
+    var unitGfx = ['symbol', q(name + '_0_1')];
+    var g = s.graphics || [];
+    for (var i = 0; i < g.length; i++) {
+      var gn = graphicNode(g[i]);
+      if (gn) for (var k = 0; k < gn.length; k++) unitGfx.push(gn[k]);
+    }
+    if (unitGfx.length > 1) node.push(unitGfx);
+
+    var unitPins = ['symbol', q(name + '_1_1')];
+    var pins = s.pins || [];
+    for (var j = 0; j < pins.length; j++) unitPins.push(pinNode(pins[j]));
+    if (unitPins.length > 1) node.push(unitPins);
+
+    return KipadSexpr.stringify(['kicad_symbol_lib', ['version', 20241209], ['generator', q('kipad')], node]) + '\n';
+  }
+
+  return { parseKicadSym: parseKicadSym, serializeKicadSym: serializeKicadSym };
 });

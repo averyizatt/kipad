@@ -10,10 +10,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kipad">
-<link rel="manifest" href="manifest.webmanifest?v=39">
-<link rel="icon" href="icon.svg?v=39" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-180.png?v=39">
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="manifest" href="manifest.webmanifest?v=40">
+<link rel="icon" href="icon.svg?v=40" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=40">
+<link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
 <div id="app">
@@ -87,6 +87,16 @@
             <img src="icons/icon_pcbcalculator_128.png" alt="">
             <b>PCB Calculator</b>
             <span class="desc">Track width, impedance…</span>
+          </button>
+          <button class="pm-app" id="launch-symed">
+            <img src="icons/symbol.png" alt="">
+            <b>Symbols</b>
+            <span class="desc">Symbol library editor</span>
+          </button>
+          <button class="pm-app" id="launch-fped">
+            <img src="icons/module_editor.png" alt="">
+            <b>Footprints</b>
+            <span class="desc">Footprint library editor</span>
           </button>
         </div>
         <p class="desc" style="margin-top:14px">Tip: draw a schematic first, then <b>Update PCB from Schematic</b>.</p>
@@ -162,6 +172,7 @@
 
     <section id="canvas-wrap">
       <canvas id="canvas"></canvas>
+      <button id="panel-restore" class="hidden" title="Show side panel">‹</button>
       <div id="hud">
         <span id="hud-pos">0.000, 0.000 mm</span>
         <span id="hud-zoom">100%</span>
@@ -174,9 +185,10 @@
     </section>
 
     <aside id="panel">
+      <button id="panel-collapse" title="Hide side panel">›</button>
       <div id="tabs">
         <button class="tab active pcb-only" data-tab="layers">Layers</button>
-        <button class="tab pcb-only" data-tab="library">Library</button>
+        <button class="tab pcb-only" data-tab="library">Footprints</button>
         <button class="tab sch-only" data-tab="symbols">Symbols</button>
         <button class="tab pcb-only" data-tab="nets">Nets</button>
         <button class="tab pcb-only" data-tab="props">Properties</button>
@@ -217,28 +229,29 @@
 <input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
-<script src="js/sexpr.js?v=39"></script>
-<script src="js/footprints.js?v=39"></script>
-<script src="js/kicad_pcb.js?v=39"></script>
-<script src="js/gerber.js?v=39"></script>
-<script src="js/gerber_viewer.js?v=39"></script>
-<script src="js/drill.js?v=39"></script>
-<script src="js/pos.js?v=39"></script>
-<script src="js/bom.js?v=39"></script>
-<script src="js/board.js?v=39"></script>
-<script src="js/render.js?v=39"></script>
-<script src="js/kicad_mod.js?v=39"></script>
-<script src="js/kicad_sym.js?v=39"></script>
-<script src="js/symbols.js?v=39"></script>
-<script src="js/schematic.js?v=39"></script>
-<script src="js/erc.js?v=39"></script>
-<script src="js/gestures.js?v=39"></script>
-<script src="js/calculators.js?v=39"></script>
-<script src="js/keys.js?v=39"></script>
-<script src="js/zones.js?v=39"></script>
-<script src="js/app.part1.js?v=39"></script>
-<script src="js/app.part2.js?v=39"></script>
-    <script src="js/app.part3.js?v=39"></script>
-    <script src="js/app.part4.js?v=39"></script>
+<script src="js/sexpr.js?v=40"></script>
+<script src="js/footprints.js?v=40"></script>
+<script src="js/kicad_pcb.js?v=40"></script>
+<script src="js/gerber.js?v=40"></script>
+<script src="js/gerber_viewer.js?v=40"></script>
+<script src="js/drill.js?v=40"></script>
+<script src="js/pos.js?v=40"></script>
+<script src="js/bom.js?v=40"></script>
+<script src="js/board.js?v=40"></script>
+<script src="js/render.js?v=40"></script>
+<script src="js/kicad_mod.js?v=40"></script>
+<script src="js/kicad_sym.js?v=40"></script>
+<script src="js/symbols.js?v=40"></script>
+<script src="js/schematic.js?v=40"></script>
+<script src="js/erc.js?v=40"></script>
+<script src="js/gestures.js?v=40"></script>
+<script src="js/calculators.js?v=40"></script>
+<script src="js/keys.js?v=40"></script>
+<script src="js/zones.js?v=40"></script>
+<script src="js/editors.js?v=40"></script>
+<script src="js/app.part1.js?v=40"></script>
+<script src="js/app.part2.js?v=40"></script>
+    <script src="js/app.part3.js?v=40"></script>
+    <script src="js/app.part4.js?v=40"></script>
 </body>
 </html>

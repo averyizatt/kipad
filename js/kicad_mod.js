@@ -412,5 +412,99 @@
       courtyard: courtyardFrom(parsed, pads), pads: pads, silk: silk
     };
   }
-  return { parseKicadMod: parseKicadMod };
+  // ------------------------------------------------------------------
+  // serializer (Kipad model -> module/footprint sexpr text)
+  // ------------------------------------------------------------------
+
+  function rnd(v) {
+    var n = typeof v === 'string' ? parseFloat(v) : v;
+    if (!isFinite(n)) n = 0;
+    n = Math.round(n * 1e4) / 1e4;
+    return Object.is(n, -0) ? 0 : n;
+  }
+
+  function q(s) { return { q: String(s == null ? '' : s) }; }
+
+  function padNode(p) {
+    var type = p.type === 'tht' ? 'thru_hole' : (p.type === 'npth' ? 'np_thru_hole' : 'smd');
+    var shape = p.shape === 'obround' ? 'oval' : String(p.shape || 'rect');
+    var at = ['at', rnd(p.at[0]), rnd(p.at[1])];
+    if (p.angle) at.push(rnd(p.angle));
+    var node = ['pad', q(String(p.number == null ? '' : p.number)), type, shape,
+      at, ['size', rnd(p.size[0]), rnd(p.size[1])]];
+    if (type !== 'smd' && p.drill) node.push(['drill', rnd(p.drill)]);
+    if (shape === 'roundrect') node.push(['roundrect_rratio', 0.25]);
+    var layers = (p.layers && p.layers.length) ? p.layers :
+      (type === 'smd' ? ['F.Cu', 'F.Paste', 'F.Mask'] : ['*.Cu', '*.Mask']);
+    node.push(['layers'].concat(layers.map(q)));
+    return node;
+  }
+
+  function silkNode(s) {
+    if (!s) return [];
+    if (s.type === 'line' && s.pts && s.pts.length >= 2) {
+      return [['fp_line', ['start', rnd(s.pts[0][0]), rnd(s.pts[0][1])],
+        ['end', rnd(s.pts[1][0]), rnd(s.pts[1][1])],
+        ['layer', q('F.SilkS')], ['width', 0.12]]];
+    }
+    if (s.type === 'circle') {
+      return [['fp_circle', ['center', rnd(s.at[0]), rnd(s.at[1])],
+        ['end', rnd(s.at[0] + s.r), rnd(s.at[1])],
+        ['layer', q('F.SilkS')], ['width', 0.12]]];
+    }
+    if (s.type === 'rect') {
+      var x0 = Math.min(s.start[0], s.end[0]), y0 = Math.min(s.start[1], s.end[1]);
+      var x1 = Math.max(s.start[0], s.end[0]), y1 = Math.max(s.start[1], s.end[1]);
+      return [
+        ['fp_line', ['start', rnd(x0), rnd(y0)], ['end', rnd(x1), rnd(y0)], ['layer', q('F.SilkS')], ['width', 0.12]],
+        ['fp_line', ['start', rnd(x1), rnd(y0)], ['end', rnd(x1), rnd(y1)], ['layer', q('F.SilkS')], ['width', 0.12]],
+        ['fp_line', ['start', rnd(x1), rnd(y1)], ['end', rnd(x0), rnd(y1)], ['layer', q('F.SilkS')], ['width', 0.12]],
+        ['fp_line', ['start', rnd(x0), rnd(y1)], ['end', rnd(x0), rnd(y0)], ['layer', q('F.SilkS')], ['width', 0.12]]
+      ];
+    }
+    if (s.type === 'text') {
+      var sz = rnd(s.size || 1);
+      return [['fp_text', 'user', q(s.text || ''), ['at', rnd(s.at[0]), rnd(s.at[1])],
+        ['layer', q('F.SilkS')], ['effects', ['font', ['size', sz, sz]]]]];
+    }
+    return [];
+  }
+
+  /**
+   * serializeKicadMod(fp) -> text of a one-footprint .kicad_mod,
+   * round-trippable through parseKicadMod.
+   */
+  function serializeKicadMod(fp) {
+    var f = fp || {};
+    var name = String(f.name || 'FOOTPRINT');
+    var root = ['module', q(name)];
+    root.push(['layer', q('F.Cu')]);
+    root.push(['tedit', '00000000']);
+    if (f.desc) root.push(['descr', q(String(f.desc))]);
+
+    var silk = f.silk || [];
+    for (var i = 0; i < silk.length; i++) {
+      var nodes = silkNode(silk[i]);
+      for (var k = 0; k < nodes.length; k++) root.push(nodes[k]);
+    }
+
+    if (f.courtyard && f.courtyard.min && f.courtyard.max) {
+      var x0 = rnd(f.courtyard.min[0]), y0 = rnd(f.courtyard.min[1]);
+      var x1 = rnd(f.courtyard.max[0]), y1 = rnd(f.courtyard.max[1]);
+      var crd = [
+        [x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]
+      ];
+      for (var c = 0; c < crd.length; c++) {
+        root.push(['fp_line', ['start', crd[c][0], crd[c][1]], ['end', crd[c][2], crd[c][3]],
+          ['layer', q('F.CrtYd')], ['width', 0.05]]);
+      }
+    }
+
+    var pads = f.pads || [];
+    for (var j = 0; j < pads.length; j++) root.push(padNode(pads[j]));
+
+    return KipadSexpr.stringify(root) + '\n';
+  }
+
+  return { parseKicadMod: parseKicadMod, serializeKicadMod: serializeKicadMod };
 });
