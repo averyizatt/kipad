@@ -113,7 +113,7 @@ Project state file. Update after every iteration. Completed items are checked of
   - [x] Two-finger tap = Undo on both canvases (iPadOS gesture): pure `KipadGestures.twoFingerTap()` recognizer (`js/gestures.js`) wired into the shared pointer handlers via the same undo path as Ctrl+Z; pinch/drag/3-finger/cancel all disambiguated — 2026-08-24
   - [x] Schematic multi-touch guard: second+ fingers no longer fire `schPointerDown` (pinching no longer places symbols / adds wire points) — 2026-08-24
   - [x] Apple Pencil tilt/eraser: live altitude in HUD (native altitude/azimuth with tilt fallback); standard eraser-end Pointer Events delete the item under the tip in PCB and schematic modes through normal undoable delete paths — 2026-08-24
-  - [ ] Haptics: iPadOS Safari does not expose `navigator.vibrate`; retain as pending until a viable web API or native wrapper exists
+  - [ ] Haptics: iPadOS Safari does not expose `navigator.vibrate`; retain as pending until a viable web API or native wrapper exists (re-verified 2026-08-25: still unsupported in all iPadOS browsers — WebKit-only engine, WebKit impl request still open; WKWebView native bridge would be the only path)
 
 ## Recurring rules (from Avery)
 

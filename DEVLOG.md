@@ -557,3 +557,6 @@ The blocker recorded at defer time was touch disambiguation vs drag-pan. Resolut
 - render.js: dashed #04ff43 + 8% fill rect drawn from state.box in screen space (matches selection green).
 - Tests: test_multisel.js +22 checks. First draft had 4 expectation bugs on the shared fixture board — T1's endpoint legitimately sits in the pad-overlap rect, Z1's huge bbox overlaps nearly every rect, V1 sits inside the crossing band — the collector was right each time; assertions rewritten to match real geometry. Full suite 43/43 green; node --check clean on all touched files.
 - Cache: index.html ?v=56→v57 (36 refs), sw CACHE kipad-v50→kipad-v51.
+
+## 2026-08-25 ~04:46 UTC — autonomous run: queue empty, haptics blocker re-verified
+TODO audit found no actionable unchecked item: every milestone/queue entry is complete except the iPad-haptics sub-item, which is gated on a viable web API. External check (caniuse + WebKit bug tracker, Aug 2026): navigator.vibrate still unsupported on iOS/iPadOS Safari — and since all iOS browsers are WebKit, no alternative engine exists; Gamepad.vibrationActuator drives controllers only; a WKWebView native bridge (UIImpactFeedbackGenerator) would be the only viable path. Blocker stands; TODO line annotated with the re-verification date. No code changes this run.
