@@ -47,6 +47,9 @@
   let layerVis = {};          // layer -> bool (undefined = visible)
   let undoStack = [], redoStack = [];
   let dragging = null;        // {fpId, dx, dy} or {pan}
+  let boxSel = null;          // rubber-band select rect {a:[wx,wy], b:[wx,wy]} while dragging.box
+  let boxPending = null;      // touch long-press gate {px, py, additive} before the band arms
+  let boxTimer = null;        // setTimeout handle for the long-press gate
   let pinchDist = null;
   let panning = false, lastPan = null;
   let pointers = new Map();
@@ -187,6 +190,7 @@
       grid,
       route: route ? { ...route, cursor: routeCursor, posture: routePosture } : null,
       measure: measureA ? { a: measureA, b: measureB, cur: measureCur } : null,
+      box: boxSel,
       zoneDraft: (tool === 'zone' && zonePts) ? zonePts.pts : null,
       zoneFills,
       textPreview: (tool === 'text' && textPlace && crosshair)

@@ -113,3 +113,62 @@ ok(M.toggle([], null).length === 1, 'toggle tolerates a null-ish id slot');
 }
 
 console.log('  — ' + pass + ' checks passed —');
+
+// ---------- rubber-band collection ----------
+{
+  const b = makeBoard();
+  // rect hugging FP1's pad ([2,0]) but not its centre ([0,0])
+  const got = M.collectInRect(b, { minX: 1.6, minY: -0.4, maxX: 2.4, maxY: 0.4 });
+  ok(got.some(i => i.id === 'FP1' && i.kind === 'footprint'), 'footprint picked by pad overlap alone');
+  ok(M.has(got, 'T1'), 'track whose endpoint sits in the rect is collected too');
+  ok(!M.has(got, 'V1') && !M.has(got, 'TXT1'), 'members clear of the rect stay out');
+}
+{
+  // centre-only pick on a footprints-only board so nothing else can interfere
+  const b = makeBoard();
+  const bare = { nets: b.nets, footprints: b.footprints, tracks: [], vias: [], texts: [], zones: [] };
+  const got = M.collectInRect(bare, { minX: -0.3, minY: -0.3, maxX: 0.3, maxY: 0.3 });
+  ok(got.length === 1 && got[0].id === 'FP1', 'footprint picked by centre point');
+  ok(M.collectInRect(bare, { minX: 20, minY: 20, maxX: 22, maxY: 22 }).length === 0, 'empty region collects nothing');
+}
+{
+  const b = makeBoard();
+  // band straddling y=0 between x=4..6 — both track endpoints outside, via at [7,0] clear
+  const got = M.collectInRect(b, { minX: 4, minY: -0.2, maxX: 6, maxY: 0.2 });
+  ok(M.has(got, 'T1'), 'track crossing the rect edge-on is collected');
+  ok(!M.has(got, 'V1') && !got.some(i => i.id === 'FP1'), 'via and footprint centres outside stay out');
+}
+{
+  const b = makeBoard();
+  ok(M.has(M.collectInRect(b, { minX: 6.7, minY: -0.2, maxX: 7.3, maxY: 0.2 }), 'V1'), 'via inside is collected');
+  ok(!M.has(M.collectInRect(b, { minX: 7.05, minY: -0.05, maxX: 7.2, maxY: 0.05 }), 'V1'), 'via outside its anchor rect stays out');
+  ok(M.has(M.collectInRect(b, { minX: 4.8, minY: 4.8, maxX: 5.2, maxY: 5.2 }), 'TXT1'), 'text anchor inside is collected');
+  ok(!M.has(M.collectInRect(b, { minX: 5.2, minY: 4.8, maxX: 5.6, maxY: 5.2 }), 'TXT1'), 'text outside stays out');
+}
+{
+  const b = makeBoard();
+  // zone outline spans [-5,-5]..[15,10]; rect overlaps only its bbox corner region
+  ok(M.has(M.collectInRect(b, { minX: -6, minY: -6, maxX: -4.5, maxY: -4.5 }), 'Z1'), 'zone collected on outline-bbox overlap');
+  ok(!M.has(M.collectInRect(b, { minX: 16, minY: 11, maxX: 18, maxY: 12 }), 'Z1'), 'zone missed when clear of its bbox');
+}
+{
+  const b = makeBoard();
+  const all = M.collectInRect(b, { minX: -50, minY: -50, maxX: 50, maxY: 50 });
+  ok(JSON.stringify(all.map(i => i.id)) === JSON.stringify(['FP1', 'FP2', 'TXT1', 'T1', 'V1', 'Z1']),
+    'full containment returns every kind in Ctrl+A order (fp → text → track → via → zone)');
+  const degenerate = M.collectInRect(b, { minX: 7, minY: 0, maxX: 7, maxY: 0 });
+  ok(M.has(degenerate, 'V1'), 'zero-area rect still catches an exact anchor point');
+}
+{
+  const r = { minX: 10, minY: 10, maxX: 20, maxY: 20 };
+  ok(M.segIntersectsRect(0, 0, 30, 30, r), 'diagonal segment through the rect hits');
+  ok(!M.segIntersectsRect(0, 25, 30, 25, r), 'parallel segment above misses');
+  ok(M.segIntersectsRect(12, 12, 14, 14, r), 'fully-inside segment hits');
+  ok(M.segIntersectsRect(0, 15, 40, 15, r), 'collinear horizontal through the strip hits');
+  ok(M.segIntersectsRect(15, 0, 15, 30, r), 'vertical through the band hits');
+  ok(!M.segIntersectsRect(0, 0, 9, 9, r), 'segment stopping short of the corner misses');
+  ok(M.segIntersectsRect(21, 21, 30, 30, r) === false, 'segment starting beyond the far corner misses');
+  ok(M.collectInRect({ footprints: [], tracks: [], vias: [], texts: [], zones: [] }, null).length === 0, 'null rect is safe');
+}
+
+console.log('  rubber-band section done');

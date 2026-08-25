@@ -403,6 +403,19 @@
       }
     }
 
+    // ---- rubber-band box select ----
+    if (state.box) {
+      const [ax, ay] = w2s(view, state.box.a[0], state.box.a[1], cw, ch);
+      const [bx, by] = w2s(view, state.box.b[0], state.box.b[1], cw, ch);
+      ctx.fillStyle = 'rgba(4,255,67,0.08)';
+      ctx.strokeStyle = '#04ff43';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 3]);
+      ctx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+      ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+      ctx.setLineDash([]);
+    }
+
     // ---- crosshair ----
     if (state.crosshair) {
       const [cx, cy] = w2s(view, state.crosshair[0], state.crosshair[1], cw, ch);

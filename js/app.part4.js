@@ -80,8 +80,16 @@
     }
 
     if (pointers.size === 2) {
+      cancelBoxGesture();          // second finger → pinch wins over any armed/held box
       const [p1, p2] = [...pointers.values()];
       pinchDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      return;
+    }
+
+    if (e.pointerType === 'mouse' && e.button === 1) {
+      // middle-drag pan: left-drag on empty space is box-select now
+      dragging = { pan: true };
+      lastPan = { x: e.clientX, y: e.clientY };
       return;
     }
 
@@ -241,10 +249,28 @@
         dragging = { pan: true };
         lastPan = { x: e.clientX, y: e.clientY };
       } else {
-        selSet = [];
-        selId = null; selKind = null; hiNet = null;
-        dragging = { pan: true };
-        lastPan = { x: e.clientX, y: e.clientY };
+        // Rubber-band box select (KiCad left-drag). Mouse arms immediately;
+        // touch/pencil arm after a ~450 ms hold so one-finger drags keep
+        // panning. Shift/Cmd/Ctrl unions with the existing selection instead.
+        const additive = !!(e.shiftKey || e.metaKey || e.ctrlKey);
+        dragging = null; lastPan = null;
+        if (e.pointerType === 'mouse') {
+          if (!additive) { selSet = []; selId = null; selKind = null; hiNet = null; }
+          dragging = { box: true, additive: additive };
+          boxSel = { a: [wx, wy], b: [wx, wy] };
+        } else {
+          boxPending = { px: e.clientX, py: e.clientY, additive: additive };
+          boxTimer = setTimeout(() => {
+            boxTimer = null;
+            if (!pointers.has(e.pointerId)) { boxPending = null; return; }
+            if (!boxPending.additive) { selSet = []; selId = null; selKind = null; hiNet = null; }
+            dragging = { box: true, additive: boxPending.additive };
+            boxSel = { a: [wx, wy], b: [wx, wy] };
+            setStatus('Box select — drag, release to select');
+            boxPending = null;
+            render();
+          }, 450);
+        }
       }
     }
     render(); refreshAll();
@@ -253,6 +279,15 @@
   // Group drag setup: every member of the group selection follows the same
   // incremental delta as the grabbed item. `anchor` is the grabbed item's
   // position at drag start.
+  // Kill any pending/active rubber-band gesture (pinch second finger, Esc,
+  // pointercancel). Safe to call at any time.
+  function cancelBoxGesture() {
+    if (boxTimer !== null) { clearTimeout(boxTimer); boxTimer = null; }
+    boxPending = null;
+    boxSel = null;
+    if (dragging && dragging.box) dragging = null;
+  }
+
   function startGroupDrag(grabId, grabKind, anchor, dx, dy) {
     const members = selSet.map(m => ({ id: m.id, kind: m.kind }));
     if (!members.some(m => m.id === grabId)) members.unshift({ id: grabId, kind: grabKind });
@@ -295,7 +330,24 @@
     routeCursor = (tool === 'track' && route) ? [wx, wy] : null;
     if (measureA) measureCur = [wx, wy];
 
+    // rubber-band lifecycle: slop-cancel into pan, hold-freeze, live rect
+    if (boxPending && Math.hypot(e.clientX - boxPending.px, e.clientY - boxPending.py) > 10) {
+      if (boxTimer !== null) { clearTimeout(boxTimer); boxTimer = null; }
+      const additive = boxPending.additive; boxPending = null;
+      // resolved into a plain pan; match legacy press behaviour (clear unless adding)
+      if (!additive) { selSet = []; selId = null; selKind = null; hiNet = null; refreshAll(); }
+      dragging = { pan: true };
+      lastPan = { x: e.clientX, y: e.clientY };
+    }
+    if (boxPending) { render(); return; } // armed, holding still: freeze until the hold fires
+    if (dragging && dragging.box) {
+      boxSel = { a: boxSel.a, b: [wx, wy] };
+      render();
+      return;
+    }
+
     if (pointers.size === 2) {
+      cancelBoxGesture();          // pinch wins over any armed/held box
       const [p1, p2] = [...pointers.values()];
       const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       if (pinchDist) {
@@ -349,14 +401,26 @@
     if (eraserPointers.delete(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
+    const finishingBox = (dragging && dragging.box) ? !!dragging.additive : null;
     const wasDragging = dragging;
     dragging = null; lastPan = null;
 
     if (twoTap.feed({ type: 'up', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp }) === 'undo') {
+      if (finishingBox !== null) { boxSel = null; render(); }   // undo wins over a half-drawn rect
       applyKeyAction('undo');
       setStatus('Two-finger tap → Undo');
       return;
     }
+
+    // rubber-band resolution: release before the hold fired = plain empty tap
+    if (boxTimer !== null) { clearTimeout(boxTimer); boxTimer = null; }
+    if (boxPending) {
+      const additive = boxPending.additive; boxPending = null;
+      if (!additive) { selSet = []; selId = null; selKind = null; hiNet = null; setStatus('Selection cleared'); }
+      render(); refreshAll();
+      return;
+    }
+    if (finishingBox !== null) { finishBoxSelect(finishingBox); return; }
 
     if (mode === 'schematic') {
       const now2 = Date.now();
@@ -402,6 +466,7 @@
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
+    cancelBoxGesture();
     dragging = null; lastPan = null;
   });
 
@@ -634,6 +699,10 @@
         break;
       case 'Escape':
         route = null; outlinePts = null; gfxStart = null; placeLib = null; measureA = null; measureB = null; zonePts = null;
+        if (boxSel || (dragging && dragging.box) || boxPending || boxTimer !== null) {
+          cancelBoxGesture();
+          setStatus('Box select cancelled');
+        }
         if (selSet.length) { selSet = []; setStatus('Selection cleared'); }
         setTool('select'); break;
       case 'w': cycleTrackWidth(); break;
@@ -661,6 +730,28 @@
   }
 
   // KiCad Ctrl+A: select every selectable item on the board (group ops then apply).
+  // Rubber-band result: replace the selection (KiCad default) or union when
+  // the drag started with Shift/Cmd/Ctrl. Primary follows the last member.
+  function finishBoxSelect(additive) {
+    const rect = boxSel; boxSel = null;
+    if (!rect) return;
+    const r = {
+      minX: Math.min(rect.a[0], rect.b[0]), maxX: Math.max(rect.a[0], rect.b[0]),
+      minY: Math.min(rect.a[1], rect.b[1]), maxY: Math.max(rect.a[1], rect.b[1])
+    };
+    const found = MSel.collectInRect(board, r);
+    let next = additive ? selSet.slice() : [];
+    for (const it of found) if (!MSel.has(next, it.id)) next.push(it);
+    selSet = next;
+    const lastM = selSet[selSet.length - 1];
+    selId = lastM ? lastM.id : null;
+    selKind = lastM ? lastM.kind : null;
+    setStatus(selSet.length
+      ? selSet.length + ' item' + (selSet.length === 1 ? '' : 's') + ' selected — drag a member to move the group'
+      : 'Selection cleared');
+    render(); refreshAll();
+  }
+
   function doSelectAll() {
     if (route || zonePts || outlinePts || gfxStart || measureA || placeLib) return; // never hijack an active draft
     const items = []
@@ -963,7 +1054,7 @@
   function showHelp() {
     showModal('Kipad — PCB Layout Editor', `
       <b>Tools (left rail)</b><br>
-      ➤ Select — tap pad/footprint to select (tap pad = highlight net), drag to move · Shift+tap adds to a multi-select, drag any member to move the group<br>
+      ➤ Select — tap pad/footprint to select (tap pad = highlight net), drag to move · Shift+tap adds to a multi-select, drag any member to move the group · mouse-drag / long-press on empty space = rubber-band box select<br>
       ⌁ Net Highlight — tap a pad to highlight its net<br>
       ▣ Footprint — pick from Library panel, tap board to place, R rotates<br>
       ╱ Route Track — tap pad to start (uses its net), tap for corners, double-tap/Enter to finish, V = via + layer<br>
@@ -974,7 +1065,7 @@
       📏 Measure — tap two points to read distance<br><br>
       <b>Right panel</b>: Layers (visibility + active layer) · Footprints (real KiCad footprints, search, place, import .kicad_mod) · Symbols (real KiCad symbols, search, import .kicad_sym) · Nets (highlight, add) · Properties (edit selection). The panel can be collapsed with the handle on its edge (View → Hide Side Panel).<br><br>
       <b>Library editors</b>: Project manager → Symbols / Footprints tiles (or Tools menu) open full editors — edit pins & pads on canvas or in tables, New/Import/Export .kicad_sym/.kicad_mod, Save keeps custom items across reloads.<br>
-      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate (group: about its centre) · W width · E properties · arrows nudge selection · Del delete (group: all selected) · Shift+tap multi-select · Esc clear · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
+      <b>Shortcuts</b>: S select · H highlight · F/A footprint · X route · V via · Z zone · T text · L line · M measure · G grid · N ratsnest · R rotate (group: about its centre) · W width · E properties · arrows nudge selection · Del delete (group: all selected) · Shift+tap multi-select · drag empty space = box select · Esc clear · Ctrl+S save · Ctrl+O open · Ctrl+Z/Y undo/redo<br><br>
       <b>Pencil</b>: palm rejection on (resting fingers won't draw/pan) · tilt angle shown in the HUD · eraser end deletes the item under the tip · double-tap pencil to return to Select<br>
       <b>Touch</b>: two-finger tap = Undo · pinch = zoom · drag = pan<br><br>
       <b>File</b>: Save = .kicad_pcb · Open = .kicad_pcb · Board Setup = DRC constraints + pre-defined track/via sizes · Gerber = 9-layer fab set (F/B.Cu · Edge · F/B.SilkS · F/B.Mask · F/B.Paste) RS-274X · DRC = clearance + drilled-hole / board-edge / silkscreen-over-pad checks (Nets → Net Classes…)<br>
