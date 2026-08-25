@@ -197,6 +197,7 @@ assert.ok(Gerber.exportPasteLayer(minimal, 'F.Paste').includes(R1P1),
   'pad with bare [F.Cu] still gets paste');
 
 // ---- silkscreen ------------------------------------------------------------
+const SF = require('../js/strokefont.js');
 const stubLib = {
   getFootprint: function (name) {
     return name === 'libA' ? {
@@ -204,29 +205,53 @@ const stubLib = {
         { type: 'line', pts: [[-3, 2], [3, 2]] },
         { type: 'rect', start: [-3, -2], end: [3, 2] },
         { type: 'circle', at: [0, 0], r: 2 },
-        { type: 'text', at: [0, 3], size: 1.5, text: 'libA' } // skipped: no stroking yet
+        { type: 'text', at: [0, 3], size: 1.5, text: 'libA' } // stroked via vector font
       ]
     } : null;
   }
 };
 
+// Format a stroke point the way the exporter writes coordinates.
+function fmtPt(p) {
+  return 'X' + Math.round(p[0] * 10000) + 'Y' + Math.round(p[1] * 10000);
+}
+
+// A polyline with n points becomes n-1 D01 segments in the Gerber image.
+function segCount(polys) {
+  return polys.reduce((n, pl) => n + pl.length - 1, 0);
+}
+
 const fsilk = Gerber.exportSilkLayer(fab, 'F.SilkS', stubLib.getFootprint);
 assert.ok(fsilk.startsWith('%FSLAX44Y44*%'), 'silk header present');
 assert.ok(/%ADD10C,0\.120000\*%/.test(fsilk), 'single fixed-width stroke aperture');
 assert.ok(!/D03\*/.test(fsilk), 'silkscreen has no flashes');
+
+// Art geometry + stroked library text item + R1 reference designator
+// (no courtyard in the stub lib -> renderer fallback offset 1.8 mm).
+const libAStrokes = SF.strokesFor('libA', { x: 5, y: 7, size: 1.5 });
+const r1Strokes = SF.strokesFor('R1', { x: 5, y: 4 - 1.8, size: 1.3 });
 const fStrokes = (fsilk.match(/D01\*/g) || []).length;
 assert.strictEqual(fStrokes,
-  1 /* line */ + 4 /* rect */ + 32 /* circle chords */,
-  'line + rect + 32-chord circle drawn; text item skipped');
+  1 /* line */ + 4 /* rect */ + 32 /* circle chords */ +
+  segCount(libAStrokes) + segCount(r1Strokes),
+  'line + rect + circle + stroked lib text + ref designator drawn');
+assert.ok(fsilk.includes(fmtPt(libAStrokes[0][0])),
+  'library text item is stroked at its world position');
+assert.ok(fsilk.includes(fmtPt(r1Strokes[0][0])),
+  'reference designator stroked above the part');
 
 const bsilk = Gerber.exportSilkLayer(fab, 'B.SilkS', stubLib.getFootprint);
-assert.strictEqual((bsilk.match(/D01\*/g) || []).length, 1, 'only fp2 art lands on B.SilkS');
+const r2Stored = SF.strokesFor('R2', { x: 1.5, y: 6, size: 1.2 }); // local [0,1.5] rotated to world
+const r2Ref = SF.strokesFor('R2', { x: 3, y: 6 - 1.8, size: 1.3 });
+assert.strictEqual((bsilk.match(/D01\*/g) || []).length,
+  1 /* art line */ + segCount(r2Stored) + segCount(r2Ref),
+  'fp2 art + flipped stored text + back-side ref land on B.SilkS');
+assert.ok(bsilk.includes(fmtPt(r2Stored[0][0])),
+  'stored text item rotates with the footprint onto back silk');
 assert.ok(bsilk.includes('X30000Y50000D02*'),
   'fp2 default-labelled art rotated to world (local [-1,0] @90 deg -> [3,5]) and mapped to the back side');
 assert.ok(!bsilk.includes('X30000Y60000'), 'art start point is the rotated one, not the unrotated local point');
 assert.ok(!fsilk.includes('X30000Y50000'), 'fp2 back art not duplicated onto F.SilkS');
-assert.ok(!fsilk.includes('X15000Y60000') && !bsilk.includes('X15000Y60000'),
-  'silk text item coords never emitted');
 
 // ---- every layer is a complete RS-274X image -------------------------------
 const fabAll = Gerber.exportAll(fab, stubLib.getFootprint);

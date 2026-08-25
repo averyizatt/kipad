@@ -264,6 +264,16 @@
 
   /* ---- silkscreen -------------------------------------------------------- */
 
+  // Stroke font used for silkscreen text. Resolved lazily so load order can
+  // never break non-text exports (browser global first, Node require second).
+  function strokeFont() {
+    if (typeof KipadStrokeFont !== 'undefined') return KipadStrokeFont;
+    if (typeof require === 'function') {
+      try { return require('./strokefont.js'); } catch (e) { /* fall through */ }
+    }
+    return null;
+  }
+
   // Rotate a footprint-local point into world coordinates (same transform
   // as the canvas renderer: rotation about the footprint origin, no
   // mirroring — the model never mirrors local geometry on side flips).
@@ -304,12 +314,45 @@
 
   // Silkscreen graphics: footprints' silk art (library defs resolved through
   // the optional getFootprint(name) callback, falling back to art stored on
-  // the placed instance) drawn as fixed-width strokes. Text items are
-  // skipped — vector font stroking is not implemented yet.
+  // the placed instance) drawn as fixed-width strokes, silkscreen TEXT
+  // stroked through the single-stroke vector font (KipadStrokeFont),
+  // board-level gr_text and reference designators included.
   function exportSilkLayer(board, layer, getFootprint) {
     var list = [{ id: 'D' + FIRST_APERTURE, shape: 'C', size: [SILK_LINE_WIDTH, SILK_LINE_WIDTH], drill: null }];
     var strokeId = 'D' + FIRST_APERTURE;
+    var byKey = Object.create(null);
+    var nextId = FIRST_APERTURE + 1;
     var draws = [];
+
+    // Extra round apertures for board text thicknesses (deduped); the base
+    // stroke aperture covers silk art and reference designators.
+    function widthId(w) {
+      w = (Number(w) > 0) ? Number(w) : SILK_LINE_WIDTH;
+      if (Math.abs(w - SILK_LINE_WIDTH) < 1e-9) return strokeId;
+      var key = apertureKey('C', [w, w], '');
+      if (byKey[key] !== undefined) return byKey[key];
+      var id = 'D' + nextId;
+      nextId += 1;
+      byKey[key] = id;
+      list.push({ id: id, shape: 'C', size: [w, w], drill: null });
+      return id;
+    }
+
+    var SF = strokeFont();
+    function emitText(job) {
+      if (!SF) return;
+      var polys = SF.strokesFor(job.text, {
+        x: job.x, y: job.y,
+        size: (Number(job.size) > 0) ? Number(job.size) : 1,
+        angle: Number(job.angle) || 0,
+        justify: job.justify || 'center'
+      });
+      if (!polys.length) return;
+      var id = widthId(job.thickness);
+      for (var i = 0; i < polys.length; i++) {
+        draws.push({ apertureId: id, pts: polys[i] });
+      }
+    }
 
     var footprints = board.footprints || [];
     for (var i = 0; i < footprints.length; i++) {
@@ -328,10 +371,38 @@
         } else if (s.type === 'circle' && s.at && s.r > 0) {
           var centre = fpToWorld(fp, s.at);
           draws.push({ apertureId: strokeId, pts: circlePoly(centre[0], centre[1], s.r) });
+        } else if (s.type === 'text' && s.text && Array.isArray(s.at)) {
+          var tp = fpToWorld(fp, s.at);
+          emitText({ text: String(s.text), x: tp[0], y: tp[1], size: s.size, angle: 0, justify: 'center', thickness: SILK_LINE_WIDTH });
         }
-        // 'text' and unknown types: skipped (no vector stroking yet)
+      }
+
+      // Reference designator above the part, same geometry rule as the
+      // canvas renderer (courtyard half-height + 0.8 mm, 1.3 mm cap).
+      var side = (fp.layer === 'B.Cu') ? 'B.SilkS' : 'F.SilkS';
+      if (side === layer && !(fp.ref == null) && String(fp.ref).length) {
+        var off = (lib && lib.courtyard && lib.courtyard.max)
+          ? (Math.abs(lib.courtyard.max[1] - lib.courtyard.min[1]) / 2 + 0.8)
+          : 1.8;
+        emitText({ text: String(fp.ref), x: fp.at[0], y: fp.at[1] - off, size: 1.3, angle: 0, justify: 'center', thickness: SILK_LINE_WIDTH });
       }
     }
+
+    // Board-level silkscreen text (Place > Text / gr_text round-trip).
+    var texts = board.texts || [];
+    for (var b = 0; b < texts.length; b++) {
+      var tx = texts[b];
+      if ((tx.layer || 'F.SilkS') !== layer) continue;
+      emitText({
+        text: tx.text,
+        x: tx.at[0], y: tx.at[1],
+        size: tx.size,
+        angle: tx.angle,
+        justify: tx.justify,
+        thickness: tx.thickness
+      });
+    }
+
     return buildImage([], draws, list);
   }
 
