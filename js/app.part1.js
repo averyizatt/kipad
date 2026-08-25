@@ -534,8 +534,66 @@
     $('modal-ok').addEventListener('click', hideModal);
   }
 
+  // ---------- schematic symbol properties (right-panel Properties tab) ----------
+  // Per-symbol editing completes the footprint-assignment workflow alongside
+  // the bulk Tools ▸ Edit Symbol Fields dialog: edits go through the same
+  // KipadSymfields.applyRow rules (blank ref keeps old designator).
+  function refreshSchProps(el) {
+    const sym = (sch && schSelId) ? sch.symbols.find(s => s.id === schSelId) : null;
+    if (!sym) {
+      el.innerHTML = '<div class="prop-empty">Select a symbol to edit reference, value or footprint</div>';
+      return;
+    }
+    const fpOpts = FPs.listFootprints().map(n => `<option value="${esc(n)}">`).join('');
+    el.innerHTML = `<datalist id="sp-fp-list">${fpOpts}</datalist>
+      <div class="prop-group"><h5>Symbol</h5>
+        <div class="prop-row"><label>Ref</label><input id="sp-ref" value="${esc(sym.ref)}"></div>
+        <div class="prop-row"><label>Value</label><input id="sp-val" value="${esc(sym.value || '')}"></div>
+        <div class="prop-row"><label>Footprint</label><input id="sp-fp" list="sp-fp-list" value="${esc(sym.footprint || '')}" placeholder="— none —"></div>
+        <div class="prop-row"><label>X</label><input id="sp-x" value="${fmt(sym.at[0])}"></div>
+        <div class="prop-row"><label>Y</label><input id="sp-y" value="${fmt(sym.at[1])}"></div>
+        <div class="prop-row"><label>Rotation</label><select id="sp-rot">${[0, 90, 180, 270].map(a => `<option ${(sym.angle || 0) === a ? 'selected' : ''}>${a}</option>`).join('')}</select></div>
+        <div class="lib-actions"><button class="btn" id="sp-rot-btn">Rotate 90°</button><button class="btn danger" id="sp-del-btn">Delete</button></div>
+      </div>`;
+    const fieldWire = (id, key) => {
+      const inp = $(id);
+      if (!inp) return;
+      inp.addEventListener('change', () => {
+        schPushUndo();
+        const changed = SymFields.applyRow(sym, { [key]: inp.value });
+        if (changed.includes('ref')) inp.value = sym.ref;
+        if (changed.length) { render(); refreshErc(); setStatus(sym.ref + ' updated (' + changed.join(', ') + ')'); }
+      });
+    };
+    fieldWire('sp-ref', 'ref'); fieldWire('sp-val', 'value'); fieldWire('sp-fp', 'footprint');
+    const sx = $('sp-x'), sy = $('sp-y');
+    const applyPos = () => {
+      schPushUndo();
+      const nx = parseFloat(sx.value), ny = parseFloat(sy.value);
+      if (!isNaN(nx)) sym.at[0] = nx;
+      if (!isNaN(ny)) sym.at[1] = ny;
+      render();
+    };
+    sx.addEventListener('change', applyPos);
+    sy.addEventListener('change', applyPos);
+    const rot = $('sp-rot');
+    rot.addEventListener('change', e => {
+      schPushUndo();
+      sym.angle = Number(e.target.value);
+      render();
+      setStatus(sym.ref + ' rotated to ' + sym.angle + '\u00b0');
+    });
+    $('sp-rot-btn').addEventListener('click', () => {
+      schPushUndo();
+      sym.angle = ((sym.angle || 0) + 90) % 360;
+      refreshProps(); render();
+    });
+    $('sp-del-btn').addEventListener('click', () => { schDoDelete(); });
+  }
+
   function refreshProps() {
     const el = $('tab-props');
+    if (mode === 'schematic') { refreshSchProps(el); return; }
     if (!selId) {
       el.innerHTML = '<div class="prop-empty">Select a footprint, track, via, zone or text</div>';
       return;

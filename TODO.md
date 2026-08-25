@@ -4,6 +4,12 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Milestones
 
+- [x] Per-symbol properties (schematic) — completes the footprint-assignment workflow — 2026-08-25
+  - [x] Bulk assignment already shipped as Tools ▸ Edit Symbol Fields… (KipadSymfields rows/applyRow, datalist autocomplete from library, live apply) — 2026-08-24
+  - [x] keys.js: E opens Properties in schematic too (was PCB-only); call site already passed mode-aware hasSelection — 2026-08-25
+  - [x] refreshProps schematic branch (`refreshSchProps`): Ref / Value / Footprint (+X/Y/Rotation, Rotate/Delete buttons) edited through KipadSymfields.applyRow — blank ref keeps old designator; schPushUndo per change; footprint input autocompletes from FPs.listFootprints; pane stays fresh because every schematic select path already calls refreshAll — 2026-08-25
+  - [x] Schematic Edit menu gains "Properties… (E)" for keyboard-free iPads; test_keys.js updated (+1 check); cache-bust v=56 / sw kipad-v50 — 2026-08-25
+
 - [x] Load-and-render regression suite (headless canvas mock) — 2026-08-24
   - [x] `test/test_load_render.js`: recording canvas-2D mock (every draw call + style set logged) so the real renderer runs headlessly with zero browser/pixel deps — 2026-08-24
   - [x] Part A loads `lib-build/raw/pic_programmer.kicad_pcb` (63 fps / 370 segs / 6 vias): raw-text ground-truth counts survive parse AND reach the canvas — bg fill first, all 63 ref labels via fillText, Edge.Cuts outline colour, via annuli count, F.Cu full copper + B.Cu rgba-dimmed strokes — 2026-08-24
@@ -84,7 +90,6 @@ Project state file. Update after every iteration. Completed items are checked of
 - [x] More ERC checks: cross-sheet global label conflicts, power-pin conflicts, missing footprint
   - [x] No-connect flag placement tool (Q): KiCad-style X marker on a pin tip — `sch.noConnects[]` model + `(no_connect …)` sexpr round-trip; flagged pins exempt from UNCONNECTED_PIN / SINGLE_PIN_NET and flag terminates wires (no DANGLING_WIRE); pin-tip snapping, select/⌫ delete, dark-blue X rendering (#000084 from builtin_color_themes.h), official `noconn_24.png` icon — 2026-08-24
   - [x] Power-pin conflicts: two different power nets shorted on one node (GND symbol wired to VCC) → POWERPIN_CONFLICT error naming both nets; same-name repeats fine; shows in panel + canvas markers with no UI change — 2026-08-24
-  - Cross-sheet global label conflicts + missing footprint deferred: single-sheet model / no UI to assign footprints yet
   - [x] Missing-footprint ERC closed without a footprint picker (2026-08-24): symbols already carry a `footprint` field and Update PCB silently substitutes ref-prefix defaults, so `runERC(sch, getSymbol, getFootprint?)` gained `MISSING_FOOTPRINT` (warning, no assignment) + `FOOTPRINT_NOT_FOUND` (error, assigned but unresolvable in the registry — user intent would be overridden); power symbols and KiCad `#`-refs (#PWR/#FLG) exempt; app passes `FPs.getFootprint` so ERC agrees with updatePCB's exact lib-prefix strip — test/test_footprint_erc.js
   - Cross-sheet global label conflicts remain deferred: single-sheet model
 - [x] .kicad_pcb round-trip fidelity check against real KiCad files — 2026-08-24

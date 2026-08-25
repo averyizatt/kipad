@@ -47,7 +47,7 @@
     if (Object.prototype.hasOwnProperty.call(ARROWS, k))
       return ctx.hasSelection ? ARROWS[k] : null;
     if (k === 'e' || k === 'E')
-      return ctx.mode === 'pcb' && ctx.hasSelection ? 'props' : null;
+      return ctx.hasSelection ? 'props' : null;
     if (k === 'a' || k === 'A')
       return ctx.mode === 'schematic' ? 'addSymbol' : 'addFootprint';
     return null;

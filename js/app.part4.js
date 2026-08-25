@@ -820,7 +820,8 @@
         ['Undo', schUndoStep, '⌘Z'],
         ['Redo', schRedoStep, '⌘Y'],
         ['Delete selection', schDoDelete, '⌫'],
-        ['Rotate 90°', schDoRotate, 'R']
+        ['Rotate 90°', schDoRotate, 'R'],
+        ['Properties…', () => setTab('props'), 'E']
       ],
       view: [
         ['Zoom in', () => $('btn-zoomin').click(), ''],

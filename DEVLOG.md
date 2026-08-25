@@ -536,3 +536,13 @@ Parse-vs-file coverage already existed (test_roundtrip_fixtures.js counts raw se
 - Notable model detail confirmed by the test's first draft failing: parsePad bakes fp.at/fpAngle into absolute pad coords, so renderer needs no per-footprint transform for pads.
 - Python option considered and skipped: it would duplicate the parser as an oracle in a second runtime; the Node harness already cross-checks against raw-text regex ground truth. Revisit only if we ever want a fully independent implementation.
 - Verification: test_load_render 24/24 checks, full suite 43/43 green, node --check clean on the new file. No app assets touched → no cache-bust needed.
+
+## 2026-08-25 ~00:15 UTC — per-symbol properties close out the footprint-assignment workflow
+Avery approved roadmap item #1 ("footprint assignment") at ~23:59 UTC. Investigation showed the bulk half already shipped earlier today (Tools ▸ Edit Symbol Fields…, commit 5c9dc6e, DEVLOG ~15:45) — my roadmap note was based on a stale TODO line ("no UI to assign footprints yet"); retired that line from TODO.md.
+
+What was genuinely missing: per-symbol editing. KiCad flow is tap symbol → E → edit ref/value/footprint; here E was PCB-only (keys.js gated 'props' to ctx.mode === 'pcb') and refreshProps had no schematic branch, so the Properties tab always showed the PCB empty-state even with a symbol selected.
+
+- js/keys.js: E → 'props' whenever ctx.hasSelection, any editor mode (the app.part4 call site already passes schematic-aware hasSelection = !!schSelId).
+- app.part1.js: new refreshSchProps(el) — Ref/Value/Footprint inputs wired through KipadSymfields.applyRow (same blank-ref-keeps-designator rule as the bulk dialog), X/Y edits, Rotation select + Rotate 90° button, Delete via existing schDoDelete; each change schPushUndo()s first (per-edit undo granularity, matching the PCB props panel); footprint input autocompletes via its own datalist built from FPs.listFootprints(). refreshProps branches on mode === 'schematic' → refreshSchProps(el). No extra freshness wiring needed: every schematic select path already ends in refreshAll(), which includes refreshProps.
+- app.part4.js: schematic Edit menu gained "Properties…  (E)" so keyboard-free iPads reach it too.
+- Verification: node --check clean on keys.js / app.part1.js / app.part4.js; full suite 43/43 green (test_keys now 33 checks: E-in-schematic-with-selection → props, without-selection → null). Cache-bust ?v=56 across index.html (36 refs), sw CACHE kipad-v49→kipad-v50.

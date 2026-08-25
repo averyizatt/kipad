@@ -35,7 +35,8 @@ ok(K.resolve(ev('+'), { mode: 'launcher' }) === null, 'launcher mode ignores zoo
 // --- properties ---
 ok(K.resolve(ev('e'), pcb) === 'props', 'E with selection → props');
 ok(K.resolve(ev('e'), pcbNoSel) === null, 'E without selection → null');
-ok(K.resolve(ev('e'), sch) === null, 'E in schematic → null (no props tab there)');
+ok(K.resolve(ev('e'), sch) === 'props', 'E in schematic with selection → props');
+ok(K.resolve(ev('e'), { mode: 'schematic', hasSelection: false }) === null, 'E in schematic without selection → null');
 
 // --- add footprint / symbol ---
 ok(K.resolve(ev('a'), pcbNoSel) === 'addFootprint', 'A in PCB (even without selection) → addFootprint');
