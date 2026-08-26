@@ -664,3 +664,15 @@ Verification: all **46/46** dependency-free Node regression suites pass; `node -
 - Avery's iPad screenshots showed the old `Symbols (600)` shell, confirming the missing categories/tabs were a stale PWA rather than absent library data. The launcher now reports `Symbols (2,000)`.
 - Deploy pickup is hardened: registration uses `updateViaCache: 'none'` plus an immediate update check, and navigations use network-first with cached-index offline fallback. Cache `kipad-v58` → `kipad-v59`; app.part4 cache-bust `v62` → `v63`.
 - Verification: all **46/46** dependency-free Node regression suites pass; `node --check` is clean for the changed JavaScript and service worker.
+## 2026-08-26 — schematic drag markers and library-browser UX
+
+- Fixed stale ERC marker coordinates during symbol/group dragging. The undo snapshot invalidated ERC only on the first pointermove; subsequent drag frames now mark ERC dirty as geometry changes, so pin-error X markers follow a resistor instead of remaining near its original position.
+- Reworked Symbols and Footprints browsing for touch: library selection is a horizontally scrollable row of category chips instead of a select dropdown. Import buttons were removed from the quick panels; File → Import remains the deliberate library-management path.
+- Search now accepts multiple terms across name, value, reference, description, and library, ranking exact/prefix/name matches ahead of library and description matches.
+- Added integration coverage for multi-term symbol/footprint search and ranking. All 47 dependency-free Node suites pass; touched JavaScript passes syntax checks and the diff is clean. The OpenClaw/CDP browser was attempted, but Chromium still did not expose its endpoint on this host, so physical iPad acceptance remains open. Cache bumped to `kipad-v60`.
+
+## 2026-08-26 ~23:25 UTC — cross-sheet named connectivity and ERC
+
+- Added deterministic project connectivity: local labels stay sheet-scoped, while same-name global/hierarchical labels and power nets join across sheets. Hierarchical labels now survive KiCad parse/serialize round trips.
+- Added project-wide ERC with sheet-aware label/power conflicts. The application ERC panel checks every project sheet, identifies each result's sheet, switches sheets when a result is selected, and only draws markers belonging to the active sheet.
+- Added `test/test_project_connectivity.js`; all **47/47** dependency-free Node suites and touched-file syntax checks pass. Browser smoke remains unavailable because this host's Chromium lacks `libatk-1.0.so.0`. Cache advanced to `kipad-v61`.

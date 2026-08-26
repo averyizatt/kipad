@@ -498,8 +498,21 @@
   }
 
   // ---------- ERC (schematic electrical rules check) ----------
+  function activeErcSheetId() {
+    const active = project && Project && Project.activeSheet(project);
+    return active ? active.id : null;
+  }
+  function visibleErcViolations() {
+    const activeId = activeErcSheetId();
+    return ercViolations.filter(v => !v.sheetId || !activeId || v.sheetId === activeId);
+  }
   function refreshErc() {
-    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol, FPs ? FPs.getFootprint : null) : [];
+    const getFootprint = FPs ? FPs.getFootprint : null;
+    ercViolations = (Erc && sch)
+      ? (project && Project && Project.isProject(project) && Erc.runProjectERC
+          ? Erc.runProjectERC(project, Syms.getSymbol, getFootprint)
+          : Erc.runERC(sch, Syms.getSymbol, getFootprint))
+      : [];
     ercDirty = false;
     updateErcStatus();
   }
@@ -515,6 +528,7 @@
   // centre the canvas on a violation and select its symbol (if any)
   function ercLocate(v) {
     if (!v) return;
+    if (v.sheetId && v.sheetId !== activeErcSheetId()) switchSheet(v.sheetId);
     if (v.symbolId) { schSelId = v.symbolId; schSelKind = 'symbol'; schSelSet = []; }
     view.x = v.x; view.y = v.y;    // w2s puts view.x/view.y at canvas centre
     render(); refreshAll();
@@ -537,7 +551,8 @@
       ercViolations.forEach((v, i) => {
         if (v.severity === 'error' && !startedErr) { html += '<div class="erc-group-title">Errors</div>'; startedErr = true; }
         if (v.severity === 'warning' && !startedWarn) { html += '<div class="erc-group-title">Warnings</div>'; startedWarn = true; }
-        html += `<div class="erc-item ${v.severity}" data-idx="${i}"><span class="erc-code">${v.code}</span><span class="erc-msg">${esc(v.message)}</span></div>`;
+        const sheet = v.sheetName ? ` <span class="erc-sheet">[${esc(v.sheetName)}]</span>` : '';
+        html += `<div class="erc-item ${v.severity}" data-idx="${i}"><span class="erc-code">${v.code}</span>${sheet}<span class="erc-msg">${esc(v.message)}</span></div>`;
       });
       panel.innerHTML = html;
       panel.querySelectorAll('.erc-item').forEach(row => row.addEventListener('click', () => {

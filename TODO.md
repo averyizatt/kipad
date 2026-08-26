@@ -4,16 +4,20 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Current roadmap (audit 2026-08-26)
 
-The core single-sheet / two-layer editor is feature-complete for its current scope. All 46 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
+The core single-sheet / two-layer editor is feature-complete for its current scope. All 47 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
 - [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
   - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts
   - [x] Remove silent 150-symbol/100-footprint dead ends with explicit progressive “Show more” controls
   - [x] Search names, descriptions, references, and categories without losing keyboard focus after the first character
+  - [x] Make search multi-term and relevance-ranked across name, value, reference, description, and library
+  - [x] Replace library dropdowns with touch-friendly horizontal category chips
+  - [x] Remove file import from the quick placement panels; keep it in the File menu
   - [x] Show Footprints and Properties tabs in the schematic editor; allow assigning a browsed footprint to the selected symbol
   - [x] Add an explicit Place Symbol button rather than requiring a separate tool switch
 - [x] Fix duplicate Pencil symbol placement and add direct drag wiring — 2026-08-26
   - [x] Suppress the late nearby touch event iPadOS can emit immediately after Apple Pencil pointer-up
+  - [x] Recompute ERC marker coordinates throughout symbol/group drags so pin X markers follow moved symbols
   - [x] Wire tool supports press at the start, drag to the destination, and release to commit while retaining click-click placement for precise bends
 - [x] Add a browser-level smoke suite for the real application shell — 2026-08-26
   - [x] Exercise launcher → schematic → PCB, open/save, a basic edit, undo/redo, and one fabrication export in a headless browser — dependency-free CDP harness, 7 workflow checks — 2026-08-26
@@ -28,7 +32,7 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
 - [ ] Add multi-sheet schematic/project support
   - [x] Foundation: versioned multi-sheet project model with named sheets, active-sheet identity, optional board ownership, stable JSON save/load, and legacy single-sheet wrapping — 2026-08-26
   - [x] Sheet navigation + project save/open: sheet selector + add/rename/delete buttons in the schematic side panel; File menu Open/Save Kipad project (.kipad); every schematic load path rebinds the active sheet's schematic so persistence stays consistent — 2026-08-26
-  - [ ] Hierarchical/global-label connectivity and cross-sheet ERC conflict checks (NEXT)
+  - [x] Hierarchical/global-label connectivity and cross-sheet ERC conflict checks — deterministic project-scope named nets, hierarchical KiCad round-trip, and sheet-aware ERC/UI navigation — 2026-08-26
 - [x] Add continuous integration for the existing regression command — 2026-08-26
   - [x] Run all `test/test_*.js` suites on pushes and pull requests via GitHub Actions / Node 20; required `.kicad_mod` fixtures are now tracked so clean checkouts pass — 2026-08-26
 

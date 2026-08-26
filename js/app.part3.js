@@ -54,7 +54,7 @@
       previewSym: (schTool === 'symbol' && schPlaceName && crosshair)
         ? { name: schPlaceName, at: [snap(crosshair[0]), snap(crosshair[1])], angle: schAngle } : null,
       ercMarkers: (showErcMarkers && ercViolations.length && Erc)
-        ? Erc.markers(ercViolations, view.zoom) : null
+        ? Erc.markers(visibleErcViolations(), view.zoom) : null
     };
     R.renderSchematic(ctx, cw, ch, sch, view, state, Syms);
     $('hud-pos').textContent = fmt(view.x) + ', ' + fmt(view.y) + ' mm';
