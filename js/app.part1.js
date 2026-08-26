@@ -56,6 +56,7 @@
   let panning = false, lastPan = null;
   let pointers = new Map();
   let penDown = null;       // active Apple Pencil pointerId (for palm rejection)
+  let lastPenUp = null;     // suppress the synthetic/late touch that can follow Pencil
   const eraserPointers = new Set(); // consume eraser-end up/cancel without triggering tap tools
   let lastPenTap = 0;       // for pencil double-tap → Select
   let lastTap = 0;
@@ -82,6 +83,7 @@
   let schBoxPending = null;     // touch long-press gate before box select
   let schBoxTimer = null;
   let schWirePts = [];          // in-progress wire
+  let schWireDrag = null;       // press-drag-release wire gesture
   let schPlaceName = null;      // symbol being placed
   let schAngle = 0;
   let schUndo = [], schRedo = [];

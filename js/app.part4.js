@@ -71,8 +71,12 @@
       }
       lastPenTap = now;
     }
-    // palm rejection: ignore fingers while the pencil is down
+    // Palm rejection: iPadOS can deliver a late touch immediately after the
+    // Pencil pointerup.  Treat that as part of the Pencil gesture as well;
+    // otherwise a single Pencil placement can create a second symbol.
     if (e.pointerType === 'touch' && penDown !== null) return;
+    if (e.pointerType === 'touch' && lastPenUp && Date.now() - lastPenUp.t < 550 &&
+        Math.hypot(e.clientX - lastPenUp.x, e.clientY - lastPenUp.y) < 45) return;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const [wx, wy] = s2w(...evPos(e));
@@ -81,7 +85,13 @@
 
     if (mode === 'schematic') {
       // multi-touch (pinch zoom / two-finger tap) must not place parts or wire points
-      if (pointers.size < 2) schPointerDown(wx, wy, e);
+      if (pointers.size < 2) {
+        const startingWire = schTool === 'wire' && schWirePts.length === 0;
+        schPointerDown(wx, wy, e);
+        if (startingWire && schWirePts.length === 1) {
+          schWireDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+        }
+      }
       else cancelSchBoxGesture();
       return;
     }
@@ -425,7 +435,11 @@
 
   canvas.addEventListener('pointerup', e => {
     const [wx, wy] = s2w(...evPos(e));
-    if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
+    if (e.pointerType === 'pen' && e.pointerId === penDown) {
+      penDown = null;
+      lastPenUp = { t: Date.now(), x: e.clientX, y: e.clientY };
+      const h = $('hud-pen'); if (h) h.classList.add('hidden');
+    }
     if (eraserPointers.delete(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
@@ -445,6 +459,20 @@
     }
 
     if (mode === 'schematic') {
+      // Touch/Pencil-friendly direct wiring: press at the first point, drag to
+      // the destination, release to commit.  A stationary tap keeps the
+      // conventional KiCad click-click workflow available for precise bends.
+      if (schWireDrag && schWireDrag.id === e.pointerId) {
+        const drag = schWireDrag;
+        schWireDrag = null;
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) {
+          schPointerDown(wx, wy, e);
+          if (schWirePts.length >= 2) finishSchWire();
+          lastTap = 0; lastTapPos = null;
+          render(); refreshAll();
+          return;
+        }
+      }
       if (schBoxTimer !== null) { clearTimeout(schBoxTimer); schBoxTimer = null; }
       if (schBoxPending) {
         const additive = schBoxPending.additive;

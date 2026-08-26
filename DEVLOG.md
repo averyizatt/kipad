@@ -605,3 +605,9 @@ Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-i
 - Dragging any selected member moves the complete group on-grid with one undo snapshot. Arrow keys nudge the group, R rotates it 90° about its bounding-box centre, and Delete removes all selected items. Moving/rotating wires and connection markers as part of the same rigid group preserves their coincident geometry.
 - `renderSchematic` highlights every selected primitive in KiCad green and draws the same dashed green selection band used by PCB. Help text and the schematic Edit menu document the new controls. Added the new module to the application shell/offline cache, bumped relevant script URLs to v59, and advanced the service-worker cache to `kipad-v53`.
 - Regression coverage: new `test/test_schmultisel.js` exercises all five item kinds, pin/body and crossing-wire rectangle collection, stable order, bounds, move, rotation, hit testing, and stale-id deletion. `test/test_keys.js` now verifies schematic Ctrl+A. `node --check` passes for every touched JS file and all **45/45** `test/test_*.js` suites pass.
+
+## 2026-08-26 — direct schematic input fixes
+
+- Fixed duplicate Apple Pencil symbol placement by suppressing the late nearby touch event iPadOS can emit immediately after Pencil pointer-up. The guard is limited to 550 ms and 45 screen pixels, so unrelated touches still work normally.
+- Added direct wire placement for touch and Pencil: press at the starting point, drag using the existing snapped/elbow preview, and release to commit. A stationary tap retains the conventional KiCad click-click path for deliberate corners.
+- Bumped application URLs to v60 and the offline cache to `kipad-v54`. Syntax checks, focused schematic/wire tests, and all 45 Node suites pass.
