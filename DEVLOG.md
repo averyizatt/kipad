@@ -632,3 +632,19 @@ Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-i
 - Added the module to the application shell and offline precache; advanced the service-worker cache to `kipad-v56`.
 - Added `test/test_project.js` covering multi-sheet creation/selection, stable save/reload, board preservation, legacy loading, copy isolation, and invalid data. All **46/46** dependency-free Node suites pass; syntax and diff checks pass. Browser smoke was attempted, but Chromium did not expose its DevTools endpoint in this environment.
 - Remaining milestone work: editor sheet navigation, project-level import/export wiring, hierarchical/global-label connectivity, and cross-sheet ERC.
+
+## 2026-08-26 ~22:03 UTC — multi-sheet editor wiring + project save/open
+
+Coordinator run: integrated the in-progress multi-sheet editor work (sheet navigation bar, project save/open, sheet add/rename/delete) on the `cron/multisheet-navigation` branch. Closes the "editor sheet navigation and project save/export" portion of the multi-sheet roadmap.
+
+- `js/project.js`: added `renameSheet` and `removeSheet` to the KipadProject public surface, with a one-sheet minimum invariant and safe-name fall-through.
+- `index.html`: added a sheet navigation bar (select + add/rename/delete buttons) above the schematic tabs, and a `.kipad`/`application/json` extension on the file-open picker.
+- `js/app.part1.js`: hold a `project` reference alongside the live `sch` schematic so multi-sheet state can be reasoned about per session.
+- `js/app.part3.js`: introduce `ensureProject`, `bindActiveSchematic`, `refreshSheetNav`, `switchSheet`, `addProjectSheet`, `renameProjectSheet`, `deleteProjectSheet`, `projectSave`, `projectOpen`. Every schematic load path (new, open, restore, undo, redo) rebinds the active sheet's schematic so persistence stays consistent.
+- `js/app.part4.js`: wire the new sheet-nav buttons, route `.kipad`/`.json` opens to `projectOpen`, and add File-menu entries for Open/Save Kipad project + Add/Rename/Delete sheet.
+- `style.css` + `sw.js`: minor chrome for the sheet-nav bar; offline cache advanced to `kipad-v58`.
+- `test/test_project.js`: covers `renameSheet`/`removeSheet` (including the last-sheet guard) and adjusts the round-trip expectations because the new helper also reorders active identity.
+
+Verification: all **46/46** dependency-free Node regression suites pass; `node --check` clean on every touched JS file. The optional browser shell smoke was not run — Chromium does not expose its DevTools endpoint in this environment. The remaining multi-sheet work is hierarchical/global-label connectivity and cross-sheet ERC.
+
+Note: a larger competing implementation exists on `cron/multisheet-editor-20260826` (commit 14076fc) using a `sch()` getter pattern. This branch is a smaller, more focused checkpoint that adds the editor surface area on top of the foundation without restructuring how `sch` is held. Either path can land; review should pick one before merging to main.
