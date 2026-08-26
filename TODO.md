@@ -19,7 +19,9 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
   - [x] Exercise launcher → schematic → PCB, open/save, a basic edit, undo/redo, and one fabrication export in a headless browser — dependency-free CDP harness, 7 workflow checks — 2026-08-26
   - [x] Verify service-worker install/update behavior and offline startup — dependency-free CDP lifecycle smoke covers precache install, cache-busted offline shell startup, worker replacement, stale-cache cleanup, and controller-change reload — 2026-08-26
 - [ ] Run and document a physical iPad acceptance pass
-  - [ ] Safari and installed-PWA checks for Pencil placement accuracy, pinch/pan, long-press box select, two-finger undo, eraser deletion, file import/export, and update pickup
+  - [ ] Safari and installed-PWA checks for Pencil placement accuracy, long-press box select, two-finger undo, eraser deletion, file import/export, and update pickup
+  - [x] Schematic two-finger pinch zoom uses the shared focal-point-preserving canvas gesture; second finger cancels wire/selection gestures — 2026-08-26
+  - [x] PWA update hardening: navigations are network-first and service-worker registration bypasses HTTP cache/checks immediately, so stale 600-symbol installs can advance to the 2,000-symbol/category build after refresh — 2026-08-26
   - [ ] Record device/iPadOS version and any reproducible failures in DEVLOG before fixing them
 - [x] Add schematic multi-select and group operations — 2026-08-26
   - [x] Additive modifier-click, desktop rubber-band, touch/Pencil long-press rubber-band, Ctrl+A, and group move/nudge/rotate/delete for symbols, wires, labels, junctions, and no-connect flags — 2026-08-26

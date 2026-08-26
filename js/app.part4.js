@@ -92,7 +92,12 @@
           schWireDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
         }
       }
-      else cancelSchBoxGesture();
+      else {
+        cancelSchBoxGesture();
+        schWireDrag = null;
+        const [p1, p2] = [...pointers.values()];
+        pinchDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      }
       return;
     }
 
@@ -319,6 +324,27 @@
     const [wx, wy] = s2w(...evPos(e));
     crosshair = [wx, wy];
 
+    // Pinch belongs to the shared canvas, so handle it before either editor's
+    // tool-specific move path. Keep the world point under the midpoint fixed.
+    if (pointers.size === 2) {
+      cancelBoxGesture();
+      cancelSchBoxGesture();
+      schWireDrag = null;
+      const [p1, p2] = [...pointers.values()];
+      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      if (pinchDist) {
+        const mid = [(p1.x + p2.x) / 2, (p1.y + p2.y) / 2];
+        const factor = d / pinchDist;
+        const [mw, mwy] = s2w(...evPosAt(mid[0], mid[1]));
+        view.zoom = Math.max(0.5, Math.min(50, view.zoom * factor));
+        const [nw, nwy] = s2w(...evPosAt(mid[0], mid[1]));
+        view.x += mw - nw; view.y += mwy - nwy;
+        pinchDist = d;
+      }
+      render();
+      return;
+    }
+
     if (mode === 'schematic') {
       if (schTool === 'wire' && schWirePts.length) {
         const lastP = schWirePts[schWirePts.length - 1];
@@ -379,23 +405,6 @@
     if (boxPending) { render(); return; } // armed, holding still: freeze until the hold fires
     if (dragging && dragging.box) {
       boxSel = { a: boxSel.a, b: [wx, wy] };
-      render();
-      return;
-    }
-
-    if (pointers.size === 2) {
-      cancelBoxGesture();          // pinch wins over any armed/held box
-      const [p1, p2] = [...pointers.values()];
-      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      if (pinchDist) {
-        const mid = [(p1.x + p2.x) / 2, (p1.y + p2.y) / 2];
-        const factor = d / pinchDist;
-        const [mw, mwy] = s2w(...evPosAt(mid[0], mid[1]));
-        view.zoom = Math.max(0.5, Math.min(50, view.zoom * factor));
-        const [nw, nwy] = s2w(...evPosAt(mid[0], mid[1]));
-        view.x += mw - nw; view.y += mwy - nwy;
-        pinchDist = d;
-      }
       render();
       return;
     }

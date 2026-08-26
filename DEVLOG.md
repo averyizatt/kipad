@@ -657,3 +657,10 @@ Coordinator run: fast-forwarded `main` to include the multi-sheet editor wiring 
 - TODO: marked "Sheet navigation + project save/open" subitem complete; the next subitem is hierarchical/global-label connectivity and cross-sheet ERC.
 
 Verification: all **46/46** dependency-free Node regression suites pass; `node --check` clean on every JS file. The browser shell smoke was not run — Chromium does not expose its DevTools endpoint in this environment.
+
+## 2026-08-26 ~23:15 UTC — schematic pinch zoom + stale iPad build recovery
+
+- Fixed shared-canvas gesture ordering: two-finger pinch now runs before schematic tool movement, preserves the world point beneath the midpoint, and cancels armed box/wire drags when the second finger lands. PCB pinch behavior is unchanged.
+- Avery's iPad screenshots showed the old `Symbols (600)` shell, confirming the missing categories/tabs were a stale PWA rather than absent library data. The launcher now reports `Symbols (2,000)`.
+- Deploy pickup is hardened: registration uses `updateViaCache: 'none'` plus an immediate update check, and navigations use network-first with cached-index offline fallback. Cache `kipad-v58` → `kipad-v59`; app.part4 cache-bust `v62` → `v63`.
+- Verification: all **46/46** dependency-free Node regression suites pass; `node --check` is clean for the changed JavaScript and service worker.
