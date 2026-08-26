@@ -11,6 +11,7 @@
   const SymFields = window.KipadSymFields || null;
   const Zip = window.KipadZip || null;
   const SchWires = window.KipadSchWires || null;
+  const SchMSel = window.KipadSchMultisel || null;
   const SafeSave = window.KipadSafeSave || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
@@ -74,13 +75,17 @@
   let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
   let sch = null;               // schematic model
   let schTool = 'select';       // select | symbol | wire | label | junction | noconn
-  let schSelId = null;          // selected symbol id
-  let schSelNc = null;          // selected no-connect flag id
+  let schSelId = null;          // primary schematic item id
+  let schSelKind = null;        // symbol | wire | label | junction | noconn
+  let schSelSet = [];           // additive / rubber-band schematic selection
+  let schBoxSel = null;         // schematic rubber-band {a,b}
+  let schBoxPending = null;     // touch long-press gate before box select
+  let schBoxTimer = null;
   let schWirePts = [];          // in-progress wire
   let schPlaceName = null;      // symbol being placed
   let schAngle = 0;
   let schUndo = [], schRedo = [];
-  let schDrag = null;           // {symId, dx, dy}
+  let schDrag = null;           // {item/group/pan/box}
   let schWireCur = null;
   let schSnapHi = null;
   let ercViolations = [];       // cached ERC results (recomputed on change)

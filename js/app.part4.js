@@ -14,16 +14,22 @@
     h.textContent = p.eraser ? '⌫ Eraser' : '✏' + (p.altitude == null ? '' : ' ' + Math.round(p.altitude) + '°');
   }
 
+  function cancelSchBoxGesture() {
+    if (schBoxTimer !== null) { clearTimeout(schBoxTimer); schBoxTimer = null; }
+    schBoxPending = null;
+    schBoxSel = null;
+    if (schDrag && schDrag.box) schDrag = null;
+  }
+
   function eraseAt(wx, wy) {
     if (mode === 'schematic') {
       const tol = Math.max(0.3, 10 / view.zoom);
-      const nc = (sch.noConnects || []).find(n => Math.hypot(n.at[0] - wx, n.at[1] - wy) <= tol);
-      const sym = nc ? null : schHitSymbol(wx, wy);
-      if (!nc && !sym) { setStatus('Eraser: nothing under Pencil'); return; }
-      schSelNc = nc ? nc.id : null;
-      schSelId = sym ? sym.id : null;
+      const hit = SchMSel.hitTest(sch, wx, wy, tol, Syms.getSymbol);
+      if (!hit) { setStatus('Eraser: nothing under Pencil'); return; }
+      schSelSet = [];
+      schSetPrimary(hit);
       schDoDelete();
-      setStatus('Pencil eraser: deleted ' + (nc ? 'no-connect flag' : 'symbol'));
+      setStatus('Pencil eraser: deleted ' + hit.kind);
       return;
     }
     const hit = B.hitPad(board, wx, wy, pickTol()) || B.hitFootprint(board, wx, wy, pickTol());
@@ -76,6 +82,7 @@
     if (mode === 'schematic') {
       // multi-touch (pinch zoom / two-finger tap) must not place parts or wire points
       if (pointers.size < 2) schPointerDown(wx, wy, e);
+      else cancelSchBoxGesture();
       return;
     }
 
@@ -314,14 +321,34 @@
         schWireCur = null;
         schSnapHi = null;
       }
+      if (schBoxPending && Math.hypot(e.clientX - schBoxPending.px, e.clientY - schBoxPending.py) > 10) {
+        if (schBoxTimer !== null) { clearTimeout(schBoxTimer); schBoxTimer = null; }
+        const additive = schBoxPending.additive;
+        schBoxPending = null;
+        if (!additive) schClearSelection();
+        schDrag = { pan: true };
+        lastPan = { x: e.clientX, y: e.clientY };
+        refreshAll();
+      }
+      if (schBoxPending) { render(); return; }
+      if (schDrag && schDrag.box) {
+        schBoxSel = { a: schBoxSel.a, b: [wx, wy] };
+        render();
+        return;
+      }
       if (schDrag && schDrag.pan) {
         const dx = (e.clientX - lastPan.x) / view.zoom;
         const dy = (e.clientY - lastPan.y) / view.zoom;
         view.x -= dx; view.y -= dy;
         lastPan = { x: e.clientX, y: e.clientY };
-      } else if (schDrag && schDrag.symId) {
-        const s = sch.symbols.find(x => x.id === schDrag.symId);
-        if (s) { Sch.moveSymbol(sch, s.id, [snap(wx - schDrag.dx), snap(wy - schDrag.dy)]); }
+      } else if (schDrag && schDrag.members) {
+        if (!schDrag.moved) { schPushUndo(); schDrag.moved = true; }
+        const target = [snap(wx - schDrag.dx), snap(wy - schDrag.dy)];
+        const ddx = target[0] - schDrag.anchor[0], ddy = target[1] - schDrag.anchor[1];
+        if (ddx || ddy) {
+          SchMSel.moveItems(sch, schDrag.members, ddx, ddy);
+          schDrag.anchor = target;
+        }
       }
       render();
       return;
@@ -403,14 +430,30 @@
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     const finishingBox = (dragging && dragging.box) ? !!dragging.additive : null;
+    const schFinishingBox = (schDrag && schDrag.box) ? !!schDrag.additive : null;
     const wasDragging = dragging;
+    const wasSchDragging = schDrag;
     dragging = null; lastPan = null;
+    schDrag = null;
 
     if (twoTap.feed({ type: 'up', id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp }) === 'undo') {
       if (finishingBox !== null) { boxSel = null; render(); }   // undo wins over a half-drawn rect
+      if (schFinishingBox !== null || schBoxSel) cancelSchBoxGesture();
       applyKeyAction('undo');
       setStatus('Two-finger tap → Undo');
       return;
+    }
+
+    if (mode === 'schematic') {
+      if (schBoxTimer !== null) { clearTimeout(schBoxTimer); schBoxTimer = null; }
+      if (schBoxPending) {
+        const additive = schBoxPending.additive;
+        schBoxPending = null;
+        if (!additive) { schClearSelection(); setStatus('Selection cleared'); }
+        render(); refreshAll();
+        return;
+      }
+      if (schFinishingBox !== null) { finishSchBoxSelect(schFinishingBox); return; }
     }
 
     // rubber-band resolution: release before the hold fired = plain empty tap
@@ -437,10 +480,9 @@
       }
       lastTap = now2;
       lastTapPos = [wx, wy];
-      if (schDrag && schDrag.symId) schPushUndo();
-      schDrag = null;
       schWireCur = null;
       schSnapHi = null;
+      if (wasSchDragging && wasSchDragging.moved) refreshAll();
       render();
       return;
     }
@@ -468,6 +510,7 @@
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = null;
     cancelBoxGesture();
+    cancelSchBoxGesture();
     dragging = null; lastPan = null;
   });
 
@@ -489,7 +532,8 @@
     if (schTool === 'symbol' && schPlaceName) {
       schPushUndo();
       const s = Sch.placeSymbol(sch, schPlaceName, [sx, sy], schAngle);
-      schSelId = s.id;
+      schSelSet = [];
+      schSetPrimary({ id: s.id, kind: 'symbol' });
       render(); refreshAll();
       setStatus('Placed ' + s.ref + ' — tap to place more, R rotates');
       return;
@@ -573,30 +617,51 @@
         if (d <= tol && d < bestD) { best = v; bestD = d; }
       }
       if (best) {
-        schSelId = best.symbolId || null;
+        schSelSet = [];
+        schSetPrimary(best.symbolId ? { id: best.symbolId, kind: 'symbol' } : null);
         setStatus('ERC ' + best.code + ': ' + best.message);
         render(); refreshAll();
         return;
       }
     }
-    const hitNcTol = Math.max(0.3, 10 / view.zoom);
-    const ncHit = (sch.noConnects || []).find(n => Math.hypot(n.at[0] - wx, n.at[1] - wy) <= hitNcTol);
-    if (ncHit) {
-      schSelId = null; schSelNc = ncHit.id;
-      setStatus('No-connect flag selected — ⌫ deletes');
-      render(); refreshAll();
-      return;
-    }
-    const hit = schHitSymbol(wx, wy);
+    const hit = SchMSel.hitTest(sch, wx, wy, Math.max(0.25, 8 / view.zoom), Syms.getSymbol);
+    const additive = !!(pe.shiftKey || pe.metaKey || pe.ctrlKey);
     if (hit) {
-      schSelId = hit.id; schSelNc = null;
-      schDrag = { symId: hit.id, dx: wx - hit.at[0], dy: wy - hit.at[1] };
+      if (additive) {
+        if (!schSelSet.length && schSelId && schSelKind) schSelSet = [{ id: schSelId, kind: schSelKind }];
+        const removing = SchMSel.has(schSelSet, hit.id);
+        schSelSet = SchMSel.toggle(schSelSet, hit.id, hit.kind);
+        schSetPrimary(removing ? (schSelSet[schSelSet.length - 1] || null) : hit);
+        schDrag = { pan: true };
+        lastPan = { x: pe.clientX, y: pe.clientY };
+        setStatus(schSelSet.length ? schSelSet.length + ' schematic items selected — drag a member to move the group' : 'Selection cleared');
+      } else {
+        const members = schSelSet.length && SchMSel.has(schSelSet, hit.id) ? schSelSet.slice() : [{ id: hit.id, kind: hit.kind }];
+        if (members.length === 1) schSelSet = [];
+        schSetPrimary(hit);
+        schDrag = { members: members, anchor: [hit.anchor[0], hit.anchor[1]], dx: wx - hit.anchor[0], dy: wy - hit.anchor[1], moved: false };
+      }
     } else {
-      schSelId = null; schSelNc = null;
-      schDrag = { pan: true };
-      // seed from the real pointer position — stale (0,0) seeds here made the
-      // first empty-canvas drag jump the schematic view
-      lastPan = { x: pe.clientX, y: pe.clientY };
+      if (pe.pointerType === 'mouse' && pe.button === 1) {
+        schDrag = { pan: true };
+        lastPan = { x: pe.clientX, y: pe.clientY };
+      } else if (pe.pointerType === 'mouse') {
+        if (!additive) schClearSelection();
+        schDrag = { box: true, additive: additive };
+        schBoxSel = { a: [wx, wy], b: [wx, wy] };
+      } else {
+        schBoxPending = { px: pe.clientX, py: pe.clientY, additive: additive };
+        schBoxTimer = setTimeout(() => {
+          schBoxTimer = null;
+          if (!pointers.has(pe.pointerId)) { schBoxPending = null; return; }
+          if (!schBoxPending.additive) schClearSelection();
+          schDrag = { box: true, additive: schBoxPending.additive };
+          schBoxSel = { a: [wx, wy], b: [wx, wy] };
+          schBoxPending = null;
+          setStatus('Box select — drag, release to select');
+          render();
+        }, 450);
+      }
     }
     render(); refreshAll();
   }
@@ -630,7 +695,7 @@
     // KiCad-parity bindings (save/open/undo/redo, zoom, properties, add, nudge)
     const keyAct = KipadKeys.resolve(e, {
       mode: mode,
-      hasSelection: mode === 'schematic' ? !!schSelId : !!selId
+      hasSelection: mode === 'schematic' ? schCurrentSelection().length > 0 : !!selId
     });
     if (keyAct) { e.preventDefault(); applyKeyAction(keyAct); return; }
     if (mode === 'schematic') {
@@ -657,7 +722,10 @@
           schDoDelete(); break;
         case 'Enter': if (schTool === 'wire' && schWirePts.length) finishSchWire(); break;
         case 'Escape':
-          schWirePts = []; schSnapHi = null; schPlaceName = null; schSelNc = null; setSchTool('select'); break;
+          schWirePts = []; schSnapHi = null; schPlaceName = null;
+          if (schBoxSel || schBoxPending || schBoxTimer !== null || (schDrag && schDrag.box)) cancelSchBoxGesture();
+          if (schCurrentSelection().length) { schClearSelection(); setStatus('Selection cleared'); }
+          setSchTool('select'); break;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? schRedoStep() : schUndoStep(); }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); schRedoStep(); }
@@ -753,7 +821,37 @@
     render(); refreshAll();
   }
 
+  function finishSchBoxSelect(additive) {
+    const rect = schBoxSel; schBoxSel = null;
+    if (!rect || !SchMSel) return;
+    const found = SchMSel.collectInRect(sch, {
+      minX: Math.min(rect.a[0], rect.b[0]), maxX: Math.max(rect.a[0], rect.b[0]),
+      minY: Math.min(rect.a[1], rect.b[1]), maxY: Math.max(rect.a[1], rect.b[1])
+    }, Syms.getSymbol);
+    let next = additive ? schCurrentSelection() : [];
+    for (const it of found) if (!SchMSel.has(next, it.id)) next.push(it);
+    schSelSet = next;
+    schSetPrimary(next[next.length - 1] || null);
+    setStatus(next.length ? next.length + ' schematic item' + (next.length === 1 ? '' : 's') + ' selected — drag a member to move the group' : 'Selection cleared');
+    render(); refreshAll();
+  }
+
   function doSelectAll() {
+    if (mode === 'schematic') {
+      if (schTool !== 'select' || schWirePts.length) return;
+      const items = []
+        .concat(sch.symbols.map(x => ({ id: x.id, kind: 'symbol' })))
+        .concat(sch.wires.map(x => ({ id: x.id, kind: 'wire' })))
+        .concat(sch.labels.map(x => ({ id: x.id, kind: 'label' })))
+        .concat(sch.junctions.map(x => ({ id: x.id, kind: 'junction' })))
+        .concat((sch.noConnects || []).map(x => ({ id: x.id, kind: 'noconn' })));
+      if (!items.length) { setStatus('Nothing to select'); return; }
+      schSelSet = items;
+      schSetPrimary(items[0]);
+      setStatus(items.length + ' schematic items selected — drag a member to move the group');
+      render(); refreshAll();
+      return;
+    }
     if (route || zonePts || outlinePts || gfxStart || measureA || placeLib) return; // never hijack an active draft
     const items = []
       .concat(board.footprints.map(f => ({ id: f.id, kind: 'footprint' })))
@@ -771,10 +869,10 @@
   // Move the current selection by one grid step (KiCad arrow-key behaviour).
   function nudgeSel(dx, dy) {
     if (mode === 'schematic') {
-      const s = sch.symbols.find(x => x.id === schSelId);
-      if (s) {
+      const members = schCurrentSelection();
+      if (members.length && SchMSel) {
         schPushUndo();
-        Sch.moveSymbol(sch, s.id, [s.at[0] + dx * grid, s.at[1] + dy * grid]);
+        SchMSel.moveItems(sch, members, dx * grid, dy * grid);
         render(); refreshAll();
       }
       return;
@@ -911,6 +1009,7 @@
       edit: [
         ['Undo', schUndoStep, '⌘Z'],
         ['Redo', schRedoStep, '⌘Y'],
+        ['Select all', doSelectAll, 'Ctrl+A'],
         ['Delete selection', schDoDelete, '⌫'],
         ['Rotate 90°', schDoRotate, 'R'],
         ['Properties…', () => setTab('props'), 'E']
@@ -1013,7 +1112,7 @@
   function showSchHelp() {
     showModal('Kipad — Schematic Editor', `
       <b>Tools</b><br>
-      ➤ Select — tap symbol to select, drag to move, R rotates, Del deletes<br>
+      ➤ Select — tap any item to select · Shift/Cmd/Ctrl+tap toggles additive selection · drag a selected member to move the group · mouse-drag / touch long-press on empty paper makes a rubber-band selection · R rotates and Del deletes the selection · Ctrl+A selects all<br>
       ▤ Symbol — pick from Symbols panel, tap canvas to place<br>
       ╱ Wire — tap to start, tap for corners, double-tap/Enter to finish<br>
       🏷 Label — tap to place a net label (names the net)<br>

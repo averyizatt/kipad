@@ -530,7 +530,7 @@
 // ---------- schematic rendering (Eeschema-like) ----------
 
 // Draw a schematic: symbols (from registry graphics), wires, labels, junctions.
-// state: { selSymId, wirePts (in-progress wire), previewSym (name+at+angle), getSymbol }
+// state: { selIds:Set, box, wirePts (in-progress wire), previewSym (name+at+angle) }
 function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   const dpr = state.dpr || 1;
   ctx.save();
@@ -566,8 +566,9 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
 
   // wires (KiCad: green)
   ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#009600';
   for (const w of sch.wires) {
+    ctx.strokeStyle = state.selIds && state.selIds.has(w.id) ? SEL : '#009600';
+    ctx.lineWidth = state.selIds && state.selIds.has(w.id) ? 3 : 1.5;
     ctx.beginPath();
     for (let i = 0; i < w.pts.length; i++) {
       const [sx, sy] = w2s(view, w.pts[i][0], w.pts[i][1], cw, ch);
@@ -603,6 +604,7 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   ctx.fillStyle = '#009600';
   for (const j of sch.junctions) {
     const [sx, sy] = w2s(view, j.at[0], j.at[1], cw, ch);
+    ctx.fillStyle = state.selIds && state.selIds.has(j.id) ? SEL : '#009600';
     ctx.beginPath();
     ctx.arc(sx, sy, 3, 0, Math.PI * 2);
     ctx.fill();
@@ -619,9 +621,9 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
 
   // no-connect flags (KiCad: dark-blue X at the pin tip)
   if (sch.noConnects && sch.noConnects.length) {
-    ctx.strokeStyle = '#000084';
     ctx.lineWidth = 2;
     for (const nc of sch.noConnects) {
+      ctx.strokeStyle = state.selIds && state.selIds.has(nc.id) ? SEL : '#000084';
       const [sx, sy] = w2s(view, nc.at[0], nc.at[1], cw, ch);
       const r = Math.max(4, 0.635 * z);   // world half-diagonal 0.635 mm, min screen size
       ctx.beginPath();
@@ -635,7 +637,7 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   for (const sym of sch.symbols) {
     const def = (S && S.getSymbol) ? S.getSymbol(sym.libId) : null;
     if (!def) continue;
-    drawSchematicSymbol(ctx, cw, ch, view, sym, def, sym.id === state.selSymId);
+    drawSchematicSymbol(ctx, cw, ch, view, sym, def, !!(state.selIds && state.selIds.has(sym.id)));
   }
 
   // labels — local: near-black text right of the anchor (LAYER_LOCLABEL
@@ -644,6 +646,7 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
   ctx.textBaseline = 'middle';
   for (const l of sch.labels) {
     const [sx, sy] = w2s(view, l.at[0], l.at[1], cw, ch);
+    const labelSelected = !!(state.selIds && state.selIds.has(l.id));
     if ((l.type || 'local') === 'global') {
       const h = Math.max(12, Math.min(1.905 * z, 40));   // banner height ~1.9 mm world, clamped
       const pad = h * 0.35;
@@ -659,16 +662,29 @@ function renderSchematic(ctx, cw, ch, sch, view, state, S) {
       ctx.closePath();
       ctx.fillStyle = '#f5f4ef';                          // paper fill so it occludes wires
       ctx.fill();
-      ctx.strokeStyle = '#840000';
+      ctx.strokeStyle = labelSelected ? SEL : '#840000';
       ctx.lineWidth = 1.2;
       ctx.stroke();
-      ctx.fillStyle = '#840000';
+      ctx.fillStyle = labelSelected ? SEL : '#840000';
       ctx.fillText(l.text, sx + tip + pad, sy);
     } else {
-      ctx.fillStyle = '#0f0f0f';
+      ctx.fillStyle = labelSelected ? SEL : '#0f0f0f';
       ctx.font = '11px system-ui, sans-serif';
       ctx.fillText(l.text, sx + 6, sy);
     }
+  }
+
+  // schematic rubber-band uses the same visual language as PCB selection.
+  if (state.box) {
+    const [ax, ay] = w2s(view, state.box.a[0], state.box.a[1], cw, ch);
+    const [bx, by] = w2s(view, state.box.b[0], state.box.b[1], cw, ch);
+    ctx.fillStyle = 'rgba(4,255,67,0.08)';
+    ctx.strokeStyle = SEL;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 3]);
+    ctx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    ctx.setLineDash([]);
   }
 
   // ERC violation markers (KiCad-style X-in-circle, precomputed by app via

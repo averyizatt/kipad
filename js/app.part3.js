@@ -46,7 +46,8 @@
       dpr: window.devicePixelRatio || 1,
       grid,
       crosshair,
-      selSymId: schSelId,
+      selIds: (() => { const s = new Set(schSelSet.map(m => m.id)); if (schSelId) s.add(schSelId); return s; })(),
+      box: schBoxSel,
       wirePts: schWirePts.length ? schWirePts : null,
       wireCur: schWireCur,
       snapHi: schSnapHi || null,
@@ -78,11 +79,21 @@
   }
 
   function schSnapshot() { return JSON.stringify(sch); }
+  function schCurrentSelection() {
+    if (schSelSet.length) return schSelSet.slice();
+    return schSelId && schSelKind ? [{ id: schSelId, kind: schSelKind }] : [];
+  }
+  function schSetPrimary(it) {
+    schSelId = it ? it.id : null;
+    schSelKind = it ? it.kind : null;
+  }
+  function schClearSelection() { schSelId = null; schSelKind = null; schSelSet = []; }
   function schPushUndo() { schUndo.push(schSnapshot()); if (schUndo.length > 50) schUndo.shift(); schRedo = []; ercDirty = true; }
   function schUndoStep() {
     if (!schUndo.length) return;
     schRedo.push(schSnapshot());
     sch = JSON.parse(schUndo.pop());
+    schClearSelection();
     ercDirty = true;
     render(); refreshAll();
   }
@@ -90,39 +101,35 @@
     if (!schRedo.length) return;
     schUndo.push(schSnapshot());
     sch = JSON.parse(schRedo.pop());
+    schClearSelection();
     ercDirty = true;
     render(); refreshAll();
   }
 
   function schDoDelete() {
-    if (schSelNc) {
-      schPushUndo();
-      Sch.removeNoConnect(sch, schSelNc);
-      schSelNc = null;
-      render(); refreshAll();
-      return;
-    }
-    if (!schSelId) return;
+    const members = schCurrentSelection();
+    if (!members.length || !SchMSel) return;
     schPushUndo();
-    sch.symbols = sch.symbols.filter(s => s.id !== schSelId);
-    schSelId = null;
+    const p = SchMSel.deletePlan(sch, members);
+    sch.symbols = sch.symbols.filter(x => !p.symbols.includes(x.id));
+    sch.wires = sch.wires.filter(x => !p.wires.includes(x.id));
+    sch.labels = sch.labels.filter(x => !p.labels.includes(x.id));
+    sch.junctions = sch.junctions.filter(x => !p.junctions.includes(x.id));
+    sch.noConnects = (sch.noConnects || []).filter(x => !p.noConnects.includes(x.id));
+    const n = p.symbols.length + p.wires.length + p.labels.length + p.junctions.length + p.noConnects.length;
+    schClearSelection();
     render(); refreshAll();
+    setStatus('Deleted ' + n + ' schematic item' + (n === 1 ? '' : 's'));
   }
   function schDoRotate() {
-    if (!schSelId || schSelNc) return;
-    const s = sch.symbols.find(x => x.id === schSelId);
-    if (!s) return;
+    const members = schCurrentSelection();
+    if (!members.length || !SchMSel) return;
+    const b = SchMSel.bounds(sch, members);
+    if (!b) return;
     schPushUndo();
-    s.angle = (s.angle + 90) % 360;
-    render();
-  }
-
-  function schHitSymbol(wx, wy) {
-    for (let i = sch.symbols.length - 1; i >= 0; i--) {
-      const s = sch.symbols[i];
-      if (Math.hypot(wx - s.at[0], wy - s.at[1]) < 2) return s;
-    }
-    return null;
+    const n = SchMSel.rotateItems(sch, members, b.center, 90);
+    render(); refreshAll();
+    setStatus('Rotated ' + n + ' schematic item' + (n === 1 ? '' : 's') + ' about the selection centre');
   }
 
   function doUpdatePCB() {
@@ -175,7 +182,7 @@
     try {
       schPushUndo();
       sch = Sch.parseSch(b.s, Syms.getSymbol);
-      schSelId = null; schWirePts = [];
+      schClearSelection(); schWirePts = [];
       setMode('schematic');
       zoomFit();
       render(); refreshAll();
@@ -193,7 +200,7 @@
       try {
         schPushUndo();
         sch = Sch.parseSch(r.result, Syms.getSymbol);
-        schSelId = null; schWirePts = [];
+        schClearSelection(); schWirePts = [];
         setMode('schematic');
         zoomFit();
         render(); refreshAll();
@@ -207,7 +214,7 @@
   function schNew() {
     schPushUndo();
     sch = Sch.makeSchematic();
-    schSelId = null; schWirePts = [];
+    schClearSelection(); schWirePts = [];
     setMode('schematic');
     zoomFit(); render(); refreshAll();
     setStatus('New schematic');

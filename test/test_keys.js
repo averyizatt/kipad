@@ -23,7 +23,7 @@ ok(K.resolve(ev('s', { altKey: true }), pcb) === null, 'Alt combos ignored');
 ok(K.resolve(ev('a', { ctrlKey: true }), pcb) === 'selectAll', 'Ctrl+A in PCB → selectAll');
 ok(K.resolve(ev('A', { metaKey: true }), pcb) === 'selectAll', 'Cmd+A (caps) in PCB → selectAll');
 ok(K.resolve(ev('a', { ctrlKey: true, shiftKey: true }), pcb) === 'selectAll', 'Ctrl+Shift+A still selectAll');
-ok(K.resolve(ev('a', { ctrlKey: true }), sch) === null, 'Ctrl+A in schematic → null (no multi-select there)');
+ok(K.resolve(ev('a', { ctrlKey: true }), sch) === 'selectAll', 'Ctrl+A in schematic → selectAll');
 ok(K.resolve(ev('a', { ctrlKey: true }), { mode: 'launcher' }) === null, 'Ctrl+A in launcher → null');
 
 // --- zoom / fit ---

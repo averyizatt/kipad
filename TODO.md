@@ -4,7 +4,7 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Current roadmap (audit 2026-08-26)
 
-The core single-sheet / two-layer editor is feature-complete for its current scope. All 44 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
+The core single-sheet / two-layer editor is feature-complete for its current scope. All 45 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
 - [ ] Add a browser-level smoke suite for the real application shell
   - [x] Exercise launcher → schematic → PCB, open/save, a basic edit, undo/redo, and one fabrication export in a headless browser — dependency-free CDP harness, 7 workflow checks — 2026-08-26
@@ -12,8 +12,8 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
 - [ ] Run and document a physical iPad acceptance pass
   - [ ] Safari and installed-PWA checks for Pencil placement accuracy, pinch/pan, long-press box select, two-finger undo, eraser deletion, file import/export, and update pickup
   - [ ] Record device/iPadOS version and any reproducible failures in DEVLOG before fixing them
-- [ ] Add schematic multi-select and group operations
-  - [ ] Rubber-band / additive selection plus group move, rotate, and delete; PCB already has this infrastructure, schematic currently supports only one selected item
+- [x] Add schematic multi-select and group operations — 2026-08-26
+  - [x] Additive modifier-click, desktop rubber-band, touch/Pencil long-press rubber-band, Ctrl+A, and group move/nudge/rotate/delete for symbols, wires, labels, junctions, and no-connect flags — 2026-08-26
 - [ ] Add multi-sheet schematic/project support
   - [ ] Sheet model and navigation, hierarchical/global-label connectivity, project save/export, and cross-sheet ERC conflict checks
 - [x] Add continuous integration for the existing regression command — 2026-08-26
@@ -24,6 +24,12 @@ Parked platform limitation:
 - Haptics on iPad web/PWA remains tracked in the iPad-polish milestone below; it is blocked on WebKit and should be reconsidered only if a browser API appears or Kipad gains a native WKWebView wrapper.
 
 ## Milestones and history
+
+- [x] Schematic multi-select and group operations — 2026-08-26
+  - [x] `KipadSchMultisel` pure geometry/operations: immutable toggle/has, symbol-body and wire-segment box collection, hit testing, bounds, rigid group move/rotate, and typed delete plans across all five schematic item kinds
+  - [x] Desktop Shift/Cmd/Ctrl+tap toggles members; mouse-drag on empty paper creates a band and middle-drag pans. Touch/Pencil long-press (<10 px slop, 450 ms) arms the band while ordinary one-finger movement remains pan, matching PCB gesture disambiguation
+  - [x] Group drag, arrow-key nudge, R, Delete, and Ctrl+A share one selection set and one undo step; renderer highlights every member and draws the standard dashed green band
+  - [x] `test/test_schmultisel.js` covers every item kind, wire/pin rectangle hits, stable collection order, group centre/move/rotate, hit priority, and stale-id deletion; `test_keys.js` covers schematic Ctrl+A; all 45 Node suites pass; cache-bust v59 / service worker `kipad-v53`
 
 - [x] Per-symbol properties (schematic) — completes the footprint-assignment workflow — 2026-08-25
   - [x] Bulk assignment already shipped as Tools ▸ Edit Symbol Fields… (KipadSymfields rows/applyRow, datalist autocomplete from library, live apply) — 2026-08-24

@@ -141,7 +141,6 @@
     schTool = t;
     if (t !== 'symbol') schPlaceName = null;
     schWirePts = [];
-    if (t !== 'select') schSelNc = null;
     document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
     const map = { select: 'sch-select', symbol: 'sch-symbol', wire: 'sch-wire', label: 'sch-label', glabel: 'sch-glabel', junction: 'sch-junction', noconn: 'sch-noconn' };
     if (map[t] && $(map[t])) $(map[t]).classList.add('active');
@@ -516,7 +515,7 @@
   // centre the canvas on a violation and select its symbol (if any)
   function ercLocate(v) {
     if (!v) return;
-    if (v.symbolId) schSelId = v.symbolId;
+    if (v.symbolId) { schSelId = v.symbolId; schSelKind = 'symbol'; schSelSet = []; }
     view.x = v.x; view.y = v.y;    // w2s puts view.x/view.y at canvas centre
     render(); refreshAll();
     setStatus(v.code + ': ' + v.message);

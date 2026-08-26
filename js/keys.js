@@ -7,7 +7,7 @@
  *
  * Actions:
  *   Ctrl/Cmd+S save · Ctrl/Cmd+O open · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo
- *   Ctrl/Cmd+A select all (PCB)
+ *   Ctrl/Cmd+A select all (PCB or schematic)
  *   + / = zoomIn · - / _ zoomOut · Home zoomFit
  *   E properties (PCB, selection required) · A addFootprint (PCB) / addSymbol (schematic)
  *   ArrowLeft/Right/Up/Down nudge selection by one grid step (selection required)
@@ -35,7 +35,7 @@
         case 'z': case 'Z': return ev.shiftKey ? 'redo' : 'undo';
         case 'y': case 'Y': return 'redo';
         case 'a': case 'A':
-          return ctx && ctx.mode === 'pcb' ? 'selectAll' : null;
+          return ctx && (ctx.mode === 'pcb' || ctx.mode === 'schematic') ? 'selectAll' : null;
       }
       return null;
     }
