@@ -576,3 +576,17 @@ Avery's "continue" after rubber-band select landed; this was the remaining offer
 The app and all 44 regression suites were green, but the public README still described the original PCB-only v0.1: three Gerber layers, a monolithic `app.js`, a seven-test development list, the retired sandbox path, and roadmap items that have already shipped. Replaced it with a current product overview covering schematic capture, PCB editing, selection/input, KiCad interchange, the nine-layer fabrication set, project tools, offline behavior, the split-module architecture, and a complete dependency-free test command. Added local-serving and PWA cache-version guidance, plus an explicit independence disclaimer. Corrected TODO's recurring workflow note to name the canonical workspace tree and SSH deploy-key push path.
 
 - Verification: all **44/44 suites green** before the documentation change; `git diff --check` clean afterward.
+
+## 2026-08-26 ~18:00 UTC — high-level project audit and roadmap refresh
+
+Reviewed the current architecture, public README, milestone history, recent commits, source markers, test inventory, and offline asset wiring. The repository is clean and synchronized with `origin/main` at the start of the audit. Kipad is a substantial, coherent single-sheet schematic and two-layer PCB PWA: KiCad file interchange, touch/Pencil input, routing/zones/DRC/ERC, library editors, fabrication outputs, offline caching, and real-file round-trip/render coverage are all present.
+
+Verification results:
+
+- All **44/44 dependency-free Node regression suites pass**, including six real `.kicad_pcb` fixtures, a 7,932-track stress fixture, and the headless load-and-render suite.
+- Every JavaScript/CSS/manifest reference discovered in `index.html` is present in the service-worker asset list.
+- No actionable `TODO`/`FIXME` markers were found in application source. The only previously unchecked milestone was iPad haptics, still blocked by WebKit.
+- There is no browser-level end-to-end suite or CI workflow, so DOM/menu/download/service-worker behavior and physical iPad gestures remain dependent on manual testing.
+- The clearest product gaps relative to KiCad are schematic multi-select/group editing and multi-sheet/hierarchical project support; the latter is also required before cross-sheet ERC can be meaningful.
+
+Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-iPad acceptance, schematic multi-select, multi-sheet support, and CI. Kept haptics explicitly parked as a platform limitation instead of treating it as immediately actionable work. No application code or cache versions changed in this audit.
