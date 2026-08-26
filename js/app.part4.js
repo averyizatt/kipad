@@ -384,6 +384,10 @@
         if (ddx || ddy) {
           SchMSel.moveItems(sch, schDrag.members, ddx, ddy);
           schDrag.anchor = target;
+          // ERC markers are positioned in world coordinates.  A drag can
+          // span many pointermove frames, so every actual move must invalidate
+          // the cached positions (schPushUndo only covers the first frame).
+          ercDirty = true;
         }
       }
       render();
@@ -648,7 +652,7 @@
     if (showErcMarkers && Erc && ercViolations.length) {
       const tol = Math.max(0.2, 10 / view.zoom);   // ~10 px screen tolerance
       let best = null, bestD = Infinity;
-      for (const v of ercViolations) {
+      for (const v of visibleErcViolations()) {
         if (typeof v.x !== 'number') continue;
         const d = Math.hypot(v.x - wx, v.y - wy);
         if (d <= tol && d < bestD) { best = v; bestD = d; }

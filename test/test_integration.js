@@ -29,6 +29,11 @@ assert.ok(Array.isArray(symData) && symData.length >= 100, 'symbols.json has >= 
 g.KipadSymbols.loadLibrary(symData);
 assert.strictEqual(g.KipadSymbols.count(), symData.length, 'symbol registry count');
 assert.ok(g.KipadSymbols.getSymbol('R') && g.KipadSymbols.getSymbol('R').pins.length >= 2, 'R symbol has pins');
+const resistorSearch = g.KipadSymbols.searchSymbols('resistor device');
+assert.strictEqual(resistorSearch[0].name, 'R', 'multi-term symbol search ranks exact/common name first');
+assert.ok(resistorSearch.every(s => `${s.name} ${s.ref} ${s.value} ${s.desc} ${s.library}`.toLowerCase().includes('resistor') &&
+  `${s.name} ${s.ref} ${s.value} ${s.desc} ${s.library}`.toLowerCase().includes('device')),
+  'multi-term symbol search requires every term');
 
 // ---- 2. footprint library loads (if present) ----
 let fpLibNames = g.KipadFootprints.listFootprints();
@@ -38,6 +43,10 @@ try {
     g.KipadFootprints.loadLibrary(fpData);
     fpLibNames = g.KipadFootprints.listFootprints();
     assert.ok(fpLibNames.length >= 100, 'merged footprint library >= 100 names, got ' + fpLibNames.length);
+    const footprintSearch = g.KipadFootprints.searchFootprints('0603 resistor');
+    assert.ok(footprintSearch.includes('R_0603_1608Metric'), 'multi-term footprint search covers name + description');
+    assert.ok(footprintSearch.indexOf('R_0201_0603Metric') < footprintSearch.indexOf('R_4020_10251Metric'),
+      'footprint search ranks stronger name matches before description-only matches');
     console.log('footprint library: ' + fpLibNames.length + ' parts loaded');
   }
 } catch (e) {

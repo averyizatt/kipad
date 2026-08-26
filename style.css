@@ -227,6 +227,16 @@ html, body {
 .lib-item.active { background: #d4e3f5; border-color: var(--accent); }
 .lib-item .ref { font-weight: 700; color: var(--accent); }
 .lib-count { color: var(--fg-dim); font-size: 11px; margin: -1px 0 6px; }
+.lib-categories {
+  display: flex; gap: 5px; overflow-x: auto; padding: 1px 0 7px;
+  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+}
+.lib-category {
+  flex: 0 0 auto; min-height: 30px; padding: 4px 9px; border-radius: 15px;
+  border: 1px solid var(--border); background: #fff; color: var(--fg);
+  font: inherit; font-size: 11px; cursor: pointer;
+}
+.lib-category.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .lib-more { width: 100%; margin-top: 6px; }
 .lib-item .desc { color: var(--fg-dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-preview {

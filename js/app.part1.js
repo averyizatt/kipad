@@ -293,12 +293,14 @@
     const all = FPs.searchFootprints ? FPs.searchFootprints(libQuery) : FPs.listFootprints().filter(n => n.toLowerCase().includes(libQuery.toLowerCase()));
     const categories = [...new Set(FPs.listFootprints().map(n => (FPs.getFootprint(n) || {}).library || 'Other'))].sort();
     const names = all.filter(n => !libCategory || ((FPs.getFootprint(n) || {}).library || 'Other') === libCategory);
-    let html = `<input class="lib-search" id="lib-q" placeholder="Search footprints…" value="${esc(libQuery)}">
-      <select class="lib-search" id="lib-cat"><option value="">All footprint libraries</option>${categories.map(c => `<option value="${esc(c)}"${c === libCategory ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+    let html = `<input class="lib-search" id="lib-q" type="search" autocomplete="off" placeholder="Search name, package, description…" value="${esc(libQuery)}">
+      <div class="lib-categories" aria-label="Footprint libraries">
+        <button class="lib-category${!libCategory ? ' active' : ''}" data-category="">All</button>
+        ${categories.map(c => `<button class="lib-category${c === libCategory ? ' active' : ''}" data-category="${esc(c)}">${esc(c)}</button>`).join('')}
+      </div>
       <div class="lib-count">${names.length} footprint${names.length === 1 ? '' : 's'} found</div>
       <div class="lib-actions">
         <button class="btn" id="lib-place" ${libSel ? '' : 'disabled'}>${mode === 'schematic' ? 'Assign to symbol' : 'Place'}</button>
-        <button class="btn" id="lib-import">Import .kicad_mod</button>
       </div>
       <canvas class="lib-preview" id="lib-preview"></canvas>
       <div class="side-list">`;
@@ -311,7 +313,7 @@
     el.innerHTML = html;
     const qin = $('lib-q');
     if (qin) qin.addEventListener('input', e => { libQuery = e.target.value; libLimit = 100; refreshLibrary(); const n = $('lib-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
-    $('lib-cat').addEventListener('change', e => { libCategory = e.target.value; libLimit = 100; refreshLibrary(); });
+    el.querySelectorAll('.lib-category').forEach(b => b.addEventListener('click', () => { libCategory = b.dataset.category; libLimit = 100; refreshLibrary(); }));
     const more = $('lib-more'); if (more) more.addEventListener('click', () => { libLimit += 100; refreshLibrary(); });
     el.querySelectorAll('.lib-item').forEach(it => it.addEventListener('click', () => {
       libSel = it.dataset.name;
@@ -330,8 +332,6 @@
       setTool('footprint'); placeLib = libSel; placeAngle = 0;
       setStatus('Tap board to place ' + libSel + ' (R rotate, Esc stop)');
     });
-    const imp = $('lib-import');
-    if (imp) imp.addEventListener('click', () => $('file-import').click());
     if (libSel) drawFpPreview($('lib-preview'), FPs.getFootprint(libSel));
   }
 
@@ -341,10 +341,13 @@
     const found = Syms.searchSymbols ? Syms.searchSymbols(symQuery) : Syms.listSymbols().map(n => Syms.getSymbol(n));
     const categories = [...new Set(Syms.listSymbols().map(n => (Syms.getSymbol(n) || {}).library || 'Other'))].sort();
     const symbols = found.filter(s => !symCategory || (s.library || 'Other') === symCategory);
-    let html = `<input class="lib-search" id="sym-q" placeholder="Search symbols…" value="${esc(symQuery)}">
-      <select class="lib-search" id="sym-cat"><option value="">All symbol libraries</option>${categories.map(c => `<option value="${esc(c)}"${c === symCategory ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+    let html = `<input class="lib-search" id="sym-q" type="search" autocomplete="off" placeholder="Search name, value, description…" value="${esc(symQuery)}">
+      <div class="lib-categories" aria-label="Symbol libraries">
+        <button class="lib-category${!symCategory ? ' active' : ''}" data-category="">All</button>
+        ${categories.map(c => `<button class="lib-category${c === symCategory ? ' active' : ''}" data-category="${esc(c)}">${esc(c)}</button>`).join('')}
+      </div>
       <div class="lib-count">${symbols.length} symbol${symbols.length === 1 ? '' : 's'} found</div>
-      <div class="lib-actions"><button class="btn" id="sym-place" ${symSel ? '' : 'disabled'}>Place symbol</button><button class="btn" id="sym-import">Import .kicad_sym</button></div>
+      <div class="lib-actions"><button class="btn" id="sym-place" ${symSel ? '' : 'disabled'}>Place symbol</button></div>
       <canvas class="lib-preview" id="sym-preview"></canvas>
       <div class="side-list">`;
     for (const s of symbols.slice(0, symLimit)) {
@@ -356,15 +359,13 @@
     el.innerHTML = html;
     const qin = $('sym-q');
     if (qin) qin.addEventListener('input', e => { symQuery = e.target.value; symLimit = 150; refreshSymbols(); const n = $('sym-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
-    $('sym-cat').addEventListener('change', e => { symCategory = e.target.value; symLimit = 150; refreshSymbols(); });
+    el.querySelectorAll('.lib-category').forEach(b => b.addEventListener('click', () => { symCategory = b.dataset.category; symLimit = 150; refreshSymbols(); }));
     const more = $('sym-more'); if (more) more.addEventListener('click', () => { symLimit += 150; refreshSymbols(); });
     el.querySelectorAll('.lib-item').forEach(it => it.addEventListener('click', () => {
       symSel = it.dataset.name;
       refreshSymbols();
       drawSymbolPreview($('sym-preview'), Syms.getSymbol(symSel));
     }));
-    const imp = $('sym-import');
-    if (imp) imp.addEventListener('click', () => $('file-import').click());
     const place = $('sym-place');
     if (place) place.addEventListener('click', () => { schPlaceName = symSel; setSchTool('symbol'); });
     if (symSel) drawSymbolPreview($('sym-preview'), Syms.getSymbol(symSel));

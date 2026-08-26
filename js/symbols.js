@@ -60,21 +60,26 @@
    * contains q (case-insensitive). Sorted by name.
    */
   function searchSymbols(q) {
-    var needle = String(q === undefined || q === null ? '' : q).toLowerCase();
+    var needle = String(q === undefined || q === null ? '' : q).trim().toLowerCase();
+    var terms = needle.split(/\s+/).filter(Boolean);
     var out = [];
     var names = Object.keys(registry);
     for (var i = 0; i < names.length; i++) {
       var s = registry[names[i]];
-      if (
-        s.name.toLowerCase().indexOf(needle) !== -1 ||
-        (typeof s.ref === 'string' && s.ref.toLowerCase().indexOf(needle) !== -1) ||
-        (typeof s.desc === 'string' && s.desc.toLowerCase().indexOf(needle) !== -1) ||
-        (typeof s.library === 'string' && s.library.toLowerCase().indexOf(needle) !== -1)
-      ) {
-        out.push(deepCopy(s));
-      }
+      var name = s.name.toLowerCase();
+      var ref = typeof s.ref === 'string' ? s.ref.toLowerCase() : '';
+      var desc = typeof s.desc === 'string' ? s.desc.toLowerCase() : '';
+      var lib = typeof s.library === 'string' ? s.library.toLowerCase() : '';
+      var value = typeof s.value === 'string' ? s.value.toLowerCase() : '';
+      var haystack = [name, ref, value, desc, lib].join(' ');
+      if (!terms.every(function (term) { return haystack.indexOf(term) !== -1; })) continue;
+      var score = !needle ? 50 : name === needle ? 0 : name.indexOf(needle) === 0 ? 1 :
+        value === needle ? 2 : ref === needle ? 3 : name.indexOf(needle) !== -1 ? 4 :
+        lib.indexOf(needle) !== -1 ? 6 : 8;
+      var copy = deepCopy(s); copy._searchScore = score; out.push(copy);
     }
-    out.sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
+    out.sort(function (a, b) { return a._searchScore - b._searchScore || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
+    for (var j = 0; j < out.length; j++) delete out[j]._searchScore;
     return out;
   }
 

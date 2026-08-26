@@ -265,17 +265,25 @@
   }
 
   function searchFootprints(q) {
-    q = String(q || '').toLowerCase();
+    q = String(q || '').trim().toLowerCase();
     if (!q) return listFootprints();
+    var terms = q.split(/\s+/).filter(Boolean);
     var out = [];
     for (var name in footprints) {
       var fp = footprints[name];
-      if (name.toLowerCase().indexOf(q) !== -1 ||
-          (fp.desc && fp.desc.toLowerCase().indexOf(q) !== -1) ||
-          (fp.ref && fp.ref.toLowerCase() === q) ||
-          (fp.library && fp.library.toLowerCase().indexOf(q) !== -1)) out.push(name);
+      var lname = name.toLowerCase();
+      var desc = (fp.desc || '').toLowerCase();
+      var ref = (fp.ref || '').toLowerCase();
+      var lib = (fp.library || '').toLowerCase();
+      var value = (fp.value || '').toLowerCase();
+      var haystack = [lname, desc, ref, lib, value].join(' ');
+      if (!terms.every(function (term) { return haystack.indexOf(term) !== -1; })) continue;
+      var score = lname === q ? 0 : lname.indexOf(q) === 0 ? 1 : value === q ? 2 :
+        ref === q ? 3 : lname.indexOf(q) !== -1 ? 4 : lib.indexOf(q) !== -1 ? 6 : 8;
+      out.push({ name: name, score: score });
     }
-    return out.sort();
+    out.sort(function (a, b) { return a.score - b.score || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
+    return out.map(function (x) { return x.name; });
   }
 
   return {
