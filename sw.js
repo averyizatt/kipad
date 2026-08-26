@@ -76,7 +76,10 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    // The shell uses query strings to cache-bust deploys while ASSETS keeps
+    // canonical URLs. Match those two forms so a first-time install can boot
+    // offline before the query-string requests have ever been runtime-cached.
+    caches.match(e.request, { ignoreSearch: true }).then(cached => {
       if (cached) return cached;
       return fetch(e.request).then(res => {
         const copy = res.clone();
