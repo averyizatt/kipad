@@ -13,6 +13,7 @@
   const SchWires = window.KipadSchWires || null;
   const SchMSel = window.KipadSchMultisel || null;
   const SafeSave = window.KipadSafeSave || null;
+  const Project = window.KipadProject || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;
@@ -76,6 +77,7 @@
   const Erc = window.KipadErc || null;
   let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
   let sch = null;               // schematic model
+  let project = null;           // multi-sheet project containing the live schematic
   let schTool = 'select';       // select | symbol | wire | label | junction | noconn
   let schSelId = null;          // primary schematic item id
   let schSelKind = null;        // symbol | wire | label | junction | noconn

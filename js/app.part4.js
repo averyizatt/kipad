@@ -941,6 +941,10 @@
   $('sch-glabel').addEventListener('click', () => setSchTool('glabel'));
   $('sch-junction').addEventListener('click', () => setSchTool('junction'));
   $('sch-noconn').addEventListener('click', () => setSchTool('noconn'));
+  $('sheet-select').addEventListener('change', e => switchSheet(e.target.value));
+  $('sheet-add').addEventListener('click', addProjectSheet);
+  $('sheet-rename').addEventListener('click', renameProjectSheet);
+  $('sheet-delete').addEventListener('click', deleteProjectSheet);
   $('launch-sch').addEventListener('click', () => setMode('schematic'));
   $('launch-pcb').addEventListener('click', () => setMode('pcb'));
   // launcher PM toolbar + tree + cards (defensive: no-op if an element is missing)
@@ -994,7 +998,7 @@
   $('btn-open').addEventListener('click', () => $('file-open').click());
   $('btn-save').addEventListener('click', () => mode === 'schematic' ? schSave() : doSave());
   $('btn-import').addEventListener('click', () => $('file-import').click());
-  $('file-open').addEventListener('change', e => { if (e.target.files[0]) { const f = e.target.files[0]; if (f.name.endsWith('.kicad_sch')) schOpen(f); else doOpen(f); } e.target.value = ''; });
+  $('file-open').addEventListener('change', e => { if (e.target.files[0]) { const f = e.target.files[0]; if (f.name.endsWith('.kicad_sch')) schOpen(f); else if (f.name.endsWith('.kipad') || f.name.endsWith('.json')) projectOpen(f); else doOpen(f); } e.target.value = ''; });
   $('file-import').addEventListener('change', e => { if (e.target.files[0]) doImport(e.target.files[0]); e.target.value = ''; });
 
   // tabs
@@ -1028,6 +1032,11 @@
         ['New schematic', schNew, ''],
         ['Open .kicad_sch…', () => $('btn-open').click(), ''],
         ['Save .kicad_sch', schSave, ''],
+        ['Open Kipad project…', () => $('btn-open').click(), ''],
+        ['Save Kipad project (.kipad)', projectSave, ''],
+        ['Add sheet…', addProjectSheet, ''],
+        ['Rename sheet…', renameProjectSheet, ''],
+        ['Delete sheet…', deleteProjectSheet, ''],
         ['Restore previous save…', restoreSchBackup, ''],
         ['Update PCB from Schematic', doUpdatePCB, ''],
         ['Export BOM (.csv)', doBom, ''],

@@ -121,6 +121,22 @@
     return sheet;
   }
 
+  function renameSheet(project, idOrName, name) {
+    var sheet = getSheet(project, idOrName);
+    if (!sheet) return null;
+    sheet.name = safeName(name, sheet.name);
+    return sheet;
+  }
+
+  function removeSheet(project, idOrName) {
+    if (!isProject(project) || project.sheets.length <= 1) return null;
+    var sheet = getSheet(project, idOrName);
+    if (!sheet) return null;
+    project.sheets = project.sheets.filter(function (item) { return item.id !== sheet.id; });
+    if (project.activeSheetId === sheet.id) project.activeSheetId = project.sheets[0].id;
+    return sheet;
+  }
+
   /**
    * Normalize either a version-1 project or an old single schematic object.
    * Returned projects are independent deep copies, as parsed save data should
@@ -180,7 +196,8 @@
     makeProject: makeProject, fromSchematic: fromSchematic,
     isProject: isProject, isSchematic: isSchematic,
     addSheet: addSheet, getSheet: getSheet, activeSheet: activeSheet,
-    setActiveSheet: setActiveSheet, normalize: normalize,
+    setActiveSheet: setActiveSheet, renameSheet: renameSheet, removeSheet: removeSheet,
+    normalize: normalize,
     serializeProject: serializeProject, parseProject: parseProject
   };
 });

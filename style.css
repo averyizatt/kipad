@@ -187,6 +187,9 @@ html, body {
   min-height: 0;
 }
 #tabs { display: flex; border-bottom: 1px solid var(--border); }
+#sheet-nav { display: flex; gap: 3px; padding: 5px; border-bottom: 1px solid var(--border); }
+#sheet-nav select { flex: 1; min-width: 0; }
+#sheet-nav button { width: 28px; padding: 2px; }
 .tab {
   flex: 1; padding: 8px 2px; font-size: 11px; font-weight: 600;
   background: transparent; border: none; border-bottom: 2px solid transparent;

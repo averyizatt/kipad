@@ -192,6 +192,12 @@
 
     <aside id="panel">
       <button id="panel-collapse" title="Hide side panel">›</button>
+      <div id="sheet-nav" class="sch-only hidden">
+        <select id="sheet-select" title="Active schematic sheet"></select>
+        <button id="sheet-add" title="Add sheet">+</button>
+        <button id="sheet-rename" title="Rename sheet">✎</button>
+        <button id="sheet-delete" title="Delete sheet">−</button>
+      </div>
       <div id="tabs">
         <button class="tab active pcb-only" data-tab="layers">Layers</button>
         <button class="tab" data-tab="library">Footprints</button>
@@ -232,7 +238,7 @@
   </div>
 </div>
 
-<input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,text/plain" class="hidden">
+<input type="file" id="file-open" accept=".kicad_pcb,.kicad_sch,.kipad,application/json,text/plain" class="hidden">
 <input type="file" id="file-import" accept=".kicad_mod,.kicad_sym,text/plain" class="hidden">
 
 <script src="js/sexpr.js?v=58"></script>
@@ -254,7 +260,7 @@
 <script src="js/kicad_sym.js?v=58"></script>
 <script src="js/symbols.js?v=59"></script>
 <script src="js/schematic.js?v=58"></script>
-<script src="js/project.js?v=1"></script>
+<script src="js/project.js?v=2"></script>
 <script src="js/erc.js?v=58"></script>
 <script src="js/gestures.js?v=58"></script>
 <script src="js/calculators.js?v=58"></script>
@@ -266,10 +272,10 @@
 <script src="js/zones.js?v=58"></script>
 <script src="js/editors.js?v=58"></script>
 <script src="js/safesave.js?v=58"></script>
-<script src="js/app.part1.js?v=61"></script>
+<script src="js/app.part1.js?v=62"></script>
 <script src="js/app.part2.js?v=59"></script>
-    <script src="js/app.part3.js?v=59"></script>
-    <script src="js/app.part4.js?v=61"></script>
+    <script src="js/app.part3.js?v=60"></script>
+    <script src="js/app.part4.js?v=62"></script>
 <script>
 // PWA updates: register the service worker and reload once when a new one
 // takes over, so deploys reach home-screen installs without manual clears.
