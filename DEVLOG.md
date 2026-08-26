@@ -590,3 +590,10 @@ Verification results:
 - The clearest product gaps relative to KiCad are schematic multi-select/group editing and multi-sheet/hierarchical project support; the latter is also required before cross-sheet ERC can be meaningful.
 
 Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-iPad acceptance, schematic multi-select, multi-sheet support, and CI. Kept haptics explicitly parked as a platform limitation instead of treating it as immediately actionable work. No application code or cache versions changed in this audit.
+
+## 2026-08-26 ~18:12 UTC — CI gate + real-browser application-shell smoke
+
+- Added `.github/workflows/regression.yml`: Node 20 runs all 44 dependency-free `test/test_*.js` suites on pushes and pull requests, fails when no suites are found, and uses read-only repository permissions. Tracked the three `.kicad_mod` fixtures needed by clean checkouts and pointed `test_kicad_mod_extra.js` at the canonical raw fixture.
+- Added `test/browser_shell_smoke.js`, a dependency-free Chrome DevTools Protocol harness. It serves the real shell and verifies launcher → schematic → PCB navigation, schematic open/save download, a junction edit with undo/redo, fabrication ZIP download containing the front-copper Gerber, and absence of browser runtime/console errors. Run with `node test/browser_shell_smoke.js`; `KIPAD_CHROMIUM` can select the executable.
+- Browser coverage uncovered and fixed two real defects: the split app omitted the `KipadSafeSave` binding used by save validation, and schematic pointer-up used undefined world coordinates.
+- Verification: all 44 Node regression suites pass; browser smoke passes all 7 workflow checks. Service-worker install/update/offline lifecycle remains a separate roadmap item.
