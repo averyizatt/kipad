@@ -78,11 +78,13 @@
     return w;
   }
 
-  // type: 'local' (default) | 'global' — KiCad label flavours. Both name the
-  // net the same way; only rendering and serialization differ.
+  // type: 'local' (default) | 'global' | 'hierarchical' — KiCad label
+  // flavours. All name a net on their sheet; project.js gives global and
+  // hierarchical labels project-wide scope.
   function addLabel(sch, text, at, angle, type) {
+    var labelType = type === 'global' || type === 'hierarchical' ? type : 'local';
     var l = { id: nid('lbl'), text: String(text), at: [at[0], at[1]], angle: angle || 0,
-              type: type === 'global' ? 'global' : 'local' };
+              type: labelType };
     sch.labels.push(l);
     return l;
   }
@@ -148,7 +150,7 @@
     // Nodes: wire vertices (index 0..W-1), then junctions, then pins, then labels.
     var nodes = [];
     var pinRefs = [];       // { symId, number, name, type, at, symValue }
-    var labelRefs = [];     // { text, id, at }
+    var labelRefs = [];     // { text, id, at, type }
 
     sch.wires.forEach(function (w) { w.pts.forEach(function () { nodes.push({ kind: 'wire' }); }); });
     sch.junctions.forEach(function () { nodes.push({ kind: 'junction' }); });
@@ -158,7 +160,11 @@
         nodes.push({ kind: 'pin' });
       });
     });
-    sch.labels.forEach(function (l) { labelRefs.push({ text: l.text, id: l.id, at: l.at }); nodes.push({ kind: 'label' }); });
+    sch.labels.forEach(function (l) {
+      labelRefs.push({ text: l.text, id: l.id, at: l.at,
+        type: l.type === 'global' || l.type === 'hierarchical' ? l.type : 'local' });
+      nodes.push({ kind: 'label' });
+    });
 
     // Consecutive wire vertices are connected.
     var vi = 0;
@@ -337,6 +343,8 @@
     sch.labels.forEach(function (l) {
       if (l.type === 'global') {
         L.push('  (global_label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (shape input) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
+      } else if (l.type === 'hierarchical') {
+        L.push('  (hierarchical_label "' + l.text + '" (shape input) (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
       } else {
         L.push('  (label "' + l.text + '" (at ' + fmt(l.at[0]) + ' ' + fmt(l.at[1]) + ' ' + fmt(l.angle || 0) + ') (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "00000000-0000-0000-0000-000000000000"))');
       }
@@ -396,11 +404,12 @@
         var nat = [0, 0];
         node.forEach(function (child) { if (child[0] === 'at') nat = [num(child[1]), num(child[2])]; });
         addNoConnect(sch, nat);
-      } else if (tag === 'label' || tag === 'global_label') {
+      } else if (tag === 'label' || tag === 'global_label' || tag === 'hierarchical_label') {
         var text = str(node[1]);
         var lat = [0, 0], lang = 0;
         node.forEach(function (child) { if (child[0] === 'at') { lat = [num(child[1]), num(child[2])]; lang = num(child[3]) || 0; } });
-        addLabel(sch, text, lat, lang, tag === 'global_label' ? 'global' : 'local');
+        addLabel(sch, text, lat, lang,
+          tag === 'global_label' ? 'global' : (tag === 'hierarchical_label' ? 'hierarchical' : 'local'));
       }
     });
     return sch;

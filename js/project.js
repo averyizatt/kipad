@@ -3,19 +3,21 @@
 /**
  * KipadProject — dependency-free multi-sheet project model.
  *
- * This module deliberately contains no UI or electrical connectivity logic.
- * A project owns one or more named schematic models and may also carry the
- * existing board model.  Existing callers can continue to use
+ * This module deliberately contains no UI. A project owns one or more named
+ * schematic models, resolves project-scoped connectivity, and may also carry
+ * the existing board model. Existing callers can continue to use
  * KipadSchematic.makeSchematic() directly; fromSchematic()/normalize() wrap a
  * legacy single-sheet model without changing it.
  *
  * UMD: browser global `KipadProject` / CommonJS.
  */
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
-  else root.KipadProject = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(root);
+  else root.KipadProject = factory(root);
+})(typeof self !== 'undefined' ? self : this, function (root) {
   'use strict';
+
+  var GR = root || globalThis;
 
   var FORMAT = 'kipad-project';
   var VERSION = 1;
@@ -191,6 +193,124 @@
     return normalize(value, options);
   }
 
+  function schematicModule() {
+    return GR.KipadSchematic ||
+      (typeof require !== 'undefined' ? require('./schematic.js') : null);
+  }
+
+  /**
+   * Resolve electrical nodes for every sheet in a project.
+   *
+   * Local labels retain the existing per-sheet behaviour. Global and
+   * hierarchical labels with the same text join nodes across sheets. The
+   * project model currently has a flat sheet list (no sheet-symbol graph), so
+   * hierarchical labels deliberately use named project scope until a richer
+   * hierarchy is represented in saved projects.
+   *
+   * Returns deterministic records:
+   *   [{ name, pins:[{...,sheetId,sheetName}], labels:[{...,type,sheetId,
+   *      sheetName}], powerNames, sheetIds }]
+   */
+  function resolveConnectivity(project, getSymbol) {
+    if (!isProject(project)) throw new Error('KipadProject.resolveConnectivity: expected a project model');
+    var Sch = schematicModule();
+    if (!Sch || typeof Sch.connectivity !== 'function')
+      throw new Error('KipadProject.resolveConnectivity: KipadSchematic unavailable');
+
+    var nodes = [];
+    project.sheets.forEach(function (sheet) {
+      Sch.connectivity(sheet.schematic, getSymbol).forEach(function (group, groupIndex) {
+        nodes.push({
+          sheetId: sheet.id,
+          sheetName: sheet.name,
+          groupIndex: groupIndex,
+          pins: group.pins || [],
+          labels: group.labels || [],
+          powerName: group.powerName || null
+        });
+      });
+    });
+
+    var parent = nodes.map(function (_, i) { return i; });
+    function find(i) {
+      while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; }
+      return i;
+    }
+    function union(a, b) {
+      var ra = find(a), rb = find(b);
+      if (ra !== rb) {
+        if (ra < rb) parent[rb] = ra;
+        else parent[ra] = rb;
+      }
+    }
+
+    var localNames = {};
+    var projectNames = {};
+    nodes.forEach(function (node, ni) {
+      node.labels.forEach(function (label) {
+        var text = String(label.text || '');
+        if (!text) return;
+        var localKey = node.sheetId + '\u0000' + text;
+        if (localNames[localKey] !== undefined) union(ni, localNames[localKey]);
+        else localNames[localKey] = ni;
+        if (label.type === 'global' || label.type === 'hierarchical') {
+          if (projectNames[text] !== undefined) union(ni, projectNames[text]);
+          else projectNames[text] = ni;
+        }
+      });
+      // Power symbols have project-wide named-net semantics too.
+      if (node.powerName) {
+        var powerKey = String(node.powerName);
+        if (projectNames[powerKey] !== undefined) union(ni, projectNames[powerKey]);
+        else projectNames[powerKey] = ni;
+      }
+    });
+
+    var grouped = {};
+    nodes.forEach(function (node, ni) {
+      var rootIndex = find(ni);
+      (grouped[rootIndex] = grouped[rootIndex] || []).push(node);
+    });
+
+    var autoBySheet = {};
+    return Object.keys(grouped).map(Number).sort(function (a, b) { return a - b; }).map(function (key) {
+      var members = grouped[key];
+      var pins = [], labels = [], powerNames = [], sheetIds = [];
+      members.forEach(function (node) {
+        if (sheetIds.indexOf(node.sheetId) < 0) sheetIds.push(node.sheetId);
+        node.pins.forEach(function (pin) {
+          pins.push(Object.assign({}, pin, { sheetId: node.sheetId, sheetName: node.sheetName }));
+        });
+        node.labels.forEach(function (label) {
+          labels.push(Object.assign({}, label, {
+            type: label.type === 'global' || label.type === 'hierarchical' ? label.type : 'local',
+            sheetId: node.sheetId,
+            sheetName: node.sheetName
+          }));
+        });
+        if (node.powerName && powerNames.indexOf(node.powerName) < 0) powerNames.push(node.powerName);
+      });
+      var scopedNames = labels.filter(function (l) {
+        return l.type === 'global' || l.type === 'hierarchical';
+      }).map(function (l) { return l.text; }).filter(function (name, i, all) {
+        return name && all.indexOf(name) === i;
+      }).sort();
+      var name = scopedNames[0] || (labels[0] && labels[0].text) || powerNames[0];
+      if (!name) {
+        var sid = members[0].sheetId;
+        autoBySheet[sid] = (autoBySheet[sid] || 0) + 1;
+        name = sid + ':N-' + autoBySheet[sid];
+      }
+      return {
+        name: name,
+        pins: pins,
+        labels: labels,
+        powerNames: powerNames,
+        sheetIds: sheetIds
+      };
+    });
+  }
+
   return {
     FORMAT: FORMAT, VERSION: VERSION,
     makeProject: makeProject, fromSchematic: fromSchematic,
@@ -198,6 +318,7 @@
     addSheet: addSheet, getSheet: getSheet, activeSheet: activeSheet,
     setActiveSheet: setActiveSheet, renameSheet: renameSheet, removeSheet: removeSheet,
     normalize: normalize,
-    serializeProject: serializeProject, parseProject: parseProject
+    serializeProject: serializeProject, parseProject: parseProject,
+    resolveConnectivity: resolveConnectivity
   };
 });

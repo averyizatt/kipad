@@ -30,6 +30,10 @@
  *   FOOTPRINT_NOT_FOUND — explicitly assigned footprint name that the
  *                      footprint registry cannot resolve (Update PCB would
  *                      silently fall back to the ref-prefix default)
+ *   CROSS_SHEET_LABEL_CONFLICT — a resolved project net has different label
+ *                      names on different sheets (runProjectERC only)
+ *   CROSS_SHEET_POWER_CONFLICT — a resolved project net has different named
+ *                      power pins on different sheets (runProjectERC only)
  *
  * Topology comes from KipadSchematic.connectivity() — the same union-find
  * + label-to-wire merging used for the schematic→PCB netlist, so ERC and the
@@ -320,6 +324,79 @@
     return violations;
   }
 
+  /**
+   * Run normal ERC on every project sheet and add project-scope conflicts.
+   * Same-name global/hierarchical labels are resolved by KipadProject; a
+   * resulting cross-sheet node must not acquire multiple label or power-net
+   * names. Returned violations include sheetId/sheetName locator context.
+   */
+  function runProjectERC(project, getSymbol, getFootprint) {
+    var Project = GR.KipadProject ||
+      (typeof require !== 'undefined' ? require('./project.js') : null);
+    if (!Project || !Project.isProject(project))
+      throw new Error('KipadErc.runProjectERC: expected a Kipad project model');
+
+    var violations = [];
+    project.sheets.forEach(function (sheet) {
+      runERC(sheet.schematic, getSymbol, getFootprint).forEach(function (violation) {
+        violations.push(Object.assign({}, violation, {
+          sheetId: sheet.id,
+          sheetName: sheet.name
+        }));
+      });
+    });
+
+    Project.resolveConnectivity(project, getSymbol).forEach(function (net) {
+      if (net.sheetIds.length < 2) return;
+
+      var labelNames = [];
+      net.labels.forEach(function (label) {
+        if (labelNames.indexOf(label.text) < 0) labelNames.push(label.text);
+      });
+      labelNames.sort();
+      if (labelNames.length > 1) {
+        var first = labelNames[0];
+        labelNames.slice(1).forEach(function (other) {
+          var at = net.labels.filter(function (label) { return label.text === other; })[0] || net.labels[0];
+          violations.push({
+            severity: 'error',
+            code: 'CROSS_SHEET_LABEL_CONFLICT',
+            message: 'Cross-sheet net label "' + other + '" conflicts with "' + first + '"',
+            labelId: at && at.id,
+            netName: net.name,
+            sheetId: at && at.sheetId,
+            sheetName: at && at.sheetName,
+            x: at && at.at ? at.at[0] : 0,
+            y: at && at.at ? at.at[1] : 0
+          });
+        });
+      }
+
+      var powerNames = net.powerNames.slice().sort();
+      if (powerNames.length > 1) {
+        powerNames.slice(1).forEach(function (other) {
+          var pin = net.pins.filter(function (candidate) {
+            return powerNetName(candidate) === other;
+          })[0] || net.pins[0];
+          violations.push({
+            severity: 'error',
+            code: 'CROSS_SHEET_POWER_CONFLICT',
+            message: 'Cross-sheet power net "' + other + '" is shorted to "' + powerNames[0] + '"',
+            symbolId: pin && pin.symId,
+            pinId: pin && pin.number,
+            netName: net.name,
+            sheetId: pin && pin.sheetId,
+            sheetName: pin && pin.sheetName,
+            x: pin && pin.at ? pin.at[0] : 0,
+            y: pin && pin.at ? pin.at[1] : 0
+          });
+        });
+      }
+    });
+
+    return violations;
+  }
+
   /** counts(violations) -> { errors, warnings } */
   function counts(violations) {
     var errors = 0, warnings = 0;
@@ -365,6 +442,7 @@
 
   return {
     runERC: runERC,
+    runProjectERC: runProjectERC,
     counts: counts,
     markers: markers,
     powerNetName: powerNetName,
