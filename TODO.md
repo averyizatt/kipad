@@ -18,6 +18,7 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
 - [x] Add schematic multi-select and group operations — 2026-08-26
   - [x] Additive modifier-click, desktop rubber-band, touch/Pencil long-press rubber-band, Ctrl+A, and group move/nudge/rotate/delete for symbols, wires, labels, junctions, and no-connect flags — 2026-08-26
 - [ ] Add multi-sheet schematic/project support
+  - [x] Foundation: versioned multi-sheet project model with named sheets, active-sheet identity, optional board ownership, stable JSON save/load, and legacy single-sheet wrapping — 2026-08-26
   - [ ] Sheet model and navigation, hierarchical/global-label connectivity, project save/export, and cross-sheet ERC conflict checks
 - [x] Add continuous integration for the existing regression command — 2026-08-26
   - [x] Run all `test/test_*.js` suites on pushes and pull requests via GitHub Actions / Node 20; required `.kicad_mod` fixtures are now tracked so clean checkouts pass — 2026-08-26

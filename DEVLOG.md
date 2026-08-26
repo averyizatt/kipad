@@ -617,3 +617,11 @@ Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-i
 - Added `test/browser_pwa_smoke.js`, a dependency-free Chrome DevTools Protocol lifecycle test using the same real application shell as the browser workflow smoke. It verifies production precache installation, a genuinely offline uncached navigation, full loading of cache-busted scripts from canonical precache entries, worker replacement, old-cache cleanup, and the existing `controllerchange` reload path. Run with `node test/browser_pwa_smoke.js`; `KIPAD_CHROMIUM` can select the executable.
 - Fixed first-install offline startup for cache-busted asset URLs by matching precached requests with `ignoreSearch`. Advanced the service-worker cache from `kipad-v54` to `kipad-v55` after integrating the concurrent direct-input fix.
 - Verification: all **45/45** Node suites pass; application-shell browser smoke passes **7/7** checks; PWA lifecycle smoke passes **3/3** checks.
+
+## 2026-08-26 ~20:04 UTC — multi-sheet project-model foundation
+
+- Added `js/project.js` (`KipadProject`), a dependency-free, versioned project container for multiple named schematic sheets, stable active-sheet identity, and optional board ownership. Existing single-sheet schematic models remain valid and can be wrapped without replacing the live object.
+- Added deterministic JSON serialization/parsing, validation for malformed/future project data, deep-copy load semantics, and compatibility loading for legacy single-schematic JSON.
+- Added the module to the application shell and offline precache; advanced the service-worker cache to `kipad-v56`.
+- Added `test/test_project.js` covering multi-sheet creation/selection, stable save/reload, board preservation, legacy loading, copy isolation, and invalid data. All **46/46** dependency-free Node suites pass; syntax and diff checks pass. Browser smoke was attempted, but Chromium did not expose its DevTools endpoint in this environment.
+- Remaining milestone work: editor sheet navigation, project-level import/export wiring, hierarchical/global-label connectivity, and cross-sheet ERC.
