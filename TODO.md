@@ -9,9 +9,9 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
 - [x] Fix duplicate Pencil symbol placement and add direct drag wiring — 2026-08-26
   - [x] Suppress the late nearby touch event iPadOS can emit immediately after Apple Pencil pointer-up
   - [x] Wire tool supports press at the start, drag to the destination, and release to commit while retaining click-click placement for precise bends
-- [ ] Add a browser-level smoke suite for the real application shell
+- [x] Add a browser-level smoke suite for the real application shell — 2026-08-26
   - [x] Exercise launcher → schematic → PCB, open/save, a basic edit, undo/redo, and one fabrication export in a headless browser — dependency-free CDP harness, 7 workflow checks — 2026-08-26
-  - [ ] Verify service-worker install/update behavior and offline startup; the Node suites cover models/render calls but not DOM wiring, downloads, or the PWA lifecycle
+  - [x] Verify service-worker install/update behavior and offline startup — dependency-free CDP lifecycle smoke covers precache install, cache-busted offline shell startup, worker replacement, stale-cache cleanup, and controller-change reload — 2026-08-26
 - [ ] Run and document a physical iPad acceptance pass
   - [ ] Safari and installed-PWA checks for Pencil placement accuracy, pinch/pan, long-press box select, two-finger undo, eraser deletion, file import/export, and update pickup
   - [ ] Record device/iPadOS version and any reproducible failures in DEVLOG before fixing them

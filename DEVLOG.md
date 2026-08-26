@@ -611,3 +611,9 @@ Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-i
 - Fixed duplicate Apple Pencil symbol placement by suppressing the late nearby touch event iPadOS can emit immediately after Pencil pointer-up. The guard is limited to 550 ms and 45 screen pixels, so unrelated touches still work normally.
 - Added direct wire placement for touch and Pencil: press at the starting point, drag using the existing snapped/elbow preview, and release to commit. A stationary tap retains the conventional KiCad click-click path for deliberate corners.
 - Bumped application URLs to v60 and the offline cache to `kipad-v54`. Syntax checks, focused schematic/wire tests, and all 45 Node suites pass.
+
+## 2026-08-26 ~19:04 UTC — service-worker lifecycle and offline-startup smoke
+
+- Added `test/browser_pwa_smoke.js`, a dependency-free Chrome DevTools Protocol lifecycle test using the same real application shell as the browser workflow smoke. It verifies production precache installation, a genuinely offline uncached navigation, full loading of cache-busted scripts from canonical precache entries, worker replacement, old-cache cleanup, and the existing `controllerchange` reload path. Run with `node test/browser_pwa_smoke.js`; `KIPAD_CHROMIUM` can select the executable.
+- Fixed first-install offline startup for cache-busted asset URLs by matching precached requests with `ignoreSearch`. Advanced the service-worker cache from `kipad-v54` to `kipad-v55` after integrating the concurrent direct-input fix.
+- Verification: all **45/45** Node suites pass; application-shell browser smoke passes **7/7** checks; PWA lifecycle smoke passes **3/3** checks.
