@@ -214,6 +214,7 @@
   function normalize(fp) {
     var out = {
       name: fp.name,
+      library: fp.library || '',
       desc: fp.desc || '',
       ref: fp.ref || 'U',
       value: fp.value || '',
@@ -271,7 +272,8 @@
       var fp = footprints[name];
       if (name.toLowerCase().indexOf(q) !== -1 ||
           (fp.desc && fp.desc.toLowerCase().indexOf(q) !== -1) ||
-          (fp.ref && fp.ref.toLowerCase() === q)) out.push(name);
+          (fp.ref && fp.ref.toLowerCase() === q) ||
+          (fp.library && fp.library.toLowerCase().indexOf(q) !== -1)) out.push(name);
     }
     return out.sort();
   }

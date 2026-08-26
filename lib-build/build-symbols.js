@@ -176,6 +176,7 @@ function main() {
     for (const s of parsed) {
       if (!s || typeof s.name !== 'string' || !s.name) continue;
       if (seen[s.name]) continue;
+      s.library = libName;
       seen[s.name] = true;
       unique.push(s);
     }

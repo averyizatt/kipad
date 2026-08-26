@@ -68,7 +68,8 @@
       if (
         s.name.toLowerCase().indexOf(needle) !== -1 ||
         (typeof s.ref === 'string' && s.ref.toLowerCase().indexOf(needle) !== -1) ||
-        (typeof s.desc === 'string' && s.desc.toLowerCase().indexOf(needle) !== -1)
+        (typeof s.desc === 'string' && s.desc.toLowerCase().indexOf(needle) !== -1) ||
+        (typeof s.library === 'string' && s.library.toLowerCase().indexOf(needle) !== -1)
       ) {
         out.push(deepCopy(s));
       }

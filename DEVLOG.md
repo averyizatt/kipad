@@ -612,6 +612,13 @@ Refreshed `TODO.md` with a prioritized queue: browser smoke coverage, physical-i
 - Added direct wire placement for touch and Pencil: press at the starting point, drag using the existing snapped/elbow preview, and release to commit. A stationary tap retains the conventional KiCad click-click path for deliberate corners.
 - Bumped application URLs to v60 and the offline cache to `kipad-v54`. Syntax checks, focused schematic/wire tests, and all 45 Node suites pass.
 
+## 2026-08-26 — schematic library browser repair
+
+- The schematic editor now exposes Symbols, Footprints, and Properties tabs. Footprints can be browsed and assigned directly to the selected schematic symbol; Symbols has an explicit Place Symbol action.
+- Generated library entries retain their KiCad source library: 2,000 symbols across 22 categories and 159 footprints across 20 categories. Both browsers provide category filters and exact result totals.
+- Fixed the apparent missing-library problem: the former silent 150/100 result truncation now has progressive Show More controls. Searches use the registry's name/description/reference matching and keep input focus while typing instead of rebuilding the field and dropping focus after every character.
+- Cache-busted the app, stylesheet, and both generated libraries; advanced the offline cache to `kipad-v57`. Syntax checks and all 46 Node suites pass. The optional browser shell smoke remains unable to start this host's Chromium DevTools endpoint.
+
 ## 2026-08-26 ~19:04 UTC — service-worker lifecycle and offline-startup smoke
 
 - Added `test/browser_pwa_smoke.js`, a dependency-free Chrome DevTools Protocol lifecycle test using the same real application shell as the browser workflow smoke. It verifies production precache installation, a genuinely offline uncached navigation, full loading of cache-busted scripts from canonical precache entries, worker replacement, old-cache cleanup, and the existing `controllerchange` reload path. Run with `node test/browser_pwa_smoke.js`; `KIPAD_CHROMIUM` can select the executable.

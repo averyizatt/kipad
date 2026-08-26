@@ -4,8 +4,14 @@ Project state file. Update after every iteration. Completed items are checked of
 
 ## Current roadmap (audit 2026-08-26)
 
-The core single-sheet / two-layer editor is feature-complete for its current scope. All 45 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
+The core single-sheet / two-layer editor is feature-complete for its current scope. All 46 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
+- [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
+  - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts
+  - [x] Remove silent 150-symbol/100-footprint dead ends with explicit progressive “Show more” controls
+  - [x] Search names, descriptions, references, and categories without losing keyboard focus after the first character
+  - [x] Show Footprints and Properties tabs in the schematic editor; allow assigning a browsed footprint to the selected symbol
+  - [x] Add an explicit Place Symbol button rather than requiring a separate tool switch
 - [x] Fix duplicate Pencil symbol placement and add direct drag wiring — 2026-08-26
   - [x] Suppress the late nearby touch event iPadOS can emit immediately after Apple Pencil pointer-up
   - [x] Wire tool supports press at the start, drag to the destination, and release to commit while retaining click-click placement for precise bends

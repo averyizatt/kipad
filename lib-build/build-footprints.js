@@ -227,6 +227,7 @@ async function main() {
       await delay(DELAY_MS);
       continue;
     }
+    fp.library = usedCat;
     ok.push(fp);
     await delay(DELAY_MS);
   }
