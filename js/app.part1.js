@@ -11,6 +11,7 @@
   const SymFields = window.KipadSymFields || null;
   const Zip = window.KipadZip || null;
   const SchWires = window.KipadSchWires || null;
+  const SafeSave = window.KipadSafeSave || null;
   const FPs = window.KipadFootprints;
   const KicadMod = window.KipadKicadMod || null;
   const KicadSym = window.KipadKicadSym || null;

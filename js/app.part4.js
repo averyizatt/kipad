@@ -397,6 +397,7 @@
   });
 
   canvas.addEventListener('pointerup', e => {
+    const [wx, wy] = s2w(...evPos(e));
     if (e.pointerType === 'pen' && e.pointerId === penDown) { penDown = null; const h = $('hud-pen'); if (h) h.classList.add('hidden'); }
     if (eraserPointers.delete(e.pointerId)) return;
     pointers.delete(e.pointerId);

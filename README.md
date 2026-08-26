@@ -49,6 +49,10 @@ cd kipad
 # Run every regression suite.
 for test_file in test/test_*.js; do node "$test_file" || exit 1; done
 
+# Run the real application-shell smoke test in headless Chrome/Chromium.
+# Set KIPAD_CHROMIUM=/path/to/chrome when it is not on PATH.
+node test/browser_shell_smoke.js
+
 # Serve locally; service workers do not run from file:// URLs.
 python3 -m http.server 8080
 ```
