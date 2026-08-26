@@ -499,7 +499,7 @@
 
   // ---------- ERC (schematic electrical rules check) ----------
   function refreshErc() {
-    ercViolations = (Erc && sch) ? Erc.runERC(sch, Syms.getSymbol, FPs ? FPs.getFootprint : null) : [];
+    ercViolations = (Erc && sch()) ? Erc.runERC(sch(), Syms.getSymbol, FPs ? FPs.getFootprint : null) : [];
     ercDirty = false;
     updateErcStatus();
   }
@@ -638,8 +638,8 @@
   }
   function doBom() {
     if (!Bom) { setStatus('BOM module not loaded'); return; }
-    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
-    const out = Bom.exportBom(sch);
+    if (!sch() || !sch().symbols.length) { setStatus('Schematic is empty'); return; }
+    const out = Bom.exportBom(sch());
     if (!out.rows.length) { setStatus('No components for BOM'); return; }
     download('kipad-bom.csv', out.csv, 'text/csv');
     const qty = out.rows.reduce((n, r) => n + r.qty, 0);
@@ -647,8 +647,8 @@
   }
   function doNetlist() {
     if (!NetlistExp) { setStatus('Netlist module not loaded'); return; }
-    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
-    const out = NetlistExp.exportNetlist(sch, Syms.getSymbol);
+    if (!sch() || !sch().symbols.length) { setStatus('Schematic is empty'); return; }
+    const out = NetlistExp.exportNetlist(sch(), Syms.getSymbol);
     if (!out.data.components.length) { setStatus('No components for netlist'); return; }
     download('kipad.net', out.text, 'text/plain');
     setStatus('Netlist exported: ' + out.data.nets.length + ' net' + (out.data.nets.length === 1 ? '' : 's') + ', ' + out.data.components.length + ' component' + (out.data.components.length === 1 ? '' : 's'));
@@ -671,9 +671,9 @@
       if (p.back) files.push({ name: 'placement/kipad-bottom.pos', data: p.back });
     }
     let bomNote = '';
-    if (Bom && sch && sch.symbols.length) {
+    if (Bom && sch() && sch().symbols.length) {
       try {
-        const b = Bom.exportBom(sch);
+        const b = Bom.exportBom(sch());
         if (b.rows.length) { files.push({ name: 'bom/kipad-bom.csv', data: b.csv }); bomNote = ' + BOM'; }
       } catch (e) { /* BOM is best-effort inside the package */ }
     }

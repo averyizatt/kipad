@@ -11,8 +11,11 @@
     $('main').classList.toggle('hidden', m === 'launcher');
     document.querySelectorAll('.pcb-only').forEach(el => el.classList.toggle('hidden', m !== 'pcb'));
     document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
-    if (m === 'schematic' && !sch) { sch = Sch.makeSchematic(); schTool = 'select'; }
-    if (m === 'schematic') { setTab('symbols'); ercDirty = true; }
+    if (m === 'schematic' && !project) {
+      project = Project.normalize(Project.fromSchematic(Sch.makeSchematic()), { makeSchematic: Sch.makeSchematic });
+      schTool = 'select';
+    }
+    if (m === 'schematic') { setTab('symbols'); ercDirty = true; refreshSheetTabs(); }
     if (m === 'pcb') { setTab('layers'); if (typeof syncRouteControls === 'function') syncRouteControls(); }
     const ercPanel = $('erc-panel');
     if (ercPanel && m !== 'schematic') ercPanel.classList.add('hidden');
@@ -56,7 +59,7 @@
       ercMarkers: (showErcMarkers && ercViolations.length && Erc)
         ? Erc.markers(ercViolations, view.zoom) : null
     };
-    R.renderSchematic(ctx, cw, ch, sch, view, state, Syms);
+    R.renderSchematic(ctx, cw, ch, sch(), view, state, Syms);
     $('hud-pos').textContent = fmt(view.x) + ', ' + fmt(view.y) + ' mm';
     $('hud-zoom').textContent = Math.round(view.zoom * 100 / 3) + '%';
     $('hud-tool').textContent = schToolName();
@@ -65,6 +68,7 @@
     $('st-zoom').textContent = 'Zoom: ' + Math.round(view.zoom * 100 / 3) + '%';
     $('st-tool').textContent = schToolName();
     $('st-layer').textContent = 'Schematic';
+    refreshSheetStatus();
   }
 
   function schToolName() {
@@ -78,7 +82,7 @@
     setStatus('ERC markers ' + (showErcMarkers ? 'shown' : 'hidden'));
   }
 
-  function schSnapshot() { return JSON.stringify(sch); }
+  function schSnapshot() { return JSON.stringify(project); }
   function schCurrentSelection() {
     if (schSelSet.length) return schSelSet.slice();
     return schSelId && schSelKind ? [{ id: schSelId, kind: schSelKind }] : [];
@@ -88,21 +92,29 @@
     schSelKind = it ? it.kind : null;
   }
   function schClearSelection() { schSelId = null; schSelKind = null; schSelSet = []; }
-  function schPushUndo() { schUndo.push(schSnapshot()); if (schUndo.length > 50) schUndo.shift(); schRedo = []; ercDirty = true; }
+  function schPushUndo() {
+    if (!project) return;
+    schUndo.push(schSnapshot());
+    if (schUndo.length > 50) schUndo.shift();
+    schRedo = [];
+    ercDirty = true;
+  }
   function schUndoStep() {
     if (!schUndo.length) return;
     schRedo.push(schSnapshot());
-    sch = JSON.parse(schUndo.pop());
+    project = Project.normalize(JSON.parse(schUndo.pop()), { makeSchematic: Sch.makeSchematic });
     schClearSelection();
     ercDirty = true;
+    refreshSheetTabs();
     render(); refreshAll();
   }
   function schRedoStep() {
     if (!schRedo.length) return;
     schUndo.push(schSnapshot());
-    sch = JSON.parse(schRedo.pop());
+    project = Project.normalize(JSON.parse(schRedo.pop()), { makeSchematic: Sch.makeSchematic });
     schClearSelection();
     ercDirty = true;
+    refreshSheetTabs();
     render(); refreshAll();
   }
 
@@ -110,12 +122,12 @@
     const members = schCurrentSelection();
     if (!members.length || !SchMSel) return;
     schPushUndo();
-    const p = SchMSel.deletePlan(sch, members);
-    sch.symbols = sch.symbols.filter(x => !p.symbols.includes(x.id));
-    sch.wires = sch.wires.filter(x => !p.wires.includes(x.id));
-    sch.labels = sch.labels.filter(x => !p.labels.includes(x.id));
-    sch.junctions = sch.junctions.filter(x => !p.junctions.includes(x.id));
-    sch.noConnects = (sch.noConnects || []).filter(x => !p.noConnects.includes(x.id));
+    const p = SchMSel.deletePlan(sch(), members);
+    sch().symbols = sch().symbols.filter(x => !p.symbols.includes(x.id));
+    sch().wires = sch().wires.filter(x => !p.wires.includes(x.id));
+    sch().labels = sch().labels.filter(x => !p.labels.includes(x.id));
+    sch().junctions = sch().junctions.filter(x => !p.junctions.includes(x.id));
+    sch().noConnects = (sch().noConnects || []).filter(x => !p.noConnects.includes(x.id));
     const n = p.symbols.length + p.wires.length + p.labels.length + p.junctions.length + p.noConnects.length;
     schClearSelection();
     render(); refreshAll();
@@ -124,16 +136,16 @@
   function schDoRotate() {
     const members = schCurrentSelection();
     if (!members.length || !SchMSel) return;
-    const b = SchMSel.bounds(sch, members);
+    const b = SchMSel.bounds(sch(), members);
     if (!b) return;
     schPushUndo();
-    const n = SchMSel.rotateItems(sch, members, b.center, 90);
+    const n = SchMSel.rotateItems(sch(), members, b.center, 90);
     render(); refreshAll();
     setStatus('Rotated ' + n + ' schematic item' + (n === 1 ? '' : 's') + ' about the selection centre');
   }
 
   function doUpdatePCB() {
-    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    if (!sch() || !sch().symbols.length) { setStatus('Schematic is empty'); return; }
     try {
       const board2 = B.makeBoard();
       const getFootprint = name => !!FPs.getFootprint(name);
@@ -142,7 +154,7 @@
         const map = { R: 'R_0603_1608Metric', C: 'C_0805_2012Metric', D: 'D_SOD-123', Q: 'SOT-23', U: 'SOIC-8_3.9x4.9mm_P1.27mm', J: 'PinHeader_1x04_P2.54mm_Vertical', L: 'L_0603_1608Metric', SW: 'SW_SPST_PTS645' };
         return map[p] || null;
       };
-      Sch.updatePCB(sch, board2, { getFootprint, fallbackFootprint: fallback });
+      Sch.updatePCB(sch(), board2, { getFootprint, fallbackFootprint: fallback });
       if (!board2.footprints.length) { setStatus('No footprints could be resolved from schematic'); return; }
       pushUndo();
       board = board2;
@@ -158,35 +170,86 @@
 
   // Safe-save for schematics: same validation + backup ring as the PCB side.
   const SCH_BAK_KEY = 'kipad.backup.sch.v1';
+  const PROJ_BAK_KEY = 'kipad.backup.proj.v1';
   let lastSavedSch = null;      // last opened / validated .kicad_sch text
+  let lastSavedProj = null;     // last opened / validated .kicad_proj text
+
+  function projectIsSingleSheet() {
+    return !!project && project.sheets && project.sheets.length === 1;
+  }
+  function activeSheetName() {
+    const s = Project.activeSheet(project);
+    return s ? s.name : '';
+  }
   function schSave() {
     if (!Sch) { setStatus('schematic module not loaded'); return; }
     if (!SafeSave) { setStatus('safesave module not loaded'); return; }
-    const text = Sch.serializeSch(sch, Syms.getSymbol);
+    if (!project) { setStatus('No project to save'); return; }
+    // Single-sheet projects keep the legacy .kicad_sch export so existing
+    // workflows don't change format on upgrade.
+    if (projectIsSingleSheet()) {
+      const schObj = Project.activeSheet(project).schematic;
+      const text = Sch.serializeSch(schObj, Syms.getSymbol);
+      const v = SafeSave.validate(text,
+        t => Sch.parseSch(t, Syms.getSymbol),
+        m => Sch.serializeSch(m, Syms.getSymbol));
+      if (!v.ok) { setStatus('Save aborted: serialized schematic failed validation (' + v.error + ')'); return; }
+      let backed = false;
+      if (lastSavedSch && lastSavedSch !== text)
+        backed = SafeSave.pushBackup(SafeSave.defaultStore(), SCH_BAK_KEY, lastSavedSch) > 0;
+      download('kipad.kicad_sch', text, 'application/x-kicad-schematic');
+      lastSavedSch = text;
+      setStatus('Saved .kicad_sch' + (v.stable === false ? ' (round-trip differs)' : '') +
+        (backed ? ' · previous version backed up' : ''));
+      return;
+    }
+    schSaveProject();
+  }
+  function schSaveProject() {
+    if (!Project) { setStatus('project module not loaded'); return; }
+    if (!SafeSave) { setStatus('safesave module not loaded'); return; }
+    if (!project) { setStatus('No project to save'); return; }
+    const text = Project.serializeProject(project);
     const v = SafeSave.validate(text,
-      t => Sch.parseSch(t, Syms.getSymbol),
-      m => Sch.serializeSch(m, Syms.getSymbol));
-    if (!v.ok) { setStatus('Save aborted: serialized schematic failed validation (' + v.error + ')'); return; }
+      t => Project.parseProject(t),
+      m => Project.serializeProject(m));
+    if (!v.ok) { setStatus('Save aborted: serialized project failed validation (' + v.error + ')'); return; }
     let backed = false;
-    if (lastSavedSch && lastSavedSch !== text)
-      backed = SafeSave.pushBackup(SafeSave.defaultStore(), SCH_BAK_KEY, lastSavedSch) > 0;
-    download('kipad.kicad_sch', text, 'application/x-kicad-schematic');
-    lastSavedSch = text;
-    setStatus('Saved .kicad_sch' + (v.stable === false ? ' (round-trip differs)' : '') +
+    if (lastSavedProj && lastSavedProj !== text)
+      backed = SafeSave.pushBackup(SafeSave.defaultStore(), PROJ_BAK_KEY, lastSavedProj) > 0;
+    const fname = (project.name || 'kipad').replace(/[^A-Za-z0-9_.-]+/g, '_') + '.kicad_proj';
+    download(fname, text, 'application/x-kipad-project');
+    lastSavedProj = text;
+    setStatus('Saved ' + fname + (v.stable === false ? ' (round-trip differs)' : '') +
       (backed ? ' · previous version backed up' : ''));
   }
   function restoreSchBackup() {
     if (!Sch) { setStatus('schematic module not loaded'); return; }
-    const b = SafeSave.getBackup(SafeSave.defaultStore(), SCH_BAK_KEY, 0);
-    if (!b) { setStatus('No .kicad_sch backups yet'); return; }
+    const store = SafeSave.defaultStore();
+    const preferProject = !projectIsSingleSheet() || !!lastSavedProj;
+    const primaryKey = preferProject ? PROJ_BAK_KEY : SCH_BAK_KEY;
+    const fallbackKey = preferProject ? SCH_BAK_KEY : PROJ_BAK_KEY;
+    const b = SafeSave.getBackup(store, primaryKey, 0) || SafeSave.getBackup(store, fallbackKey, 0);
+    if (!b) { setStatus('No schematic backups yet'); return; }
     try {
       schPushUndo();
-      sch = Sch.parseSch(b.s, Syms.getSymbol);
+      let rawProject = null;
+      try { rawProject = JSON.parse(b.s); } catch (e) { rawProject = null; }
+      if (Project && Project.isProject && Project.isProject(rawProject)) {
+        project = Project.parseProject(b.s);
+        lastSavedProj = b.s;
+        setStatus('Restored previous .kicad_proj backup (' + new Date(b.t).toLocaleString() + ') — undo returns to the current sheet');
+      } else {
+        const schObj = Sch.parseSch(b.s, Syms.getSymbol);
+        project = Project.normalize(Project.fromSchematic(schObj), { makeSchematic: Sch.makeSchematic });
+        lastSavedSch = b.s;
+        setStatus('Restored previous .kicad_sch backup (' + new Date(b.t).toLocaleString() + ') — undo returns to the current sheet');
+      }
       schClearSelection(); schWirePts = [];
       setMode('schematic');
+      refreshSheetTabs();
       zoomFit();
       render(); refreshAll();
-      setStatus('Restored previous .kicad_sch backup (' + new Date(b.t).toLocaleString() + ') — undo returns to the current sheet');
     } catch (e) {
       schUndoStep();
       setStatus('Backup restore failed: ' + e.message);
@@ -199,13 +262,24 @@
     r.onload = () => {
       try {
         schPushUndo();
-        sch = Sch.parseSch(r.result, Syms.getSymbol);
+        const text = r.result;
+        if (Project && /\.kicad_proj\s*$/i.test(file.name || '')) {
+          project = Project.parseProject(text);
+          lastSavedProj = text;
+          setStatus('Opened ' + file.name);
+        } else {
+          const schObj = Sch.parseSch(text, Syms.getSymbol);
+          project = Project.normalize(Project.fromSchematic(schObj, {
+            name: String(file.name || 'kipad').replace(/\.kicad_sch$/i, '') || 'kipad'
+          }), { makeSchematic: Sch.makeSchematic });
+          lastSavedSch = text;
+          setStatus('Opened ' + file.name);
+        }
         schClearSelection(); schWirePts = [];
         setMode('schematic');
+        refreshSheetTabs();
         zoomFit();
         render(); refreshAll();
-        lastSavedSch = r.result;   // baseline for safe-save backups
-        setStatus('Opened ' + file.name);
       } catch (e) { setStatus('Open failed: ' + e.message); }
     };
     r.readAsText(file);
@@ -213,11 +287,127 @@
 
   function schNew() {
     schPushUndo();
-    sch = Sch.makeSchematic();
+    project = Project.normalize(Project.fromSchematic(Sch.makeSchematic()), { makeSchematic: Sch.makeSchematic });
     schClearSelection(); schWirePts = [];
     setMode('schematic');
+    refreshSheetTabs();
     zoomFit(); render(); refreshAll();
     setStatus('New schematic');
+  }
+
+  // ---------- sheet management ----------
+  function switchToSheet(idOrName) {
+    if (!project || !Project) return;
+    const before = project.activeSheetId;
+    const candidate = Project.getSheet(project, idOrName);
+    if (!candidate || candidate.id === before) return;
+    schPushUndo();
+    const target = Project.setActiveSheet(project, candidate.id);
+    schClearSelection(); schWirePts = [];
+    ercDirty = true;
+    refreshSheetTabs();
+    render(); refreshAll();
+    setStatus('Switched to sheet: ' + target.name);
+  }
+  function addNewSheet() {
+    if (!project || !Project) return;
+    const suggested = 'Sheet ' + ((project.sheets || []).length + 1);
+    const name = (typeof prompt === 'function') ? prompt('New sheet name:', suggested) : suggested;
+    if (name === null) return;
+    schPushUndo();
+    const sheet = Project.addSheet(project, name || suggested, null, { makeSchematic: Sch.makeSchematic });
+    Project.setActiveSheet(project, sheet.id);
+    schClearSelection(); schWirePts = [];
+    ercDirty = true;
+    refreshSheetTabs();
+    render(); refreshAll();
+    setStatus('Added sheet: ' + sheet.name);
+  }
+  function renameActiveSheet() {
+    if (!project || !Project) return;
+    const cur = Project.activeSheet(project);
+    if (!cur) return;
+    const name = (typeof prompt === 'function') ? prompt('Rename sheet:', cur.name) : null;
+    if (name === null || !String(name).trim()) return;
+    schPushUndo();
+    cur.name = String(name).trim();
+    refreshSheetTabs();
+    setStatus('Renamed sheet to: ' + cur.name);
+  }
+  function deleteActiveSheet() {
+    if (!project || !Project) return;
+    const cur = Project.activeSheet(project);
+    if (cur) deleteSheet(cur.id);
+  }
+  function deleteSheet(idOrName) {
+    if (!project || !Project) return;
+    if (project.sheets.length <= 1) { setStatus('Cannot delete the only remaining sheet'); return; }
+    const target = Project.getSheet(project, idOrName);
+    if (!target) return;
+    const x = target.schematic;
+    const empty = (!x.symbols || !x.symbols.length) && (!x.wires || !x.wires.length) &&
+      (!x.labels || !x.labels.length) && (!x.junctions || !x.junctions.length) &&
+      (!x.noConnects || !x.noConnects.length);
+    if (!empty && !confirm('Delete sheet "' + target.name + '"? Its contents will be lost.')) return;
+    schPushUndo();
+    const wasActive = project.activeSheetId === target.id;
+    project.sheets = project.sheets.filter(s => s.id !== target.id);
+    if (wasActive) project.activeSheetId = project.sheets[0].id;
+    schClearSelection(); schWirePts = [];
+    ercDirty = true;
+    render(); refreshAll();
+    setStatus('Deleted sheet: ' + target.name);
+  }
+  function refreshSheetStatus() {
+    const cur = Project && project ? Project.activeSheet(project) : null;
+    const stProj = $('st-project');
+    if (stProj) stProj.textContent = 'Project: ' + (project ? project.name : 'kipad') +
+      ' — Sheet: ' + (cur ? cur.name : '—');
+  }
+  function refreshSheetTabs() {
+    const el = $('sheet-tabs');
+    if (!el) return;
+    if (!project || !Project) { el.innerHTML = ''; return; }
+    const cur = Project.activeSheet(project);
+    const items = project.sheets.map(s => {
+      const active = cur && s.id === cur.id;
+      const cls = 'sheet-tab' + (active ? ' active' : '');
+      const name = esc(s.name);
+      return `<div class="${cls}" data-sheet-id="${esc(s.id)}" title="${name}">
+        <span class="sheet-name">${name}</span>
+        <button class="sheet-x" data-sheet-id="${esc(s.id)}" title="Delete sheet">×</button>
+      </div>`;
+    }).join('');
+    el.innerHTML = items + '<button class="sheet-add" id="sheet-add" title="New sheet">+</button>';
+    el.querySelectorAll('.sheet-tab').forEach(tab => {
+      const id = tab.dataset.sheetId;
+      tab.addEventListener('click', e => {
+        if (e.target.classList.contains('sheet-x')) return;
+        switchToSheet(id);
+      });
+      tab.querySelector('.sheet-x').addEventListener('click', e => {
+        e.stopPropagation();
+        deleteSheet(id);
+      });
+      tab.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        const target = Project.getSheet(project, id);
+        if (target) { switchToSheet(id); renameActiveSheet(); }
+      });
+      let pressTimer = null;
+      tab.addEventListener('touchstart', () => {
+        pressTimer = setTimeout(() => {
+          const target = Project.getSheet(project, id);
+          if (target) { switchToSheet(id); renameActiveSheet(); }
+        }, 600);
+      }, { passive: true });
+      tab.addEventListener('touchend', () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+      tab.addEventListener('touchmove', () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+    });
+    const addBtn = el.querySelector('#sheet-add');
+    if (addBtn) addBtn.addEventListener('click', e => { e.stopPropagation(); addNewSheet(); });
+    // Status bar text
+    refreshSheetStatus();
   }
 
   // ---------- plugin manager ----------

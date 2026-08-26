@@ -24,7 +24,7 @@
   function eraseAt(wx, wy) {
     if (mode === 'schematic') {
       const tol = Math.max(0.3, 10 / view.zoom);
-      const hit = SchMSel.hitTest(sch, wx, wy, tol, Syms.getSymbol);
+      const hit = SchMSel.hitTest(sch(), wx, wy, tol, Syms.getSymbol);
       if (!hit) { setStatus('Eraser: nothing under Pencil'); return; }
       schSelSet = [];
       schSetPrimary(hit);
@@ -356,7 +356,7 @@
         const target = [snap(wx - schDrag.dx), snap(wy - schDrag.dy)];
         const ddx = target[0] - schDrag.anchor[0], ddy = target[1] - schDrag.anchor[1];
         if (ddx || ddy) {
-          SchMSel.moveItems(sch, schDrag.members, ddx, ddy);
+          SchMSel.moveItems(sch(), schDrag.members, ddx, ddy);
           schDrag.anchor = target;
         }
       }
@@ -559,7 +559,7 @@
     const sx = snap(wx), sy = snap(wy);
     if (schTool === 'symbol' && schPlaceName) {
       schPushUndo();
-      const s = Sch.placeSymbol(sch, schPlaceName, [sx, sy], schAngle);
+      const s = Sch.placeSymbol(sch(), schPlaceName, [sx, sy], schAngle);
       schSelSet = [];
       schSetPrimary({ id: s.id, kind: 'symbol' });
       render(); refreshAll();
@@ -570,7 +570,7 @@
       const hit = SchWires.pick(schTargets(), wx, wy, schPickThr());
       const tx = hit ? hit.at[0] : sx;
       const ty = hit ? hit.at[1] : sy;
-      const onT = !hit && SchWires.hitsAnySegment([tx, ty], sch.wires, 1e-6);
+      const onT = !hit && SchWires.hitsAnySegment([tx, ty], sch().wires, 1e-6);
       if (!schWirePts.length) {
         schWirePts = [[tx, ty]];
         setStatus(hit ? 'Wire from ' + hit.label + ' — tap corners; land on a pin / wire end to finish'
@@ -600,7 +600,7 @@
       const text = prompt(isGlobal ? 'Global net label text:' : 'Net label text:');
       if (text && text.trim()) {
         schPushUndo();
-        Sch.addLabel(sch, text.trim(), [sx, sy], 0, isGlobal ? 'global' : 'local');
+        Sch.addLabel(sch(), text.trim(), [sx, sy], 0, isGlobal ? 'global' : 'local');
         render(); refreshAll();
         setStatus((isGlobal ? 'Global label ' : 'Label ') + text.trim());
       }
@@ -608,7 +608,7 @@
     }
     if (schTool === 'junction') {
       schPushUndo();
-      Sch.addJunction(sch, [sx, sy]);
+      Sch.addJunction(sch(), [sx, sy]);
       render();
       return;
     }
@@ -616,19 +616,19 @@
       // KiCad snaps the flag onto a pin tip when one is close; otherwise it
       // lands on the grid point so a wire can be run to it later.
       let at = [sx, sy], best = null, bestD = 0.635;
-      for (const sym of sch.symbols) {
+      for (const sym of sch().symbols) {
         for (const p of Sch.pinPositions(sym, Syms.getSymbol)) {
           const d = Math.hypot(p.at[0] - wx, p.at[1] - wy);
           if (d <= bestD) { bestD = d; best = [p.at[0], p.at[1]]; }
         }
       }
       if (best) at = best;
-      if ((sch.noConnects || []).some(n => Math.hypot(n.at[0] - at[0], n.at[1] - at[1]) < 0.01)) {
+      if ((sch().noConnects || []).some(n => Math.hypot(n.at[0] - at[0], n.at[1] - at[1]) < 0.01)) {
         setStatus('No-connect flag already here');
         return;
       }
       schPushUndo();
-      Sch.addNoConnect(sch, at);
+      Sch.addNoConnect(sch(), at);
       render();
       setStatus(best ? 'No-connect flag on pin' : 'No-connect flag placed');
       return;
@@ -652,7 +652,7 @@
         return;
       }
     }
-    const hit = SchMSel.hitTest(sch, wx, wy, Math.max(0.25, 8 / view.zoom), Syms.getSymbol);
+    const hit = SchMSel.hitTest(sch(), wx, wy, Math.max(0.25, 8 / view.zoom), Syms.getSymbol);
     const additive = !!(pe.shiftKey || pe.metaKey || pe.ctrlKey);
     if (hit) {
       if (additive) {
@@ -700,18 +700,18 @@
     return Math.min(3, Math.max(0.35, pxToWorld(26)));
   }
   function schTargets() {
-    return SchWires.collectTargets(sch, s => Sch.pinPositions(s, Syms.getSymbol));
+    return SchWires.collectTargets(sch(), s => Sch.pinPositions(s, Syms.getSymbol));
   }
   function finishSchWire() {
     if (schWirePts.length < 2) { schWirePts = []; render(); return; }
     schSnapHi = null;
     const myPts = schWirePts.map(p => p.slice());
-    const others = sch.wires.slice();
+    const others = sch().wires.slice();
     schPushUndo();
     for (let i = 0; i < myPts.length; i++) {
-      if (SchWires.junctionNeeded(myPts, i, others, 1e-6)) Sch.addJunction(sch, myPts[i].slice());
+      if (SchWires.junctionNeeded(myPts, i, others, 1e-6)) Sch.addJunction(sch(), myPts[i].slice());
     }
-    Sch.addWire(sch, myPts);
+    Sch.addWire(sch(), myPts);
     schWirePts = [];
     render(); refreshAll();
     setStatus('Wire placed');
@@ -852,7 +852,7 @@
   function finishSchBoxSelect(additive) {
     const rect = schBoxSel; schBoxSel = null;
     if (!rect || !SchMSel) return;
-    const found = SchMSel.collectInRect(sch, {
+    const found = SchMSel.collectInRect(sch(), {
       minX: Math.min(rect.a[0], rect.b[0]), maxX: Math.max(rect.a[0], rect.b[0]),
       minY: Math.min(rect.a[1], rect.b[1]), maxY: Math.max(rect.a[1], rect.b[1])
     }, Syms.getSymbol);
@@ -868,11 +868,11 @@
     if (mode === 'schematic') {
       if (schTool !== 'select' || schWirePts.length) return;
       const items = []
-        .concat(sch.symbols.map(x => ({ id: x.id, kind: 'symbol' })))
-        .concat(sch.wires.map(x => ({ id: x.id, kind: 'wire' })))
-        .concat(sch.labels.map(x => ({ id: x.id, kind: 'label' })))
-        .concat(sch.junctions.map(x => ({ id: x.id, kind: 'junction' })))
-        .concat((sch.noConnects || []).map(x => ({ id: x.id, kind: 'noconn' })));
+        .concat(sch().symbols.map(x => ({ id: x.id, kind: 'symbol' })))
+        .concat(sch().wires.map(x => ({ id: x.id, kind: 'wire' })))
+        .concat(sch().labels.map(x => ({ id: x.id, kind: 'label' })))
+        .concat(sch().junctions.map(x => ({ id: x.id, kind: 'junction' })))
+        .concat((sch().noConnects || []).map(x => ({ id: x.id, kind: 'noconn' })));
       if (!items.length) { setStatus('Nothing to select'); return; }
       schSelSet = items;
       schSetPrimary(items[0]);
@@ -900,7 +900,7 @@
       const members = schCurrentSelection();
       if (members.length && SchMSel) {
         schPushUndo();
-        SchMSel.moveItems(sch, members, dx * grid, dy * grid);
+        SchMSel.moveItems(sch(), members, dx * grid, dy * grid);
         render(); refreshAll();
       }
       return;
@@ -994,7 +994,7 @@
   $('btn-open').addEventListener('click', () => $('file-open').click());
   $('btn-save').addEventListener('click', () => mode === 'schematic' ? schSave() : doSave());
   $('btn-import').addEventListener('click', () => $('file-import').click());
-  $('file-open').addEventListener('change', e => { if (e.target.files[0]) { const f = e.target.files[0]; if (f.name.endsWith('.kicad_sch')) schOpen(f); else doOpen(f); } e.target.value = ''; });
+  $('file-open').addEventListener('change', e => { if (e.target.files[0]) { const f = e.target.files[0]; if (f.name.endsWith('.kicad_sch') || f.name.endsWith('.kicad_proj')) schOpen(f); else doOpen(f); } e.target.value = ''; });
   $('file-import').addEventListener('change', e => { if (e.target.files[0]) doImport(e.target.files[0]); e.target.value = ''; });
 
   // tabs
@@ -1026,8 +1026,10 @@
     if (mode === 'schematic') return {
       file: [
         ['New schematic', schNew, ''],
+        ['Open .kicad_proj…', () => $('btn-open').click(), ''],
         ['Open .kicad_sch…', () => $('btn-open').click(), ''],
-        ['Save .kicad_sch', schSave, ''],
+        [projectIsSingleSheet() ? 'Save .kicad_sch' : 'Save Project (.kicad_proj)', schSave, ''],
+        ['Save Project (.kicad_proj)', schSaveProject, ''],
         ['Restore previous save…', restoreSchBackup, ''],
         ['Update PCB from Schematic', doUpdatePCB, ''],
         ['Export BOM (.csv)', doBom, ''],
@@ -1048,6 +1050,9 @@
         ['Zoom to fit', zoomFit, ''],
         ['Grid: ' + grid + ' mm', cycleGrid, 'G'],
         ['ERC markers: ' + (showErcMarkers ? 'on' : 'off'), toggleErcMarkers, ''],
+        ['Sheet: ' + (activeSheetName() || '—') + ' ▸ New', addNewSheet, ''],
+        ['Sheet: ' + (activeSheetName() || '—') + ' ▸ Rename', renameActiveSheet, ''],
+        ['Sheet: ' + (activeSheetName() || '—') + ' ▸ Delete', deleteActiveSheet, ''],
         [$('main').classList.contains('panel-hidden') ? 'Show Side Panel' : 'Hide Side Panel', togglePanelHidden, '']
       ],
       place: [
@@ -1132,8 +1137,8 @@
     };
   }
   function showSchNetlist() {
-    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
-    const nets = Sch.extractNets(sch, Syms.getSymbol);
+    if (!sch() || !sch().symbols.length) { setStatus('Schematic is empty'); return; }
+    const nets = Sch.extractNets(sch(), Syms.getSymbol);
     const rows = nets.map(n => `<div class="net-row"><span>${esc(n.name)}</span><span style="margin-left:auto;color:var(--fg-dim)">${n.pins.length} pin${n.pins.length === 1 ? '' : 's'}</span></div>`).join('');
     showModal('Netlist (' + nets.length + ' nets)', `<div class="plugin-list">${rows}</div>`);
   }
@@ -1219,10 +1224,10 @@
 
   function zoomFit() {
     if (mode === 'schematic') {
-      if (!sch || !sch.symbols.length) { view = R.makeView(); render(); return; }
+      if (!sch() || !sch().symbols.length) { view = R.makeView(); render(); return; }
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const s of sch.symbols) { x0 = Math.min(x0, s.at[0]); x1 = Math.max(x1, s.at[0]); y0 = Math.min(y0, s.at[1]); y1 = Math.max(y1, s.at[1]); }
-      for (const w of sch.wires) for (const p of w.pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+      for (const s of sch().symbols) { x0 = Math.min(x0, s.at[0]); x1 = Math.max(x1, s.at[0]); y0 = Math.min(y0, s.at[1]); y1 = Math.max(y1, s.at[1]); }
+      for (const w of sch().wires) for (const p of w.pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
       if (!isFinite(x0)) { view = R.makeView(); render(); return; }
       const w = (x1 - x0) || 10, h = (y1 - y0) || 10;
       view.zoom = Math.max(0.5, Math.min(20, Math.min(canvas.width / w, canvas.height / h) * 0.9));

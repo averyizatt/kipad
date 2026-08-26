@@ -73,8 +73,22 @@
   // ---------- mode + schematic state ----------
   const Sch = window.KipadSchematic;
   const Erc = window.KipadErc || null;
+  const Project = window.KipadProject || null;
   let mode = 'launcher';        // 'launcher' | 'schematic' | 'pcb'
-  let sch = null;               // schematic model
+  let project = null;           // KipadProject (multi-sheet container)
+  // Resolve the live schematic through the active project sheet. Existing
+  // editor operations call sch() at the point of use, so a sheet switch takes
+  // effect immediately without copying or rebinding the schematic model.
+  function sch() {
+    if (!Project || !project) return null;
+    var s = Project.activeSheet(project);
+    return s ? s.schematic : null;
+  }
+  function setSch(newSch) {
+    if (!Project || !project) return;
+    var s = Project.activeSheet(project);
+    if (s) s.schematic = newSch;
+  }
   let schTool = 'select';       // select | symbol | wire | label | junction | noconn
   let schSelId = null;          // primary schematic item id
   let schSelKind = null;        // symbol | wire | label | junction | noconn
@@ -105,7 +119,7 @@
   // ---------- persistence ----------
   const LS_KEY = 'kipad.board.v1';
   function saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, grid, widthOverride, viaOverride })); } catch (e) {}
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ board, view, layer, grid, widthOverride, viaOverride, project })); } catch (e) {}
   }
   function loadLocal() {
     try {
@@ -113,6 +127,13 @@
       if (d && d.board) { board = d.board; view = d.view || view; layer = d.layer || layer; grid = d.grid || grid; }
       if (d && typeof d.widthOverride === 'number' && d.widthOverride > 0) widthOverride = d.widthOverride;
       if (d && d.viaOverride && d.viaOverride.size > 0) viaOverride = { size: d.viaOverride.size, drill: d.viaOverride.drill };
+      // Restore the multi-sheet project if present; missing `project` field
+      // is the legacy single-schematic shape and falls through to the lazy
+      // creation that setMode('schematic') already does.
+      if (d && d.project && Project && Project.isProject && Project.isProject(d.project)) {
+        try { project = Project.normalize(d.project, { makeSchematic: Sch.makeSchematic }); }
+        catch (e) { project = null; }
+      }
     } catch (e) {}
     B.ensureNetClasses(board);
     // the net class of the default net is the source of truth for the
@@ -250,6 +271,7 @@
     refreshSymbols();
     refreshNets();
     refreshProps();
+    if (mode === 'schematic' && typeof refreshSheetTabs === 'function') refreshSheetTabs();
   }
 
   function refreshLayers() {
@@ -512,12 +534,12 @@
   // ---------- symbol fields editor (KiCad "Edit Symbol Fields" dialog) ----------
   function showSymFields() {
     if (!SymFields) return;
-    if (!sch || !sch.symbols.length) { setStatus('Schematic is empty'); return; }
+    if (!sch() || !sch().symbols.length) { setStatus('Schematic is empty'); return; }
     schPushUndo();
     const fpNames = FPs.listFootprints('').map(n => `<option value="${esc(n)}">`).join('');
     let html = `<datalist id="sf-fp-list">${fpNames}</datalist>
       <div class="fields-table">`;
-    for (const r of SymFields.rows(sch)) {
+    for (const r of SymFields.rows(sch())) {
       html += `<div class="fields-row" data-sid="${esc(r.id)}">
         <input class="sf-ref" value="${esc(r.ref)}" title="Reference" placeholder="R1">
         <input class="sf-val" value="${esc(r.value)}" title="Value" placeholder="10k">
@@ -525,10 +547,10 @@
       </div>`;
     }
     html += `</div><div class="desc">Edits apply live · footprint names autocomplete from the library · power and # symbols are hidden</div>`;
-    showModal('Symbol Fields (' + SymFields.rows(sch).length + ' parts)', html);
+    showModal('Symbol Fields (' + SymFields.rows(sch()).length + ' parts)', html);
     const body = $('modal-body');
     body.querySelectorAll('.fields-row').forEach(row => {
-      const sym = sch.symbols.find(s => s.id === row.dataset.sid);
+      const sym = sch().symbols.find(s => s.id === row.dataset.sid);
       if (!sym) return;
       const wire = (cls, key) => {
         const el = row.querySelector(cls);
@@ -551,7 +573,7 @@
   // the bulk Tools ▸ Edit Symbol Fields dialog: edits go through the same
   // KipadSymfields.applyRow rules (blank ref keeps old designator).
   function refreshSchProps(el) {
-    const sym = (sch && schSelId) ? sch.symbols.find(s => s.id === schSelId) : null;
+    const sym = (sch() && schSelId) ? sch().symbols.find(s => s.id === schSelId) : null;
     if (!sym) {
       el.innerHTML = '<div class="prop-empty">Select a symbol to edit reference, value or footprint</div>';
       return;
