@@ -1,0 +1,37 @@
+name: Regression tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run regression suites
+        shell: bash
+        run: |
+          shopt -s nullglob
+          tests=(test/test_*.js)
+          if ((${#tests[@]} == 0)); then
+            echo "No regression suites found." >&2
+            exit 1
+          fi
+          for test_file in "${tests[@]}"; do
+            echo "::group::$test_file"
+            node "$test_file"
+            echo "::endgroup::"
+          done

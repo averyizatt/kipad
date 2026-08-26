@@ -24,7 +24,7 @@ const ROOT = path.join(__dirname, '..');
 // (a-extra) R_0603 deep checks (task-specified file path)
 // ------------------------------------------------------------------
 {
-  const text = fs.readFileSync(path.join(ROOT, 'lib-build', 'R_0603_1608Metric.kicad_mod'), 'utf8');
+  const text = fs.readFileSync(path.join(ROOT, 'lib-build', 'raw', 'Resistor_SMD', 'R_0603_1608Metric.kicad_mod'), 'utf8');
   const fp = KipadKicadMod.parseKicadMod(text);
   assert.ok(fp, 'R_0603: parse');
   assert.strictEqual(fp.name, 'R_0603_1608Metric');
