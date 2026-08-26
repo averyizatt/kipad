@@ -570,3 +570,9 @@ Avery's "continue" after rubber-band select landed; this was the remaining offer
 - Font-authoring bugs the bounds test caught: '$' bar overshot the em box; '(' / ')' sampled the wrong half of their circles (bulge through θ=0 instead of θ=180); C/G/D bowls exceeded their advance widths; U/u bottom bowls swept upward (180→360 passes θ=270 = up in y-down space; corrected to 180→0); f hook overflowed its width.
 - Verification: full suite 44/44 green, node --check clean on strokefont/gerber/sw. Real-board smoke now parses F.SilkS=1794 draws (was ~37) — reference designators for 63 parts dominate.
 - Cache discipline: index.html ?v=57→v58 (36→37 refs incl. new <script src="js/strokefont.js"> BEFORE gerber.js), sw ASSETS += './js/strokefont.js', CACHE kipad-v51→kipad-v52. Committed explicit paths only per collision protocol.
+
+## 2026-08-26 ~16:15 UTC — documentation accuracy polish
+
+The app and all 44 regression suites were green, but the public README still described the original PCB-only v0.1: three Gerber layers, a monolithic `app.js`, a seven-test development list, the retired sandbox path, and roadmap items that have already shipped. Replaced it with a current product overview covering schematic capture, PCB editing, selection/input, KiCad interchange, the nine-layer fabrication set, project tools, offline behavior, the split-module architecture, and a complete dependency-free test command. Added local-serving and PWA cache-version guidance, plus an explicit independence disclaimer. Corrected TODO's recurring workflow note to name the canonical workspace tree and SSH deploy-key push path.
+
+- Verification: all **44/44 suites green** before the documentation change; `git diff --check` clean afterward.

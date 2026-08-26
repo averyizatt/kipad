@@ -1,63 +1,69 @@
-# Kipad — KiCad-style PCB Layout Editor for iPad
+# Kipad — KiCad-style electronics design for iPad
 
-A KiCad-like PCB layout editor that runs in the browser as an installable PWA. Designed for iPad (Safari → Share → **Add to Home Screen**), touch-first, works offline.
+Kipad is an installable, offline-capable PWA for schematic capture and 2-layer PCB layout. It is touch-first, Apple Pencil-aware, and reads and writes KiCad file formats directly in the browser.
 
-**Live: https://averyizatt.github.io/kipad/**
+**Live app:** https://averyizatt.github.io/kipad/
 
-## Features
+On iPad, open the live app in Safari and choose **Share → Add to Home Screen**.
 
-- **Real KiCad libraries** — ~160 footprints (`lib/footprints.json`) and 2,000 symbols (`lib/symbols.json`) converted from the official KiCad repositories (kicad-footprints, kicad-symbols)
-- **Import your own parts** — open `.kicad_mod` and `.kicad_sym` files directly in the app
-- **2-layer boards** (F.Cu / B.Cu) with Edge.Cuts board outline
-- **KiCad-style UI**: menu bar, toolbar, left tool rail, right panel (Layers / Library / Symbols / Nets / Properties), bottom status bar, dark KiCad 8 theme
-- **Tools**: select/move, net highlight, place footprint, route track, via, draw line / rectangle / circle / arc (outline), measure
-- **Interactive routing** — net-aware (start on a pad → routes that net), grid snap, vias + layer switch mid-route (V)
-- **Net highlighting**, ratsnest preview
-- **Clearance DRC** (0.2 mm default)
-- **Open + save `.kicad_pcb`** (KiCad 6/7/8 S-expressions, KiCad 10 named-net format supported on open)
-- **Gerber export** (RS-274X for F.Cu, B.Cu, Edge.Cuts)
-- **Undo / redo**, autosave (localStorage)
+## Highlights
 
-## Architecture
+- **Schematic editor** — 2,000 built-in KiCad symbols, wires, junctions, labels, no-connect flags, symbol properties, footprint assignment, ERC, BOM and KiCad netlist export
+- **PCB editor** — roughly 160 built-in KiCad footprints, interactive net-aware routing, vias and mid-route layer switching, copper zones, ratsnest, net classes and configurable track/via sizes
+- **Selection and input** — group move/rotate/delete, desktop rubber-band selection, touch long-press box selection, keyboard shortcuts, pinch zoom, two-finger undo, Pencil tilt display and eraser support
+- **KiCad interoperability** — open/save `.kicad_sch` and `.kicad_pcb`, import/export `.kicad_sym` and `.kicad_mod`, preserve unsupported PCB S-expression nodes where possible
+- **Fabrication outputs** — nine Gerber layers (copper, Edge.Cuts, mask, paste and stroked silkscreen text), Excellon drill files and per-side pick-and-place files
+- **Project tools** — symbol and footprint library editors, Gerber viewer, PCB calculator, autosave, validated downloads and ZIP project export
+- **Offline PWA** — service-worker updates, local custom libraries and project state persist on-device
 
-```
-index.html            KiCad-style shell (menubar, toolbar, rail, panels, status bar)
-style.css             KiCad 8 dark theme
-js/sexpr.js           KiCad s-expression parser/serializer (KipadSexpr)
-js/kicad_pcb.js       .kicad_pcb parse/serialize (KipadPcb)
-js/kicad_mod.js       .kicad_mod import (KipadKicadMod)
-js/kicad_sym.js       .kicad_sym import (KipadKicadSym)
-js/footprints.js      footprint library + loader (KipadFootprints)
-js/symbols.js         symbol library registry (KipadSymbols)
-js/board.js           board model, nets, geometry, DRC (KipadBoard)
-js/render.js          KiCad-style canvas renderer (KipadRender)
-js/gerber.js          Gerber RS-274X exporter (KipadGerber)
-js/app.js             editor UI, tools, gestures
-lib/footprints.json   real KiCad footprints (generated)
-lib/symbols.json      real KiCad symbols (generated)
-test/                 Node test suite (all green)
+## Project layout
+
+```text
+index.html / style.css       application shell and KiCad-inspired UI
+js/app.part1.js..part4.js    editor state, input, commands and menus
+js/schematic.js              schematic model and KiCad schematic I/O
+js/board.js                  PCB model, geometry, DRC and ratsnest
+js/kicad_pcb.js              KiCad PCB parser and serializer
+js/kicad_sym.js              KiCad symbol parser and serializer
+js/kicad_mod.js              KiCad footprint parser and serializer
+js/render.js                 canvas renderer
+js/gerber.js                 nine-layer RS-274X exporter
+js/erc.js / js/zones.js      electrical checks and copper-zone fill
+js/editors.js                symbol and footprint library editors
+lib/                         generated built-in symbol/footprint libraries
+lib-build/                   library generators and real KiCad fixtures
+test/                        dependency-free Node regression suites
+sw.js                        offline asset cache and update lifecycle
 ```
 
-All modules are UMD — they work as browser globals and as CommonJS modules in Node.
+Most modules use UMD exports so the same implementation runs as browser globals and CommonJS modules in Node.
 
 ## Development
 
+Requirements: a current Node.js release and any static HTTP server. The test suite has no npm dependencies.
+
 ```bash
-cd ~/.openclaw/sandbox/kipad
-node test/test_sexpr_kicadpcb.js   # file format round-trip
-node test/test_gerber.js           # Gerber exporter
-node test/test_footprints.js       # builtin library
-node test/test_kicad_sym.js        # symbol converter + library
-node test/test_kicad_mod.js        # footprint converter + library
-node test/test_kicad10.js          # KiCad 10 named-net format
-node test/test_integration.js      # full-module smoke test
-# regenerate libraries:
+git clone https://github.com/averyizatt/kipad.git
+cd kipad
+
+# Run every regression suite.
+for test_file in test/test_*.js; do node "$test_file" || exit 1; done
+
+# Serve locally; service workers do not run from file:// URLs.
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080`. To regenerate the bundled libraries:
+
+```bash
 node lib-build/build-symbols.js
 node lib-build/build-footprints.js
 ```
 
-## Roadmap
+When adding or renaming a browser asset, also update `sw.js`. Bump both the query-string asset version in `index.html` and the cache name in `sw.js` for deploys that change cached files.
 
-Net classes / clearance settings, copper zones, silkscreen text, more DRC checks, drill files, deeper KiCad shortcut parity.
+## Status
 
-MIT
+Kipad is an independent browser editor inspired by KiCad. It is useful for touch-first design and interoperability, but it is not affiliated with or a replacement for KiCad's full desktop toolchain. Current automated coverage comprises 44 Node regression suites, including real-file parse/save and headless load-and-render checks.
+
+MIT licensed.

@@ -119,7 +119,7 @@ Project state file. Update after every iteration. Completed items are checked of
 ## Recurring rules (from Avery)
 
 - Diagnose before changing; verify after; least invasive fixes.
-- Everything sandboxed in ~/.openclaw/sandbox/kipad; push via ClawLink (no local gh).
+- Canonical working tree is `~/.openclaw/workspace/kipad`; push `main` through the repo's write-enabled SSH deploy key.
 - Keep PWA offline-first (sw.js cache list must include new assets).
 - "As close to KiCad as you can get in terms of look and functionality."
 
