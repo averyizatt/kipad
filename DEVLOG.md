@@ -648,3 +648,12 @@ Coordinator run: integrated the in-progress multi-sheet editor work (sheet navig
 Verification: all **46/46** dependency-free Node regression suites pass; `node --check` clean on every touched JS file. The optional browser shell smoke was not run — Chromium does not expose its DevTools endpoint in this environment. The remaining multi-sheet work is hierarchical/global-label connectivity and cross-sheet ERC.
 
 Note: a larger competing implementation exists on `cron/multisheet-editor-20260826` (commit 14076fc) using a `sch()` getter pattern. This branch is a smaller, more focused checkpoint that adds the editor surface area on top of the foundation without restructuring how `sch` is held. Either path can land; review should pick one before merging to main.
+
+## 2026-08-26 ~22:21 UTC — merge multi-sheet editor wiring onto main
+
+Coordinator run: fast-forwarded `main` to include the multi-sheet editor wiring from `cron/multisheet-navigation` (commits d2c4719 + dd9b01c). The branch adds the user-facing sheet navigation (select + add/rename/delete buttons in the schematic side panel) and File-menu Open/Save Kipad project actions on top of the already-landed `js/project.js` foundation. Picked the smaller, focused implementation over the larger `cron/multisheet-editor-20260826` (competing branch with a `sch()` getter refactor) because it adds the editor surface area without restructuring how `sch` is held, which keeps undo/redo diffs smaller.
+
+- Brought in (unchanged): `js/project.js` (adds `renameSheet`/`removeSheet` with last-sheet guard), `js/app.part1.js` (project reference alongside sch), `js/app.part3.js` (`ensureProject`/`bindActiveSchematic`/`refreshSheetNav`/`switchSheet`/`addProjectSheet`/`renameProjectSheet`/`deleteProjectSheet`/`projectSave`/`projectOpen`; every load path rebinds the active sheet), `js/app.part4.js` (sheet-nav event wiring + File-menu entries + .kipad/.json file routing), `index.html` (sheet-nav UI + script tag cache-bump), `style.css` (sheet-nav chrome), `sw.js` (kipad-v57 → kipad-v58), `test/test_project.js` (rename/remove + last-sheet guard).
+- TODO: marked "Sheet navigation + project save/open" subitem complete; the next subitem is hierarchical/global-label connectivity and cross-sheet ERC.
+
+Verification: all **46/46** dependency-free Node regression suites pass; `node --check` clean on every JS file. The browser shell smoke was not run — Chromium does not expose its DevTools endpoint in this environment.
