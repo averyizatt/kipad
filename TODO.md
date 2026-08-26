@@ -29,7 +29,7 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
   - [ ] Record device/iPadOS version and any reproducible failures in DEVLOG before fixing them
 - [x] Add schematic multi-select and group operations — 2026-08-26
   - [x] Additive modifier-click, desktop rubber-band, touch/Pencil long-press rubber-band, Ctrl+A, and group move/nudge/rotate/delete for symbols, wires, labels, junctions, and no-connect flags — 2026-08-26
-- [ ] Add multi-sheet schematic/project support
+- [x] Add multi-sheet schematic/project support — 2026-08-26
   - [x] Foundation: versioned multi-sheet project model with named sheets, active-sheet identity, optional board ownership, stable JSON save/load, and legacy single-sheet wrapping — 2026-08-26
   - [x] Sheet navigation + project save/open: sheet selector + add/rename/delete buttons in the schematic side panel; File menu Open/Save Kipad project (.kipad); every schematic load path rebinds the active sheet's schematic so persistence stays consistent — 2026-08-26
   - [x] Hierarchical/global-label connectivity and cross-sheet ERC conflict checks — deterministic project-scope named nets, hierarchical KiCad round-trip, and sheet-aware ERC/UI navigation — 2026-08-26
