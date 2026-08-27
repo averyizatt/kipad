@@ -13,8 +13,9 @@
  *   ArrowLeft/Right/Up/Down nudge selection by one grid step (selection required)
  *
  * Plain-letter editing shortcuts (S/X/R/W/G/N/T/L/M/Z/V/H/Q/Del/Esc/Enter) stay in
- * app.part4.js exactly as before; this module only owns the parity surface and runs
- * BEFORE those switches so modifier combos never leak into single-key tools.
+ * app.part4.js exactly as before; this module owns the parity surface plus the pure
+ * routing decision for schematic R, and runs BEFORE those switches so modifier
+ * combos never leak into single-key tools.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -24,6 +25,15 @@
 
   var ZOOM = { '+': 'zoomIn', '=': 'zoomIn', '-': 'zoomOut', '_': 'zoomOut' };
   var ARROWS = { ArrowLeft: 'nudgeLeft', ArrowRight: 'nudgeRight', ArrowUp: 'nudgeUp', ArrowDown: 'nudgeDown' };
+
+  function resolveSchematicRotate(ctx) {
+    ctx = ctx || {};
+    if (ctx.tool === 'symbol' && ctx.placeName) {
+      var angle = typeof ctx.angle === 'number' ? ctx.angle : 0;
+      return { target: 'placement', angle: ((angle + 90) % 360 + 360) % 360 };
+    }
+    return { target: 'selection' };
+  }
 
   function resolve(ev, ctx) {
     var k = ev && ev.key;
@@ -53,5 +63,5 @@
     return null;
   }
 
-  return { resolve: resolve };
+  return { resolve: resolve, resolveSchematicRotate: resolveSchematicRotate };
 });

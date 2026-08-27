@@ -54,4 +54,15 @@ ok(K.resolve(ev(null), pcb) === null, 'missing key → null');
 ok(K.resolve(ev('Escape'), pcb) === null, 'plain keys not owned here → null (legacy switches handle them)');
 ok(K.resolve(ev('r', {}), { mode: 'launcher' }) === null, 'launcher mode blocks plain letters too');
 
+// --- schematic rotate routing ---
+let rotate = K.resolveSchematicRotate({ tool: 'symbol', placeName: 'Device:R', angle: 0 });
+ok(rotate.target === 'placement' && rotate.angle === 90,
+  'R while a symbol is staged rotates the placement preview');
+rotate = K.resolveSchematicRotate({ tool: 'symbol', placeName: 'Device:R', angle: 270 });
+ok(rotate.target === 'placement' && rotate.angle === 0,
+  'placement preview rotation wraps after 270 degrees');
+rotate = K.resolveSchematicRotate({ tool: 'select', placeName: null, angle: 90 });
+ok(rotate.target === 'selection' && rotate.angle === undefined,
+  'R outside symbol placement remains routed to the current selection');
+
 console.log(`\ntest_keys: ${pass} checks passed${process.exitCode ? ' (WITH FAILURES)' : ''}`);

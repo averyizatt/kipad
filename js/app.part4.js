@@ -746,7 +746,17 @@
         case 'l': case 'L': setSchTool('label'); break;
         case 'j': case 'J': setSchTool('junction'); break;
         case 'q': case 'Q': setSchTool('noconn'); break;
-        case 'r': case 'R': schDoRotate(); break;
+        case 'r': case 'R': {
+          const rotation = KipadKeys.resolveSchematicRotate({ tool: schTool, placeName: schPlaceName, angle: schAngle });
+          if (rotation.target === 'placement') {
+            schAngle = rotation.angle;
+            render();
+            setStatus('Placing ' + schPlaceName + ' at ' + schAngle + '\u00b0 \u2014 tap canvas to place, R rotates');
+          } else {
+            schDoRotate();
+          }
+          break;
+        }
         case 'g': case 'G': cycleGrid(); break;
         case 'h': case 'H':
           if (e.ctrlKey || e.metaKey) { e.preventDefault(); setSchTool('glabel'); }   // KiCad legacy Ctrl+H = Add Global Label
