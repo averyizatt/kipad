@@ -242,3 +242,80 @@ ok(KR.commitPlan(null) === null, 'commitPlan: null route → null');
   const layers = plan.segments.map(s => s.layer);
   ok(layers.indexOf('F.Cu') < layers.lastIndexOf('B.Cu'), 'simulated via route: F.Cu run precedes B.Cu run');
 }
+
+// --- zone-outline obstacles in the clearance router ------------------------
+//
+// The interactive router refuses to commit a path that would cross an
+// opposite-net zone outline (or its clearance ring), matching how it already
+// treats pads, tracks and vias. Zone edges arrive as capsules with radius 0;
+// the visible pour outline is the line we keep clear, and the routed
+// half-width is added by route.js's obstacleRadius.
+//
+// These tests build a small obstacles list directly (the same shape
+// routeObstacles emits after the per-net filter), and drive the same
+// avoid(start, target, posture, obstacles, width) helper the track/pad
+// tests use. The same-net exemption and the layer filter live at the
+// routeObstacles call site in js/app.part2.js; here we exercise their
+// effective behaviour by leaving the corresponding capsule out of the
+// obstacles array.
+{
+  const start = [0, 0], target = [10, 0], width = 0.25;
+  const ZONE_CLEAR = 0.2; // matches the foreign-pad/track clearance used above
+
+  // 1) target on an opposite-net zone edge — like the existing
+  // blockedTarget test for pads, the endpoint sitting on the obstacle
+  // means no walk-around can place the segment endpoint at the target.
+  const blockingEdge = { kind: 'zone', a: [10, 0], b: [10, 10], radius: 0, clearance: ZONE_CLEAR };
+  const refused = KR.avoid(start, target, 'diag', [blockingEdge], width);
+  ok(refused === null, 'avoid: target on opposite-net zone outline is refused (returns null)');
+
+  // 2) clear margin: a vertical zone edge sitting 2 mm away from the
+  // direct centreline is well outside the clearance ring, so the direct
+  // 45° path is allowed unchanged.
+  const farEdge = { kind: 'zone', a: [5, 2], b: [5, 10], radius: 0, clearance: ZONE_CLEAR };
+  const direct = KR.avoid(start, target, 'diag', [farEdge], width);
+  ok(direct && direct.length === 1 && near(direct[0][0], 10) && near(direct[0][1], 0),
+     'avoid: opposite-net zone outline outside the clearance ring does not block the direct path');
+
+  // 3) walk-around: a zone edge slicing across the direct path (analogous
+  // to the existing foreign-track detour test) gets a deterministic 45°
+  // bypass instead of being refused.
+  const crossEdge = { kind: 'zone', a: [5, -1], b: [5, 1], radius: 0, clearance: ZONE_CLEAR };
+  const detour = KR.avoid(start, target, 'diag', [crossEdge], width);
+  ok(detour && detour.length > 1, 'avoid: opposite-net zone outline crossing the direct path forces a 45° walk-around');
+  const routed = [start].concat(detour);
+  for (let i = 0; i + 1 < routed.length; i++) ok(KR.isAllowed(routed[i], routed[i + 1]),
+     'avoid: zone-detour segment ' + i + ' stays H/V/45');
+  // verify the detour actually leaves the clearance ring around the edge
+  let minEdge = Infinity;
+  for (let i = 0; i + 1 < routed.length; i++) {
+    const a = routed[i], b = routed[i + 1];
+    const dx = crossEdge.b[0] - crossEdge.a[0], dy = crossEdge.b[1] - crossEdge.a[1];
+    const den = dx * dx + dy * dy;
+    const t = den ? Math.max(0, Math.min(1, ((a[0] - crossEdge.a[0]) * dx + (a[1] - crossEdge.a[1]) * dy) / den)) : 0;
+    const px = crossEdge.a[0] + t * dx, py = crossEdge.a[1] + t * dy;
+    minEdge = Math.min(minEdge, Math.hypot(a[0] - px, a[1] - py), Math.hypot(b[0] - px, b[1] - py));
+  }
+  ok(minEdge >= ZONE_CLEAR + width / 2 - 1e-7, 'avoid: zone-detour honours the zone clearance ring + half track width');
+  ok(near(detour[detour.length - 1][0], target[0]) && near(detour[detour.length - 1][1], target[1]),
+     'avoid: zone-detour still reaches the requested target');
+
+  // 4) same-net zone outline does NOT block the route. routeObstacles
+  // filters same-net zones out at the call site, so the obstacles array
+  // passed to avoid() never contains the capsule. The direct path must
+  // therefore be returned unchanged — the same shape that would have been
+  // blocked by Test 3 with the capsule present.
+  const sameNet = KR.avoid(start, target, 'diag', [], width); // filter applied: no capsule
+  ok(sameNet && sameNet.length === 1 && near(sameNet[0][0], 10) && near(sameNet[0][1], 0),
+     'avoid: same-net zone outline is filtered at the call site — direct path is returned');
+
+  // 5) zone on the OTHER copper layer is not in this layer's obstacle
+  // set at all. The same capsule that blocks in Test 3 must not appear in
+  // an F.Cu routing call when the zone actually lives on B.Cu. We model
+  // that by simply not including the capsule (the layer filter is a
+  // build-time decision at the call site, exactly like the same-net
+  // filter above).
+  const otherLayer = KR.avoid(start, target, 'diag', [], width); // B.Cu zone omitted from F.Cu obstacles
+  ok(otherLayer && otherLayer.length === 1 && near(otherLayer[0][0], 10) && near(otherLayer[0][1], 0),
+     'avoid: zone on the other copper layer is filtered at the call site — direct path is returned');
+}

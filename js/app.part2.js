@@ -338,6 +338,59 @@
     for (const v of board.vias) if (netId === 0 || v.netId !== netId) {
       out.push({ kind: 'via', at: [v.at[0], v.at[1]], radius: v.size / 2, clearance: clearanceFor(v.netId) });
     }
+    // Zone outlines: capsule obstacles along each outline edge of every
+    // opposite-net zone on this copper layer. Same-net zones do not block —
+    // the pour merges with its own net (KiCad behaviour). radius is 0 because
+    // the outline itself is the line we keep clear; track-half-width inflation
+    // is added inside route.js's obstacleRadius. A zone on the other copper
+    // layer is not in this layer's obstacle set at all.
+    {
+      const ownName = B.netName(board, netId);
+      const layers = B.zonesOn(board, cu);
+      // Reference point for the closest-zone cap: the source pad when the
+      // route starts on copper, else the board origin. We need a fixed point to
+      // score by; the source pad is always where the user started, so
+      // obstacles near it dominate the interactive experience.
+      const ref = sourcePad ? sourcePad.at : [0, 0];
+      const ranked = layers
+        .map(z => {
+          if (!z || !z.net || !Array.isArray(z.outline) || z.outline.length < 1) return null;
+          let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+          for (const p of z.outline) {
+            if (p.x < bx0) bx0 = p.x; if (p.x > bx1) bx1 = p.x;
+            if (p.y < by0) by0 = p.y; if (p.y > by1) by1 = p.y;
+          }
+          const dx = Math.max(0, ref[0] < bx0 ? bx0 - ref[0] : (ref[0] > bx1 ? ref[0] - bx1 : 0));
+          const dy = Math.max(0, ref[1] < by0 ? by0 - ref[1] : (ref[1] > by1 ? ref[1] - by1 : 0));
+          return { z, d: Math.hypot(dx, dy) };
+        })
+        .filter(x => x)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 16);
+      for (const r of ranked) {
+        const z = r.z;
+        // Same-net zones are exempt. Net 0 in the router means "no net", which
+        // is not the same as "matches an unnamed zone", so we still skip on a
+        // strict name match.
+        if (ownName && z.net && z.net === ownName) continue;
+        // Look up the zone's net id by name so the clearance model uses the
+        // correct class pair. Fall back to the routed net's own class when we
+        // can't find a match (defensive: an orphan zone name is not unheard of
+        // in saved boards mid-edit).
+        let zoneNetId = 0;
+        if (z.net && Array.isArray(board.nets)) {
+          const m = board.nets.find(n => n && n.name === z.net);
+          if (m) zoneNetId = m.id;
+        }
+        const cl = zoneNetId ? clearanceFor(zoneNetId) : (ownClass.clearance || 0.2);
+        const outline = z.outline;
+        for (let i = 0; i < outline.length; i++) {
+          const a = outline[i], b = outline[(i + 1) % outline.length];
+          if (!a || !b) continue;
+          out.push({ kind: 'zone', a: [a.x, a.y], b: [b.x, b.y], radius: 0, clearance: cl });
+        }
+      }
+    }
     return out;
   }
   function finishRoute() {
