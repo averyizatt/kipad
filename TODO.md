@@ -24,6 +24,7 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
   - [x] `R` rotates a staged footprint preview without rotating the previously selected footprint — 2026-08-27
   - [x] Update-PCB status counts named nets rather than including the reserved blank net — 2026-08-27
   - [x] Add clearance-aware obstacle avoidance routing; the 45° router now walks around other-net pads, tracks, and vias using the effective net-pair/Board Setup clearance, or refuses a blocked endpoint instead of committing a known DRC violation — 2026-08-27
+  - [x] Include opposite-net zone outlines as clearance-router obstacles on the current copper layer (same-net and other-layer zones filtered, cap at 16 closest zones); 5 new test_route cases; 47/47 suites pass — 2026-08-27
 
 - [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
   - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts

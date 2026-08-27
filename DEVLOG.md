@@ -722,3 +722,11 @@ One major KiCad-parity gap remains: routing is 45° constrained but not clearanc
 - This is obstacle avoidance, not physical push-and-shove: existing copper does not move. Zone fills remain outside router obstacle modeling, consistent with the current board-clearance DRC.
 
 Verification: all **47/47** dependency-free Node regression suites pass; touched JavaScript passes `node --check`.
+
+### 2026-08-27 — Clearance router: extend obstacles to opposite-net zone outlines
+
+Merged the unintegrated cron/zone-router-20260827 branch into main (commit `65453e0`).
+
+- `app.part2.js` routeObstacles now adds every opposite-net zone outline on the current copper layer as a capsule obstacle. The clearance used is `clearanceFor(zoneNetId)` (Board Setup class pair), falling back to the routed net's own class when the zone's net name cannot be resolved. Same-net zones are exempt — the pour merges with its own net, matching KiCad behaviour. Zones on the other copper layer are ignored.
+- Ranked by distance from the source pad (or board origin if none) and capped at the 16 closest zones so large boards stay interactive.
+- `test/test_route.js`: +5 cases — opposite-net direct refusal, clearance-clear pass, walk-around, same-net exemption, other-layer exemption. 47/47 dependency-free Node regression suites pass on main; cache `?v=66` / service worker `kipad-v65`.
