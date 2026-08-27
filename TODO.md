@@ -16,14 +16,14 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
   - [x] Live acceptance circuit: place R + LED + GND, connect both nets with press-drag-release wires, add VCC label, and reach clean ERC — 2026-08-27
   - [x] Single simulated Pencil placement created exactly one additional resistor; undo restored the three-symbol circuit — 2026-08-27
 
-- [ ] Fix findings from the live PCB editor audit — 2026-08-27
+- [x] Fix findings from the live PCB editor audit — 2026-08-27
   - [x] Rapid clicks at different routing corners no longer masquerade as a double-click and prematurely finish the track — 2026-08-27
   - [x] Mid-route `V` now remains reachable after rapid corner placement; verified one atomic F.Cu→via→B.Cu commit — 2026-08-27
   - [x] A via's own copper annulus is exempt from its own drill-hole clearance check, eliminating duplicate F.Cu/B.Cu false errors — 2026-08-27
   - [x] Edge.Cuts rectangle completes from first corner + opposite corner instead of requiring and ignoring an extra click — 2026-08-27
   - [x] `R` rotates a staged footprint preview without rotating the previously selected footprint — 2026-08-27
   - [x] Update-PCB status counts named nets rather than including the reserved blank net — 2026-08-27
-  - [ ] Add clearance-aware obstacle avoidance/shove routing; the current 45° router can produce a track that visually leaves one pad but passes another at 0.15 mm against a 0.2 mm rule, leaving DRC to catch it afterward
+  - [x] Add clearance-aware obstacle avoidance routing; the 45° router now walks around other-net pads, tracks, and vias using the effective net-pair/Board Setup clearance, or refuses a blocked endpoint instead of committing a known DRC violation — 2026-08-27
 
 - [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
   - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts

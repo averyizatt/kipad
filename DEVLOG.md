@@ -713,3 +713,12 @@ PCB findings fixed in this iteration:
 - Update-PCB status reports the three named nets rather than four entries including the reserved blank net.
 
 One major KiCad-parity gap remains: routing is 45° constrained but not clearance-aware. The audit router accepted a path with only 0.15 mm pad clearance against the 0.2 mm rule; DRC correctly reported it afterward, but KiCad's interactive router would avoid/shove around the obstacle while drawing.
+
+## 2026-08-27 — clearance-aware interactive routing
+
+- Added deterministic clearance-aware 45° obstacle avoidance to the PCB route preview and tap-extension path. Other-net pads, tracks (including sampled arcs), and vias are inflated by their copper radius, half the new track width, and the applicable maximum net-class clearance or Board Setup override.
+- Unsafe direct paths now take the shortest deterministic H/V/45° walk-around found by a bounded visibility search. If the requested endpoint is blocked or no safe path is found, the router refuses that point instead of leaving DRC to catch a known violation after commit.
+- Added the exact live-audit regression: a 0.25 mm track passing a 2 mm pad with a 0.15 mm copper gap against a 0.2 mm rule first reproduces the DRC failure, then verifies that the generated detour is DRC-clean. Coverage also includes deterministic output, track-capsule avoidance, blocked endpoints, and 45° geometry.
+- This is obstacle avoidance, not physical push-and-shove: existing copper does not move. Zone fills remain outside router obstacle modeling, consistent with the current board-clearance DRC.
+
+Verification: all **47/47** dependency-free Node regression suites pass; touched JavaScript passes `node --check`.
