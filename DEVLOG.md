@@ -676,3 +676,18 @@ Verification: all **46/46** dependency-free Node regression suites pass; `node -
 - Added deterministic project connectivity: local labels stay sheet-scoped, while same-name global/hierarchical labels and power nets join across sheets. Hierarchical labels now survive KiCad parse/serialize round trips.
 - Added project-wide ERC with sheet-aware label/power conflicts. The application ERC panel checks every project sheet, identifies each result's sheet, switches sheets when a result is selected, and only draws markers belonging to the active sheet.
 - Added `test/test_project_connectivity.js`; all **47/47** dependency-free Node suites and touched-file syntax checks pass. Browser smoke remains unavailable because this host's Chromium lacks `libatk-1.0.so.0`. Cache advanced to `kipad-v61`.
+
+## 2026-08-27 — live R + LED + GND schematic audit
+
+Ran the deployed GitHub Pages app in the repaired managed Chromium at a 1024×768 iPad-like viewport. Built a fresh three-symbol circuit through the visible UI: R1 (`R_0603` footprint), D1 (`LED_0603` footprint), and GND; used press-drag-release for both wires; placed a VCC label on R1's remaining pin; ran Zoom to Fit and ERC. The final model contains 3 symbols, 2 wires, 1 label, and correct VCC / interstage / GND nets with **0 ERC errors and 0 warnings**. A single simulated Pencil tap placed exactly one R2, and Undo returned to the three-symbol circuit.
+
+Confirmed defects / gaps:
+
+- While a new symbol is staged, `R` rotates the previously selected symbol instead of the placement preview, despite the status text saying “R rotates.”
+- Connectivity does not join a symbol pin that lies in the middle of a wire segment. A deliberately drawn wire crossed R1 pin 1 geometrically, but ERC still reported that pin unconnected; only endpoint/vertex attachment cleared it.
+- A label placed on a symbol pin is effectively shadowed by symbol-box hit testing, which checks symbols before labels and makes the coincident label difficult/impossible to select directly.
+- New schematic sessions inherit the persisted editor view (observed around X=-27.75, Y=-811.5 mm and 55% zoom) instead of starting near the origin or fitting the empty sheet.
+- Search remains constrained by the active category. With Device active, `GND` returned only crystal variants and hid the exact Power:GND result until All was selected.
+- A synthetic two-point CDP pinch made the renderer stop responding until reload. Treat this as needing physical iPad reproduction before calling it a confirmed product bug; ordinary wheel zoom and Zoom to Fit worked.
+
+Visual inspection after Zoom to Fit was usable and the direct wire gesture worked reliably. The audit circuit remains open in the managed browser; screenshot artifact: `/home/thefrogbrain/.openclaw/media/browser/ab8519e9-90e7-4de3-b40e-77070397381c.png`.

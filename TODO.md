@@ -6,6 +6,16 @@ Project state file. Update after every iteration. Completed items are checked of
 
 The core single-sheet / two-layer editor is feature-complete for its current scope. All 47 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
+- [ ] Fix findings from the live schematic circuit audit — 2026-08-27
+  - [ ] Make `R` rotate the symbol placement preview; it currently rotates the previously selected symbol while the status bar promises “R rotates”
+  - [ ] Connect symbol pins that lie on the middle of a wire segment, not only pins at wire vertices/endpoints; ERC currently reports the geometrically crossed pin as unconnected
+  - [ ] Allow selecting a label placed on/inside a symbol pin area; schematic hit testing currently gives the symbol box priority over the coincident label
+  - [ ] Reset or fit the schematic view when starting a new empty sheet instead of inheriting the persisted PCB/editor view (observed initial coordinates around Y = -811.5 mm)
+  - [ ] Make a text search that has zero/exactly-wrong category results offer or clearly expose “search all libraries”; `GND` remained hidden while the Device category was active
+  - [ ] Re-test pinch zoom on a physical iPad: a synthetic two-touch CDP gesture made the live renderer stop responding until reload, which may be either an input bug or a headless-CDP limitation
+  - [x] Live acceptance circuit: place R + LED + GND, connect both nets with press-drag-release wires, add VCC label, and reach clean ERC — 2026-08-27
+  - [x] Single simulated Pencil placement created exactly one additional resistor; undo restored the three-symbol circuit — 2026-08-27
+
 - [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
   - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts
   - [x] Remove silent 150-symbol/100-footprint dead ends with explicit progressive “Show more” controls
