@@ -691,3 +691,9 @@ Confirmed defects / gaps:
 - A synthetic two-point CDP pinch made the renderer stop responding until reload. Treat this as needing physical iPad reproduction before calling it a confirmed product bug; ordinary wheel zoom and Zoom to Fit worked.
 
 Visual inspection after Zoom to Fit was usable and the direct wire gesture worked reliably. The audit circuit remains open in the managed browser; screenshot artifact: `/home/thefrogbrain/.openclaw/media/browser/ab8519e9-90e7-4de3-b40e-77070397381c.png`.
+
+## 2026-08-27 — staged-symbol rotation and mid-segment pin connectivity
+
+- `R` during schematic symbol placement now rotates the staged preview in 90° steps and leaves the existing selection untouched; normal selection rotation remains unchanged.
+- Schematic connectivity now joins a pin tip anywhere along a wire segment, so ERC and netlist export agree with the visible geometry instead of requiring an endpoint or explicit vertex.
+- Added focused keyboard-routing and ERC/netlist regressions. All **47/47** dependency-free Node suites, touched-file syntax checks, and `git diff --check` pass. The browser shell smoke was attempted but this host's Chromium again timed out before exposing its DevTools endpoint. Cache advanced to `kipad-v62`.

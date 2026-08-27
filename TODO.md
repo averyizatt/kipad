@@ -7,8 +7,8 @@ Project state file. Update after every iteration. Completed items are checked of
 The core single-sheet / two-layer editor is feature-complete for its current scope. All 47 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
 - [ ] Fix findings from the live schematic circuit audit — 2026-08-27
-  - [ ] Make `R` rotate the symbol placement preview; it currently rotates the previously selected symbol while the status bar promises “R rotates”
-  - [ ] Connect symbol pins that lie on the middle of a wire segment, not only pins at wire vertices/endpoints; ERC currently reports the geometrically crossed pin as unconnected
+  - [x] Make `R` rotate the symbol placement preview; staged placement now rotates in 90° steps without changing the previous selection — 2026-08-27
+  - [x] Connect symbol pins that lie on the middle of a wire segment, not only pins at wire vertices/endpoints; connectivity, ERC, and netlist export now treat geometric mid-segment pin contact as connected — 2026-08-27
   - [ ] Allow selecting a label placed on/inside a symbol pin area; schematic hit testing currently gives the symbol box priority over the coincident label
   - [ ] Reset or fit the schematic view when starting a new empty sheet instead of inheriting the persisted PCB/editor view (observed initial coordinates around Y = -811.5 mm)
   - [ ] Make a text search that has zero/exactly-wrong category results offer or clearly expose “search all libraries”; `GND` remained hidden while the Device category was active
