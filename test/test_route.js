@@ -2,6 +2,7 @@
 /* KipadRoute tests — 45° elbow geometry, commit cleanup, integration with a simulated tap route. */
 const assert = require('assert');
 const KR = require('../js/route.js');
+const B = require('../js/board.js');
 
 let pass = 0;
 function ok(cond, name) { if (cond) { pass++; console.log('  ✓ ' + name); } else { console.log('  ✗ FAIL: ' + name); process.exitCode = 1; } }
@@ -175,6 +176,51 @@ console.log('test_route.js: ' + pass + ' checks passed');
 // --- commitPlan degenerate cases ---
 ok(KR.commitPlan({ pts: [[1, 1]], vias: [{ idx: 0, size: 1, drill: 0.5 }] }) === null, 'commitPlan: single point → null (nothing to commit)');
 ok(KR.commitPlan(null) === null, 'commitPlan: null route → null');
+
+// --- clearance-aware obstacle avoidance ------------------------------------
+{
+  const start = [0, 0], target = [10, 0], width = 0.25;
+  const direct = KR.avoid(start, target, 'diag', [], width);
+  ok(JSON.stringify(direct) === '[[10,0]]', 'avoid: unobstructed route preserves the direct 45-degree tail');
+
+  // Exact audited geometry: the direct centreline is 1.275 mm from a 2 mm pad.
+  // With a 0.25 mm track that leaves 1.275 - 1.0 - 0.125 = 0.15 mm copper
+  // gap, which is unsafe against the applicable 0.2 mm clearance.  The routed
+  // centreline therefore has to stay >= 1.325 mm from the pad centre.
+  const foreignPad = { kind: 'pad', at: [5, 1.275], radius: 1, clearance: 0.2 };
+  const detour = KR.avoid(start, target, 'diag', [foreignPad], width);
+  ok(detour && detour.length > 1, 'avoid: foreign-net pad causes a deterministic walk-around');
+  ok(JSON.stringify(detour) === JSON.stringify(KR.avoid(start, target, 'diag', [foreignPad], width)), 'avoid: audited 0.15mm-gap detour is deterministic');
+  const routed = [start].concat(detour);
+  ok(routed.every((p, i) => !i || KR.isAllowed(routed[i - 1], p)), 'avoid: every pad-detour segment remains H/V/45');
+  let minPad = Infinity;
+  function pointSeg(p, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], den = dx * dx + dy * dy;
+    const t = den ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / den)) : 0;
+    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+  }
+  for (let i = 0; i + 1 < routed.length; i++) minPad = Math.min(minPad, pointSeg(foreignPad.at, routed[i], routed[i + 1]));
+  ok(minPad >= 1 + 0.2 + width / 2 - 1e-7, 'avoid: pad detour honours pad radius + configured clearance + half track width');
+  ok(near(detour[detour.length - 1][0], target[0]) && near(detour[detour.length - 1][1], target[1]), 'avoid: detour still reaches the requested target');
+
+  const board = B.makeBoard(), routeNet = B.addNet(board, 'ROUTE'), padNet = B.addNet(board, 'OTHER');
+  board.footprints.push({ id: 'F-audit', ref: 'P1', at: foreignPad.at.slice(), angle: 0, layer: 'F.Cu', pads: [
+    { number: '1', type: 'smd', shape: 'circle', at: foreignPad.at.slice(), size: [2, 2], drill: null, layers: ['F.Cu'], netId: padNet }
+  ] });
+  B.addTrack(board, start, target, width, 'F.Cu', routeNet);
+  const audited = B.runDRC(board).find(v => v.type === 'pad-track');
+  ok(audited && near(audited.dist, 0.15) && near(audited.clearance, 0.2), 'avoid regression fixture reproduces the audited 0.15mm vs 0.2mm DRC failure');
+  board.tracks = [];
+  for (let i = 0; i + 1 < routed.length; i++) B.addTrack(board, routed[i], routed[i + 1], width, 'F.Cu', routeNet);
+  ok(!B.runDRC(board).some(v => v.type === 'pad-track'), 'avoid: committed detour is clearance-clean in the board DRC');
+
+  const foreignTrack = { kind: 'track', a: [5, -1], b: [5, 1], radius: 0.15, clearance: 0.2 };
+  const aroundTrack = KR.avoid(start, target, 'straight', [foreignTrack], width);
+  ok(aroundTrack && aroundTrack.length > 1 && aroundTrack.every((p, i) => !i || KR.isAllowed(aroundTrack[i - 1], p)), 'avoid: foreign track capsule also gets a 45-degree walk-around');
+
+  const blockedTarget = KR.avoid(start, foreignPad.at, 'diag', [foreignPad], width);
+  ok(blockedTarget === null, 'avoid: target inside foreign copper is rejected instead of previewing a DRC violation');
+}
 
 // --- simulated tap flow with a mid-route via through the real pipeline ---
 {

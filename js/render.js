@@ -370,13 +370,14 @@
       if (r.cursor) {
         const last = r.pts[r.pts.length - 1];
         // 45°-constrained preview: elbow path instead of a straight free-angle line
-        const tail = KipadRoute.elbow(last, r.cursor, r.posture || 'diag');
+        const tail = KipadRoute.avoid(last, r.cursor, r.posture || 'diag',
+          (r.obstaclesByLayer && r.obstaclesByLayer[r.layer]) || [], r.width);
         ctx.strokeStyle = LAYER_COLOR[r.layer] || '#888';
         ctx.lineWidth = Math.max(1, r.width * view.zoom);
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         let started = false;
-        for (const p of [last].concat(tail)) {
+        for (const p of [last].concat(tail || [])) {
           const [sx, sy] = w2s(view, p[0], p[1], cw, ch);
           if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy);
         }

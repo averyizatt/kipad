@@ -297,8 +297,10 @@
     else if (hiNet != null) netId = hiNet;
     // default width comes from the net's class unless the user picked one (toolbar / W)
     trackWidth = KipadRoute.resolveTrackWidth(widthOverride, B.netClassOfNet(board, netId).trackWidth);
-    route = { pts: [[snap(x), snap(y)]], netId, layer, layer0: layer, width: trackWidth, posture: routePosture, vias: [] };
+    route = { pts: [[snap(x), snap(y)]], netId, layer, layer0: layer, width: trackWidth, posture: routePosture, vias: [], obstaclesByLayer: {} };
     if (hit) route.pts = [[hit.pad.at[0], hit.pad.at[1]]];
+    route.obstaclesByLayer['F.Cu'] = routeObstacles(netId, 'F.Cu', hit && hit.pad);
+    route.obstaclesByLayer['B.Cu'] = routeObstacles(netId, 'B.Cu', hit && hit.pad);
     setStatus('Routing net "' + B.netName(board, netId) + '" — tap points (/ = 45° posture, Backspace = undo point), Enter to finish, V = via+layer');
     if (typeof syncRouteControls === 'function') syncRouteControls();
   }
@@ -307,7 +309,36 @@
     const last = route.pts[route.pts.length - 1];
     const p = [snap(x), snap(y)];
     if (p[0] === last[0] && p[1] === last[1]) return;
-    for (const pt of KipadRoute.elbow(last, p, routePosture)) route.pts.push(pt);
+    const tail = KipadRoute.avoid(last, p, routePosture, route.obstaclesByLayer[route.layer] || [], route.width);
+    if (!tail) { setStatus('Route blocked — no clearance-safe 45° path to that point'); return; }
+    for (const pt of tail) route.pts.push(pt);
+  }
+
+  function routeObstacles(netId, cu, sourcePad) {
+    const out = [];
+    const setup = KipadSetup.effective(board);
+    const ownClass = B.netClassOfNet(board, netId);
+    const clearanceFor = otherNet => setup.minClearance != null
+      ? setup.minClearance
+      : Math.max(ownClass.clearance, B.netClassOfNet(board, otherNet).clearance);
+    const onLayer = p => (p.layers || []).some(l => l === cu || l === '*.Cu');
+    for (const fp of board.footprints) for (const p of fp.pads) {
+      // Net 0 means "no net", not one shared electrical net; only the pad the
+      // route starts on may be exempt in that case (matching board DRC rules).
+      if (p === sourcePad || (netId !== 0 && p.netId === netId) || !onLayer(p)) continue;
+      out.push({ kind: 'pad', at: [p.at[0], p.at[1]], radius: Math.max(p.size[0], p.size[1]) / 2, clearance: clearanceFor(p.netId) });
+    }
+    for (const t of board.tracks) {
+      if ((netId !== 0 && t.netId === netId) || t.layer !== cu) continue;
+      const segs = B.trackSegments(t);
+      for (const s of segs) {
+        out.push({ kind: 'track', a: [s.ax, s.ay], b: [s.bx, s.by], radius: t.width / 2, clearance: clearanceFor(t.netId) });
+      }
+    }
+    for (const v of board.vias) if (netId === 0 || v.netId !== netId) {
+      out.push({ kind: 'via', at: [v.at[0], v.at[1]], radius: v.size / 2, clearance: clearanceFor(v.netId) });
+    }
+    return out;
   }
   function finishRoute() {
     if (!route || route.pts.length < 2) { route = null; render(); return; }

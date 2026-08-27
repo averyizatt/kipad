@@ -10,6 +10,11 @@
  * cleanup(pts, eps)    -> new point list: consecutive duplicates dropped, collinear
  *   runs merged (corners kept). Safe on short/degenerate input.
  * isAllowed(p1, p2, eps) -> true when the segment is H/V/45 within tolerance.
+ * avoid(start, target, posture, obstacles, width) -> a collision-free 45-degree
+ *   tail (start excluded), or null when no deterministic walk-around is found.
+ *   Obstacles are circles `{at,radius,clearance}` or capsules
+ *   `{a,b,radius,clearance}`. `width` is the routed track width; callers supply
+ *   the effective net-pair clearance on each obstacle.
  *
  * Track width / via size choice helpers (back the toolbar comboboxes):
  * widthChoices(classWidth, presets)  -> ascending unique width list, class default included
@@ -90,6 +95,132 @@
       }
     }
     return out;
+  }
+
+  // ---- clearance-aware walk-around routing --------------------------------
+
+  function pointSegDist(p, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var den = dx * dx + dy * dy;
+    if (!den) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+    var t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / den;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+  }
+
+  // Minimum distance between two finite segments (intersection naturally gives 0).
+  function segSegDist(a, b, c, d) {
+    function orient(p, q, r) { return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]); }
+    function between(v, x, y) { return v >= Math.min(x, y) - EPS && v <= Math.max(x, y) + EPS; }
+    var o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+    if (((o1 > EPS && o2 < -EPS) || (o1 < -EPS && o2 > EPS)) &&
+        ((o3 > EPS && o4 < -EPS) || (o3 < -EPS && o4 > EPS))) return 0;
+    if (Math.abs(o1) <= EPS && between(c[0], a[0], b[0]) && between(c[1], a[1], b[1])) return 0;
+    if (Math.abs(o2) <= EPS && between(d[0], a[0], b[0]) && between(d[1], a[1], b[1])) return 0;
+    if (Math.abs(o3) <= EPS && between(a[0], c[0], d[0]) && between(a[1], c[1], d[1])) return 0;
+    if (Math.abs(o4) <= EPS && between(b[0], c[0], d[0]) && between(b[1], c[1], d[1])) return 0;
+    return Math.min(pointSegDist(a, c, d), pointSegDist(b, c, d), pointSegDist(c, a, b), pointSegDist(d, a, b));
+  }
+
+  function obstacleRadius(o, width) {
+    return Math.max(0, Number(o.radius) || 0) + Math.max(0, Number(o.clearance) || 0) + Math.max(0, Number(width) || 0) / 2;
+  }
+
+  function segmentClear(a, b, obstacles, width) {
+    for (var i = 0; i < obstacles.length; i++) {
+      var o = obstacles[i], r = obstacleRadius(o, width);
+      var d = o.a && o.b ? segSegDist(a, b, o.a, o.b) : pointSegDist(o.at, a, b);
+      if (d < r - 1e-7) return false;
+    }
+    return true;
+  }
+
+  function pathClear(pts, obstacles, width) {
+    for (var i = 0; i < pts.length - 1; i++) if (!segmentClear(pts[i], pts[i + 1], obstacles, width)) return false;
+    return true;
+  }
+
+  function pathLen(pts) {
+    var n = 0;
+    for (var i = 0; i < pts.length - 1; i++) n += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+    return n;
+  }
+
+  function edgePath(a, b, preferred, obstacles, width) {
+    var order = preferred === 'straight' ? ['straight', 'diag'] : ['diag', 'straight'];
+    var best = null;
+    for (var i = 0; i < order.length; i++) {
+      var p = [a].concat(elbow(a, b, order[i]));
+      if (!pathClear(p, obstacles, width)) continue;
+      var len = pathLen(p);
+      if (!best || len < best.len - EPS) best = { pts: p, len: len };
+    }
+    return best;
+  }
+
+  // Small deterministic visibility search around inflated obstacle bounding boxes.
+  // This is obstacle avoidance, not push-and-shove: existing copper never moves.
+  function avoid(start, target, posture, obstacles, width) {
+    var obs = Array.isArray(obstacles) ? obstacles.filter(function (o) {
+      return o && ((o.at && o.at.length >= 2) || (o.a && o.b));
+    }) : [];
+    var direct = [start].concat(elbow(start, target, posture));
+    if (!obs.length || pathClear(direct, obs, width)) return direct.slice(1);
+
+    // Keep pointer-move preview cost bounded on dense boards. The closest
+    // obstacles include every direct blocker first (negative score). The final
+    // result is still checked against the complete list, so the cap can only
+    // decline a route in a crowded area; it can never admit an unsafe one.
+    var relevant = obs.map(function (o, idx) {
+      var best = Infinity;
+      for (var si = 0; si < direct.length - 1; si++) {
+        var dd = o.a && o.b ? segSegDist(direct[si], direct[si + 1], o.a, o.b)
+                            : pointSegDist(o.at, direct[si], direct[si + 1]);
+        best = Math.min(best, dd - obstacleRadius(o, width));
+      }
+      return { o: o, score: best, idx: idx };
+    }).sort(function (a, b) { return a.score - b.score || a.idx - b.idx; })
+      .slice(0, 16).map(function (x) { return x.o; });
+
+    var nodes = [[start[0], start[1]], [target[0], target[1]]];
+    var NUDGE = 1e-4;
+    for (var i = 0; i < relevant.length; i++) {
+      var o = relevant[i], r = obstacleRadius(o, width) + NUDGE;
+      var x0, x1, y0, y1;
+      if (o.a && o.b) {
+        x0 = Math.min(o.a[0], o.b[0]) - r; x1 = Math.max(o.a[0], o.b[0]) + r;
+        y0 = Math.min(o.a[1], o.b[1]) - r; y1 = Math.max(o.a[1], o.b[1]) + r;
+      } else {
+        x0 = o.at[0] - r; x1 = o.at[0] + r; y0 = o.at[1] - r; y1 = o.at[1] + r;
+      }
+      nodes.push([x0, y0], [x0, y1], [x1, y0], [x1, y1]);
+    }
+
+    var n = nodes.length, dist = new Array(n), prev = new Array(n), prevPath = new Array(n), used = new Array(n);
+    for (var d = 0; d < n; d++) { dist[d] = Infinity; prev[d] = -1; used[d] = false; }
+    dist[0] = 0;
+    for (var step = 0; step < n; step++) {
+      var u = -1;
+      for (var q = 0; q < n; q++) if (!used[q] && (u < 0 || dist[q] < dist[u])) u = q;
+      if (u < 0 || !isFinite(dist[u])) break;
+      used[u] = true;
+      if (u === 1) break;
+      for (var v = 0; v < n; v++) {
+        if (used[v] || v === u) continue;
+        var ep = edgePath(nodes[u], nodes[v], posture, relevant, width);
+        if (!ep) continue;
+        var nd = dist[u] + ep.len;
+        if (nd < dist[v] - EPS) { dist[v] = nd; prev[v] = u; prevPath[v] = ep.pts; }
+      }
+    }
+    if (!isFinite(dist[1])) return null;
+    var edges = [], at = 1;
+    while (at !== 0) { edges.push(prevPath[at]); at = prev[at]; if (at < 0) return null; }
+    edges.reverse();
+    var out = [[start[0], start[1]]];
+    for (var z = 0; z < edges.length; z++) for (var k = 1; k < edges[z].length; k++) out.push(edges[z][k]);
+    out = cleanup(out);
+    return pathClear(out, obs, width) ? out.slice(1) : null;
   }
 
   // ---- via-in-route support -------------------------------------------------
@@ -233,7 +364,7 @@
   }
 
   return {
-    elbow: elbow, cleanup: cleanup, isAllowed: isAllowed,
+    elbow: elbow, cleanup: cleanup, isAllowed: isAllowed, avoid: avoid,
     widthChoices: widthChoices, viaChoices: viaChoices,
     resolveTrackWidth: resolveTrackWidth, resolveVia: resolveVia,
     toggleRouteVia: toggleRouteVia, currentLayer: currentLayer,
