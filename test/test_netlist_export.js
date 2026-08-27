@@ -44,16 +44,16 @@ t('empty schematic: valid sexpr, no components/nets/libparts', () => {
   assert.strictEqual(tree[1][1].q, 'D');
 });
 
-t('two resistors wired by shared label: one named net, both nodes', () => {
+t('wire crossing pin tips connects every pin on the segment', () => {
   const sch = mkSch();
-  Sch.addWire(sch, [[10, 6.19], [10, 33.81]]);      // R1 pin2 → R2 pin1
+  Sch.addWire(sch, [[10, 6.19], [10, 33.81]]);      // endpoints + R1p1/R2p2 in segment interior
   Sch.addLabel(sch, 'SIG', [10, 20], 0);            // mid-wire
   const out = NL.exportNetlist(sch, Syms.getSymbol, { meta: META });
   assert.deepStrictEqual(out.data.components.map(c => c.ref), ['R1', 'R2']);
   const net = out.data.nets.find(n => n.name === 'SIG');
   assert.ok(net, 'label-named net exists; got: ' + out.data.nets.map(n => n.name));
-  assert.deepStrictEqual(net.nodes.map(n => n.ref), ['R1', 'R2']);
-  assert.deepStrictEqual(net.nodes.map(n => n.num).sort(), ['1', '2']);
+  assert.deepStrictEqual(net.nodes.map(n => n.ref), ['R1', 'R1', 'R2', 'R2']);
+  assert.deepStrictEqual(net.nodes.map(n => n.num).sort(), ['1', '1', '2', '2']);
 });
 
 t('power symbol: excluded from components and nodes, net named GND', () => {
@@ -72,10 +72,10 @@ t('power symbol: excluded from components and nodes, net named GND', () => {
 
 t('unlabeled nets keep auto N-* names', () => {
   const sch = mkSch();
-  Sch.addWire(sch, [[10, 6.19], [10, 26.19]]);      // joins R1p2 + R2p2 only
+  Sch.addWire(sch, [[10, 6.19], [10, 26.19]]);      // joins R1p2 + interior R1p1 + R2p2
   const out = NL.exportNetlist(sch, Syms.getSymbol, { meta: META });
-  assert.strictEqual(out.data.nets.length, 3, '3 pin groups; got: ' + out.data.nets.map(n => n.name).join(','));
-  const joined = out.data.nets.find(n => n.nodes.length === 2);
+  assert.strictEqual(out.data.nets.length, 2, '2 pin groups; got: ' + out.data.nets.map(n => n.name).join(','));
+  const joined = out.data.nets.find(n => n.nodes.length === 3);
   assert.ok(joined && /^N-/.test(joined.name), 'joined net auto-named');
 });
 

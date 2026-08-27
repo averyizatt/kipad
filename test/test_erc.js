@@ -143,7 +143,22 @@ assert.ok(spn[0].netName.indexOf('N-') === 0, 'auto net name used');
 assert.strictEqual(byCode(viol, 'UNCONNECTED_PIN').length, 1, 'other pin still unconnected');
 assert.strictEqual(byCode(viol, 'DANGLING_WIRE').length, 1, 'stub end is dangling');
 
-// ---- 9. dangling wires ----
+// ---- 9. pin in the interior of a wire segment ----
+Syms.loadLibrary([{ name: 'TEST_MIDPIN', ref: 'U', value: 'TEST_MIDPIN', footprint: 'TEST_PART', desc: '',
+  pins: [{ number: '1', name: 'IN', type: 'passive', at: [0, 0], angle: 0, length: 2.54 }], graphics: [] }]);
+const midPin = Sch.makeSchematic();
+const midPinSym = Sch.placeSymbol(midPin, 'TEST_MIDPIN', [0, 0], 0);
+Sch.addWire(midPin, [[-5, 0], [5, 0]]);
+Sch.addLabel(midPin, 'SIGNAL', [-5, 0], 0);
+Sch.addLabel(midPin, 'SIGNAL', [5, 0], 0);
+const midPinNet = Sch.extractNets(midPin, Syms.getSymbol).find(n => n.name === 'SIGNAL');
+assert.ok(midPinNet && midPinNet.pins.some(p => p.symId === midPinSym.id && p.number === '1'),
+  'pin on a wire interior joins the labeled net');
+viol = Erc.runERC(midPin, Syms.getSymbol);
+assert.strictEqual(byCode(viol, 'UNCONNECTED_PIN').length, 0, 'mid-segment pin is not reported unconnected');
+assert.strictEqual(viol.length, 0, 'labeled wire with a mid-segment pin is ERC-clean');
+
+// ---- 10. dangling wires ----
 const dang = Sch.makeSchematic();
 Sch.addWire(dang, [[0, 0], [5, 0]]);
 viol = Erc.runERC(dang, Syms.getSymbol);
@@ -170,7 +185,7 @@ Sch.addWire(loop, [[0, 0], [5, 0], [5, 5], [0, 5], [0, 0]]);
 viol = Erc.runERC(loop, Syms.getSymbol);
 assert.strictEqual(byCode(viol, 'DANGLING_WIRE').length, 0, 'closed loop has no dangling ends');
 
-// ---- 10. severity counts ----
+// ---- 11. severity counts ----
 const mixed = Sch.makeSchematic();
 Sch.placeSymbol(mixed, 'R', [0, 0], 0, 'R1');
 Sch.placeSymbol(mixed, 'R', [10, 0], 0, 'R1');
@@ -180,7 +195,7 @@ assert.strictEqual(c.errors, 1, 'one duplicate ref error');
 assert.strictEqual(c.warnings, 4, 'four unconnected pins (2 symbols × 2 pins)');
 assert.strictEqual(viol.length, c.errors + c.warnings, 'counts add up');
 
-// ---- 11. violations are deterministic + all carry locate info ----
+// ---- 12. violations are deterministic + all carry locate info ----
 viol = Erc.runERC(mixed, Syms.getSymbol);
 assert.deepStrictEqual(codes(viol), codes(Erc.runERC(mixed, Syms.getSymbol)), 'deterministic order');
 viol.forEach(v => {

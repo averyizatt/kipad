@@ -182,6 +182,24 @@
       }
     }
 
+    // A pin tip can land in the interior of an existing wire segment without
+    // creating a wire vertex. Join it to that wire just as an endpoint pin is
+    // joined above; otherwise the drawing looks connected while ERC/netlist
+    // topology incorrectly leaves the pin isolated.
+    var pinNodeStart = wireAndJunctionCount(sch);
+    pinRefs.forEach(function (pin, pi) {
+      var pinNode = pinNodeStart + pi;
+      var wireNode = 0;
+      sch.wires.forEach(function (w) {
+        for (var si = 0; si + 1 < w.pts.length; si++) {
+          if (pointSegDist(pin.at, w.pts[si], w.pts[si + 1]) <= EPS) {
+            union(pinNode, wireNode + si);
+          }
+        }
+        wireNode += w.pts.length;
+      });
+    });
+
     // Labels merge with the nearest node or wire segment if within 1.0 mm.
     labelRefs.forEach(function (lt, li) {
       var liNode = nodes.length - labelRefs.length + li;
