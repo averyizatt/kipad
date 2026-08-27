@@ -639,7 +639,7 @@
         items.push({ kind: 'track', seg: [[s.ax, s.ay], [s.bx, s.by]], r: t.width / 2, netId: t.netId, layer });
     }
     for (const v of board.vias) {
-      items.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.size / 2, netId: v.netId, layer });
+      items.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.size / 2, netId: v.netId, layer, ownerVia: v.id });
     }
     return items;
   }
@@ -652,7 +652,7 @@
           holes.push({ kind: 'pad', x: p.at[0], y: p.at[1], r: p.drill / 2, netId: p.netId, ownerPad: fp.id + '#' + p.number });
     for (const v of board.vias)
       if (v.drill != null && v.drill > 0)
-        holes.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.drill / 2, netId: v.netId, ownerPad: null });
+        holes.push({ kind: 'via', x: v.at[0], y: v.at[1], r: v.drill / 2, netId: v.netId, ownerPad: null, ownerVia: v.id });
     return holes;
   }
   function edgeSegs(board) {
@@ -913,6 +913,7 @@
         for (const it of copperItemsExt(board, layer)) {
           for (const h of holes) {
             if (it.ownerPad && it.ownerPad === h.ownerPad) continue; // own annulus
+            if (it.ownerVia && it.ownerVia === h.ownerVia) continue; // own via barrel/annulus
             if (h.netId !== 0 && h.netId === it.netId) continue;    // same net
             const d = itemHoleDist(h, it);
             if (d >= holeCl) continue;

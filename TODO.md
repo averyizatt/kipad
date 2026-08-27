@@ -6,15 +6,24 @@ Project state file. Update after every iteration. Completed items are checked of
 
 The core single-sheet / two-layer editor is feature-complete for its current scope. All 47 dependency-free Node regression suites pass. The next work should focus on real-browser confidence and the largest remaining KiCad workflow gaps rather than adding more small tools.
 
-- [ ] Fix findings from the live schematic circuit audit — 2026-08-27
+- [x] Fix findings from the live schematic circuit audit — 2026-08-27
   - [x] Make `R` rotate the symbol placement preview; staged placement now rotates in 90° steps without changing the previous selection — 2026-08-27
   - [x] Connect symbol pins that lie on the middle of a wire segment, not only pins at wire vertices/endpoints; connectivity, ERC, and netlist export now treat geometric mid-segment pin contact as connected — 2026-08-27
-  - [ ] Allow selecting a label placed on/inside a symbol pin area; schematic hit testing currently gives the symbol box priority over the coincident label
-  - [ ] Reset or fit the schematic view when starting a new empty sheet instead of inheriting the persisted PCB/editor view (observed initial coordinates around Y = -811.5 mm)
-  - [ ] Make a text search that has zero/exactly-wrong category results offer or clearly expose “search all libraries”; `GND` remained hidden while the Device category was active
-  - [ ] Re-test pinch zoom on a physical iPad: a synthetic two-touch CDP gesture made the live renderer stop responding until reload, which may be either an input bug or a headless-CDP limitation
+  - [x] Labels anchored on symbol pins win hit testing over the broad symbol box and can be selected directly — 2026-08-27
+  - [x] A brand-new schematic resets to the standard origin/zoom instead of inheriting the persisted PCB/editor view — 2026-08-27
+  - [x] Typing a symbol or footprint query clears a stale category chip, so exact cross-library results such as Power:GND are visible — 2026-08-27
+  - [x] Re-tested pinch with native CDP touch emulation: zoom changed 3→5, render stayed responsive, no items were created, and pointer state cleaned up; physical iPad acceptance remains tracked separately — 2026-08-27
   - [x] Live acceptance circuit: place R + LED + GND, connect both nets with press-drag-release wires, add VCC label, and reach clean ERC — 2026-08-27
   - [x] Single simulated Pencil placement created exactly one additional resistor; undo restored the three-symbol circuit — 2026-08-27
+
+- [ ] Fix findings from the live PCB editor audit — 2026-08-27
+  - [x] Rapid clicks at different routing corners no longer masquerade as a double-click and prematurely finish the track — 2026-08-27
+  - [x] Mid-route `V` now remains reachable after rapid corner placement; verified one atomic F.Cu→via→B.Cu commit — 2026-08-27
+  - [x] A via's own copper annulus is exempt from its own drill-hole clearance check, eliminating duplicate F.Cu/B.Cu false errors — 2026-08-27
+  - [x] Edge.Cuts rectangle completes from first corner + opposite corner instead of requiring and ignoring an extra click — 2026-08-27
+  - [x] `R` rotates a staged footprint preview without rotating the previously selected footprint — 2026-08-27
+  - [x] Update-PCB status counts named nets rather than including the reserved blank net — 2026-08-27
+  - [ ] Add clearance-aware obstacle avoidance/shove routing; the current 45° router can produce a track that visually leaves one pad but passes another at 0.15 mm against a 0.2 mm rule, leaving DRC to catch it afterward
 
 - [x] Repair and organize the schematic symbol/footprint browser — 2026-08-26
   - [x] Preserve 22 KiCad symbol libraries and 20 footprint libraries in generated data; add category filters and accurate result counts

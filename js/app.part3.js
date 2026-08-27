@@ -11,7 +11,13 @@
     $('main').classList.toggle('hidden', m === 'launcher');
     document.querySelectorAll('.pcb-only').forEach(el => el.classList.toggle('hidden', m !== 'pcb'));
     document.querySelectorAll('.sch-only').forEach(el => el.classList.toggle('hidden', m !== 'schematic'));
-    if (m === 'schematic' && !sch) { sch = Sch.makeSchematic(); schTool = 'select'; }
+    if (m === 'schematic' && !sch) {
+      sch = Sch.makeSchematic();
+      schTool = 'select';
+      // Board state persists its pan/zoom. A brand-new schematic must not
+      // inherit that view (the live audit opened an empty sheet near Y=-811).
+      view = R.makeView();
+    }
     if (m === 'schematic') { ensureProject(); refreshSheetNav(); setTab('symbols'); ercDirty = true; }
     if (m === 'pcb') { setTab('layers'); if (typeof syncRouteControls === 'function') syncRouteControls(); }
     const ercPanel = $('erc-panel');
@@ -213,7 +219,8 @@
       setMode('pcb');
       zoomFit();
       refreshAll();
-      setStatus('Updated PCB from schematic: ' + board.footprints.length + ' footprints, ' + board.nets.length + ' nets');
+      const namedNets = board.nets.filter(n => n.id !== 0 && n.name).length;
+      setStatus('Updated PCB from schematic: ' + board.footprints.length + ' footprints, ' + namedNets + ' nets');
     } catch (e) { setStatus('Update PCB failed: ' + e.message); }
   }
 

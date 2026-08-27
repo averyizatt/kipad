@@ -245,6 +245,19 @@
     }
   }
   function doRotateSel() {
+    // Placement preview owns R while a footprint/text is staged. Otherwise a
+    // previously selected footprint rotates underneath the new preview.
+    if (tool === 'footprint' && placeLib) {
+      placeAngle = (placeAngle + 90) % 360;
+      setStatus('Placing ' + placeLib + ' at ' + placeAngle + '° — tap board to place, R rotates');
+      render();
+      return;
+    }
+    if (tool === 'text' && textPlace) {
+      textPlace.angle = (textPlace.angle + 90) % 360;
+      render();
+      return;
+    }
     if (selSet.length > 1) {
       pushUndo();
       const bds = MSel.bounds(board, selSet);
@@ -260,8 +273,6 @@
       if (t) { pushUndo(); t.angle = (t.angle + 90) % 360; render(); refreshProps(); }
     }
     else if (selId) { pushUndo(); B.rotateFootprint(board, selId, 90); render(); refreshProps(); }
-    else if (tool === 'footprint') { placeAngle = (placeAngle + 90) % 360; render(); }
-    else if (tool === 'text' && textPlace) { textPlace.angle = (textPlace.angle + 90) % 360; render(); }
   }
   function switchLayer() {
     // mid-route a layer switch means: stage a via at the current end and continue on the other side
@@ -411,14 +422,14 @@
       outlinePts = null; gfxStart = null;
       render();
     } else if (tool === 'rect') {
-      if (outlinePts.length === 1) { outlinePts.push(p); }
-      else {
-        pushUndo();
-        const [x0, y0] = gfxStart, [x1, y1] = p;
-        board.outline.push([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]);
-        outlinePts = null; gfxStart = null;
-        render(); setStatus('Rectangle added to outline');
-      }
+      // Rectangle uses the same two-click interaction as KiCad: first corner,
+      // opposite corner. The old extra state gate required a third click and
+      // silently ignored the second point.
+      pushUndo();
+      const [x0, y0] = gfxStart, [x1, y1] = p;
+      board.outline.push([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]);
+      outlinePts = null; gfxStart = null;
+      render(); setStatus('Rectangle added to outline');
     } else if (tool === 'circle') {
       const r = Math.hypot(p[0] - gfxStart[0], p[1] - gfxStart[1]);
       pushUndo();

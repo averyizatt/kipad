@@ -42,6 +42,9 @@ assert(M.has(sel, 'S1') && !M.has(M.toggle(sel, 'S1', 'symbol'), 'S1'), 'toggle/
 {
   const sch = makeSch();
   assert.strictEqual(M.hitTest(sch, 5, 2.05, 0.1, getSymbol).kind, 'label', 'label wins over coincident wire');
+  sch.labels.push({ id: 'L2', text: 'PIN_LABEL', at: [0, 2], angle: 0 });
+  const pinLabel = M.hitTest(sch, 0, 2, 0.1, getSymbol);
+  assert.deepStrictEqual([pinLabel.kind, pinLabel.id], ['label', 'L2'], 'label anchored on a symbol pin wins over the symbol box');
   assert.strictEqual(M.hitTest(sch, 8, 2.05, 0.1, getSymbol).kind, 'wire', 'wire segment is hit away from anchors');
   const p = M.deletePlan(sch, [{ id: 'S1', kind: 'symbol' }, { id: 'W1', kind: 'wire' }, { id: 'N1', kind: 'noconn' }, { id: 'gone', kind: 'label' }]);
   assert.deepStrictEqual([p.symbols.length, p.wires.length, p.noConnects.length, p.labels.length], [1, 1, 1, 0], 'delete plan partitions live ids and drops stale ids');

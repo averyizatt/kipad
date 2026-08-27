@@ -697,3 +697,19 @@ Visual inspection after Zoom to Fit was usable and the direct wire gesture worke
 - `R` during schematic symbol placement now rotates the staged preview in 90° steps and leaves the existing selection untouched; normal selection rotation remains unchanged.
 - Schematic connectivity now joins a pin tip anywhere along a wire segment, so ERC and netlist export agree with the visible geometry instead of requiring an endpoint or explicit vertex.
 - Added focused keyboard-routing and ERC/netlist regressions. All **47/47** dependency-free Node suites, touched-file syntax checks, and `git diff --check` pass. The browser shell smoke was attempted but this host's Chromium again timed out before exposing its DevTools endpoint. Cache advanced to `kipad-v62`.
+
+## 2026-08-27 — schematic re-audit + PCB editor audit and fixes
+
+Re-ran the R1 → LED → GND acceptance circuit against the local fixed build through real CDP pointer/key input at 1024×768. Verified: new empty schematic view resets to `{x:0,y:0,zoom:3}`; staged `R` changes the LED preview to 90° without rotating R1; typing `GND` while Device is active automatically returns to All and exposes exact Power:GND; a label anchored on R1's pin is selected as a label; direct drag wires produce a clean three-net model and ERC reports **0 errors / 0 warnings**. Proper native touch emulation also completed a two-finger pinch (zoom 3→5) without freezing or mutating the schematic, so the earlier hang was an incomplete automation sequence rather than a reproduced product bug.
+
+Then updated that schematic into the PCB editor and exercised layout from scratch: moved D1 and confirmed pads/ratsnest followed, routed the shared net, tried rapid corner placement, staged a via/layer change, ran DRC, placed footprints from the 159-item library, rotated a staged footprint, and drew an Edge.Cuts rectangle.
+
+PCB findings fixed in this iteration:
+
+- Track/outline double-click completion now requires the two taps to land at the same world point; quick clicks at different route corners no longer end routing early.
+- A single staged via now commits F.Cu segments, one correctly netted via, then B.Cu segments atomically. The via's own annulus/drill pair is excluded from hole-clearance DRC, removing two false errors (one per copper layer).
+- Edge.Cuts rectangles complete in two clicks instead of three.
+- `R` rotates the staged footprint preview before considering an existing selection.
+- Update-PCB status reports the three named nets rather than four entries including the reserved blank net.
+
+One major KiCad-parity gap remains: routing is 45° constrained but not clearance-aware. The audit router accepted a path with only 0.15 mm pad clearance against the 0.2 mm rule; DRC correctly reported it afterward, but KiCad's interactive router would avoid/shove around the obstacle while drawing.

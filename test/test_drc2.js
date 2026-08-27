@@ -69,6 +69,8 @@ g.window.KipadFootprints = { getFootprint: () => ({ pads: [], silk: fakeSilk }) 
   const b = B.makeBoard();
   const na = B.addNet(b, 'A'), nb = B.addNet(b, 'B');
   B.addVia(b, [10, 10], 0.6, 0.3, na); // drill r 0.15
+  assert.strictEqual(B.runDRC(b).filter(v => v.type === 'hole-via').length, 0,
+    "a via's own annulus is exempt from its drill-hole clearance check");
   B.addTrack(b, [10.35, 10], [16, 10], 0.25, 'B.Cu', nb); // gap .35-.15-.125=.075 < .25
   const vs = B.runDRC(b).filter(v => v.type === 'hole-track' && v.layer === 'B.Cu');
   assert.ok(vs.length >= 1, 'track under foreign via drill flagged');

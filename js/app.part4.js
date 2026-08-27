@@ -530,15 +530,21 @@
 
     const now = Date.now();
     if ((tool === 'track' && route) || ((tool === 'line' || tool === 'rect' || tool === 'circle' || tool === 'arc') && gfxStart) || (tool === 'zone' && zonePts && zonePts.pts.length >= 3)) {
-      if (now - lastTap < 350) {
+      // A quick second click at a different corner is normal routing, not a
+      // double-click. Only finish when both clicks land at the same point.
+      // (The schematic wire tool already applies the same safeguard.)
+      if (now - lastTap < 350 && lastTapPos &&
+          Math.hypot(lastTapPos[0] - wx, lastTapPos[1] - wy) < pickTol(10)) {
         if (tool === 'track') finishRoute();
         else if (tool === 'zone') finishZone();
         else { outlinePts = null; gfxStart = null; render(); }
         lastTap = 0;
+        lastTapPos = null;
         return;
       }
     }
     lastTap = now;
+    lastTapPos = [wx, wy];
   });
 
   canvas.addEventListener('pointercancel', e => {

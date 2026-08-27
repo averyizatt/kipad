@@ -312,7 +312,14 @@
     html += `</div>${names.length > libLimit ? `<button class="btn lib-more" id="lib-more">Show more (${names.length - libLimit} remaining)</button>` : ''}`;
     el.innerHTML = html;
     const qin = $('lib-q');
-    if (qin) qin.addEventListener('input', e => { libQuery = e.target.value; libLimit = 100; refreshLibrary(); const n = $('lib-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+    if (qin) qin.addEventListener('input', e => {
+      libQuery = e.target.value;
+      // Typing is a global search action. Clear a stale category chip so an
+      // exact result from another library is not silently hidden.
+      if (libQuery.trim()) libCategory = '';
+      libLimit = 100; refreshLibrary();
+      const n = $('lib-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+    });
     el.querySelectorAll('.lib-category').forEach(b => b.addEventListener('click', () => { libCategory = b.dataset.category; libLimit = 100; refreshLibrary(); }));
     const more = $('lib-more'); if (more) more.addEventListener('click', () => { libLimit += 100; refreshLibrary(); });
     el.querySelectorAll('.lib-item').forEach(it => it.addEventListener('click', () => {
@@ -358,7 +365,14 @@
     html += `</div>${symbols.length > symLimit ? `<button class="btn lib-more" id="sym-more">Show more (${symbols.length - symLimit} remaining)</button>` : ''}`;
     el.innerHTML = html;
     const qin = $('sym-q');
-    if (qin) qin.addEventListener('input', e => { symQuery = e.target.value; symLimit = 150; refreshSymbols(); const n = $('sym-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+    if (qin) qin.addEventListener('input', e => {
+      symQuery = e.target.value;
+      // Search across all symbol libraries unless the user deliberately
+      // chooses a category after entering the query.
+      if (symQuery.trim()) symCategory = '';
+      symLimit = 150; refreshSymbols();
+      const n = $('sym-q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+    });
     el.querySelectorAll('.lib-category').forEach(b => b.addEventListener('click', () => { symCategory = b.dataset.category; symLimit = 150; refreshSymbols(); }));
     const more = $('sym-more'); if (more) more.addEventListener('click', () => { symLimit += 150; refreshSymbols(); });
     el.querySelectorAll('.lib-item').forEach(it => it.addEventListener('click', () => {
@@ -367,7 +381,14 @@
       drawSymbolPreview($('sym-preview'), Syms.getSymbol(symSel));
     }));
     const place = $('sym-place');
-    if (place) place.addEventListener('click', () => { schPlaceName = symSel; setSchTool('symbol'); });
+    if (place) place.addEventListener('click', () => {
+      // Orientation belongs to the symbol currently being placed. Do not
+      // carry a rotated LED preview into the next, unrelated symbol (for
+      // example a sideways GND power symbol).
+      if (schPlaceName !== symSel) schAngle = 0;
+      schPlaceName = symSel;
+      setSchTool('symbol');
+    });
     if (symSel) drawSymbolPreview($('sym-preview'), Syms.getSymbol(symSel));
   }
 

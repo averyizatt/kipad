@@ -121,11 +121,14 @@
   function hitTest(sch, x, y, tol, getSymbol) {
     var p = [x, y], i, a, d;
     for (i = (sch.noConnects || []).length - 1; i >= 0; i--) if (Math.hypot(sch.noConnects[i].at[0] - x, sch.noConnects[i].at[1] - y) <= tol) return { id: sch.noConnects[i].id, kind: 'noconn', anchor: sch.noConnects[i].at };
+    // Labels are commonly anchored directly on a symbol pin. Prefer the
+    // exact label anchor before the much larger symbol bounding box so the
+    // label remains selectable instead of being shadowed by the symbol.
+    for (i = (sch.labels || []).length - 1; i >= 0; i--) if (Math.hypot(sch.labels[i].at[0] - x, sch.labels[i].at[1] - y) <= tol) return { id: sch.labels[i].id, kind: 'label', anchor: sch.labels[i].at };
     for (i = (sch.symbols || []).length - 1; i >= 0; i--) {
       var box = symbolBox(sch.symbols[i], getSymbol);
       if (x >= box.minX - tol && x <= box.maxX + tol && y >= box.minY - tol && y <= box.maxY + tol) return { id: sch.symbols[i].id, kind: 'symbol', anchor: sch.symbols[i].at };
     }
-    for (i = (sch.labels || []).length - 1; i >= 0; i--) if (Math.hypot(sch.labels[i].at[0] - x, sch.labels[i].at[1] - y) <= tol) return { id: sch.labels[i].id, kind: 'label', anchor: sch.labels[i].at };
     for (i = (sch.junctions || []).length - 1; i >= 0; i--) if (Math.hypot(sch.junctions[i].at[0] - x, sch.junctions[i].at[1] - y) <= tol) return { id: sch.junctions[i].id, kind: 'junction', anchor: sch.junctions[i].at };
     for (i = (sch.wires || []).length - 1; i >= 0; i--) {
       for (var k = 0; k + 1 < sch.wires[i].pts.length; k++) {
