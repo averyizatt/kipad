@@ -754,3 +754,7 @@ All 47/47 dependency-free Node regression suites still pass on `main` (HEAD 5de6
 ## 2026-08-28 ~07:21 UTC — no-op autonomous run (only open items blocked)
 
 Cron 61765e48 iteration 3. `git status` clean, `main` is even with `origin/main` (no commits ahead). TODO.md unchecked items: physical iPad acceptance pass (needs hardware + Avery on an actual device), and the haptics sub-item of "iPad polish" (parked platform limitation — iPadOS Safari exposes no vibration API; the WebKit impl request is still open). Both are explicitly blocked; per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule, no subagents were spawned and no code changes were made. The 47/47 Node regression suites remain green. Exiting cleanly.
+
+## 2026-08-28 08:21 UTC — no-op autonomous run (only open items blocked)
+
+Cron 61765e48 iteration 4. `git status` clean, `main` is even with `origin/main`. TODO.md unchecked items are unchanged from the previous three iterations: the physical iPad acceptance pass (blocked: needs Avery's device) and the iPad-polish haptics sub-item (parked platform limitation; iPadOS Safari still exposes no vibration API). Per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule, no subagents were spawned and no code changes were made. All **47/47** dependency-free Node regression suites still pass on `main` (HEAD e2500ac). Exiting cleanly.
