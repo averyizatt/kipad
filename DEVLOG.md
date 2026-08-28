@@ -730,3 +730,12 @@ Merged the unintegrated cron/zone-router-20260827 branch into main (commit `6545
 - `app.part2.js` routeObstacles now adds every opposite-net zone outline on the current copper layer as a capsule obstacle. The clearance used is `clearanceFor(zoneNetId)` (Board Setup class pair), falling back to the routed net's own class when the zone's net name cannot be resolved. Same-net zones are exempt — the pour merges with its own net, matching KiCad behaviour. Zones on the other copper layer are ignored.
 - Ranked by distance from the source pad (or board origin if none) and capped at the 16 closest zones so large boards stay interactive.
 - `test/test_route.js`: +5 cases — opposite-net direct refusal, clearance-clear pass, walk-around, same-net exemption, other-layer exemption. 47/47 dependency-free Node regression suites pass on main; cache `?v=66` / service worker `kipad-v65`.
+
+## 2026-08-28 04:22 UTC — autonomous cron, no actionable unblocked work
+
+Reviewed TODO.md and the working tree. Both remaining open items are environmental or platform-blocked:
+
+- "Run and document a physical iPad acceptance pass" — needs Avery's iPad hardware; cannot be advanced by coding.
+- "iPad polish: haptics" — explicitly parked ("blocked on WebKit … only path would be a native WKWebView wrapper").
+
+All 47/47 dependency-free Node regression suites still pass on `main` (HEAD 5d65810). No code changes were made. Exiting the run cleanly per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule.
