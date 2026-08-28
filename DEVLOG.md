@@ -750,3 +750,7 @@ Re-reviewed TODO.md open items. Still only two open items, both blocked:
 Side note: TODO.md still carries a stale "Cross-sheet global label conflicts remain deferred: single-sheet model" line under the ERC section, but `js/erc.js` already implements `CROSS_SHEET_LABEL_CONFLICT` and `CROSS_SHEET_POWER_CONFLICT` (added during the 2026-08-26 multi-sheet iteration) and `test/test_erc.js` covers them. That line is documentation drift, not a code gap; not changing it from this cron run to keep the diff minimal.
 
 All 47/47 dependency-free Node regression suites still pass on `main` (HEAD 5de6905). No code changes were made. Exiting the run cleanly per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule.
+
+## 2026-08-28 ~07:21 UTC — no-op autonomous run (only open items blocked)
+
+Cron 61765e48 iteration 3. `git status` clean, `main` is even with `origin/main` (no commits ahead). TODO.md unchecked items: physical iPad acceptance pass (needs hardware + Avery on an actual device), and the haptics sub-item of "iPad polish" (parked platform limitation — iPadOS Safari exposes no vibration API; the WebKit impl request is still open). Both are explicitly blocked; per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule, no subagents were spawned and no code changes were made. The 47/47 Node regression suites remain green. Exiting cleanly.
