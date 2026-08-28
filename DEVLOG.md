@@ -758,3 +758,7 @@ Cron 61765e48 iteration 3. `git status` clean, `main` is even with `origin/main`
 ## 2026-08-28 08:21 UTC — no-op autonomous run (only open items blocked)
 
 Cron 61765e48 iteration 4. `git status` clean, `main` is even with `origin/main`. TODO.md unchecked items are unchanged from the previous three iterations: the physical iPad acceptance pass (blocked: needs Avery's device) and the iPad-polish haptics sub-item (parked platform limitation; iPadOS Safari still exposes no vibration API). Per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule, no subagents were spawned and no code changes were made. All **47/47** dependency-free Node regression suites still pass on `main` (HEAD e2500ac). Exiting cleanly.
+
+## 2026-08-28 11:21 UTC — autonomous cron, doc-only TODO drift fix
+
+Cron 61765e48 iteration 5. The two real TODO blockers (physical iPad acceptance + iPad-polish haptics) are unchanged, so no subagents were spawned and no code was written. The remaining unchecked TODO line was documentation drift: TODO.md still listed "Cross-sheet global label conflicts remain deferred: single-sheet model" under the ERC milestone, but `js/erc.js` has shipped `CROSS_SHEET_LABEL_CONFLICT` and `CROSS_SHEET_POWER_CONFLICT` since the 2026-08-26 multi-sheet iteration, with `test/test_project_connectivity.js` covering both. Converted that bullet into a checked subitem dated 2026-08-26 and referenced the existing module/tests. All **47/47** dependency-free Node regression suites still pass.
