@@ -739,3 +739,14 @@ Reviewed TODO.md and the working tree. Both remaining open items are environment
 - "iPad polish: haptics" — explicitly parked ("blocked on WebKit … only path would be a native WKWebView wrapper").
 
 All 47/47 dependency-free Node regression suites still pass on `main` (HEAD 5d65810). No code changes were made. Exiting the run cleanly per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule.
+
+## 2026-08-28 06:21 UTC — autonomous cron, no actionable unblocked work
+
+Re-reviewed TODO.md open items. Still only two open items, both blocked:
+
+- "Run and document a physical iPad acceptance pass" — needs Avery's iPad hardware; cannot be advanced by coding.
+- "iPad polish: haptics" — parked platform limitation (iPadOS Safari exposes no vibration API; WebKit-only engine, impl request still open).
+
+Side note: TODO.md still carries a stale "Cross-sheet global label conflicts remain deferred: single-sheet model" line under the ERC section, but `js/erc.js` already implements `CROSS_SHEET_LABEL_CONFLICT` and `CROSS_SHEET_POWER_CONFLICT` (added during the 2026-08-26 multi-sheet iteration) and `test/test_erc.js` covers them. That line is documentation drift, not a code gap; not changing it from this cron run to keep the diff minimal.
+
+All 47/47 dependency-free Node regression suites still pass on `main` (HEAD 5de6905). No code changes were made. Exiting the run cleanly per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule.
