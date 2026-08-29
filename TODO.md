@@ -44,6 +44,7 @@ The core single-sheet / two-layer editor is feature-complete for its current sco
   - [x] Verify service-worker install/update behavior and offline startup — dependency-free CDP lifecycle smoke covers precache install, cache-busted offline shell startup, worker replacement, stale-cache cleanup, and controller-change reload — 2026-08-26
 - [ ] Run and document a physical iPad acceptance pass
   - [ ] Safari and installed-PWA checks for Pencil placement accuracy, long-press box select, two-finger undo, eraser deletion, file import/export, and update pickup
+  - [x] Re-audit 2026-08-29: still no physical iPad available on thefrogbrain; cannot exercise Safari, installed-PWA shell, Pencil altitude/eraser tip, two-finger tap, or real on-device file import/export from this host. Item remains blocked on hardware and is not delegated.
   - [x] Schematic two-finger pinch zoom uses the shared focal-point-preserving canvas gesture; second finger cancels wire/selection gestures — 2026-08-26
   - [x] PWA update hardening: navigations are network-first and service-worker registration bypasses HTTP cache/checks immediately, so stale 600-symbol installs can advance to the 2,000-symbol/category build after refresh — 2026-08-26
   - [ ] Record device/iPadOS version and any reproducible failures in DEVLOG before fixing them
@@ -178,7 +179,7 @@ Parked platform limitation:
   - [x] Two-finger tap = Undo on both canvases (iPadOS gesture): pure `KipadGestures.twoFingerTap()` recognizer (`js/gestures.js`) wired into the shared pointer handlers via the same undo path as Ctrl+Z; pinch/drag/3-finger/cancel all disambiguated — 2026-08-24
   - [x] Schematic multi-touch guard: second+ fingers no longer fire `schPointerDown` (pinching no longer places symbols / adds wire points) — 2026-08-24
   - [x] Apple Pencil tilt/eraser: live altitude in HUD (native altitude/azimuth with tilt fallback); standard eraser-end Pointer Events delete the item under the tip in PCB and schematic modes through normal undoable delete paths — 2026-08-24
-  - [ ] Haptics: iPadOS Safari does not expose `navigator.vibrate`; retain as pending until a viable web API or native wrapper exists (re-verified 2026-08-25: still unsupported in all iPadOS browsers — WebKit-only engine, WebKit impl request still open; WKWebView native bridge would be the only path)
+  - [ ] Haptics: iPadOS Safari does not expose `navigator.vibrate`; retain as pending until a viable web API or native wrapper exists (re-verified 2026-08-25: still unsupported in all iPadOS browsers — WebKit-only engine, WebKit impl request still open; WKWebView native bridge would be the only path; re-verified 2026-08-29: same WebKit status, no new public API; keep parked)
 
 ## Recurring rules (from Avery)
 
