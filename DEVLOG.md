@@ -879,3 +879,11 @@ Cron 61765e48 iteration 34. `git status` clean, `main` is even with `origin/main
 ## 2026-08-30 01:08 UTC — no-op autonomous run (only open items blocked)
 
 Cron 61765e48 iteration 32. `git status` clean, `main` is even with `origin/main` (HEAD d7f2a51). TODO.md unchecked items are unchanged from the previous thirty-one iterations: the physical iPad acceptance pass (blocked: needs Avery's hardware; remaining sub-items are device/iPadOS version recording and Safari + installed-PWA device checks) and the iPad-polish haptics sub-item (parked platform limitation; iPadOS Safari exposes no vibration API, WebKit impl request still open; only viable path would be a native WKWebView wrapper). No new actionable TODO has been added by Avery or the project since the previous iteration. Per the cron's "If no actionable unblocked TODO exists, make no changes and exit" rule, no subagents were spawned and no code changes were made. Sanity-ran the full regression suite this iteration — **47/47** dependency-free Node suites pass on `main`. Exiting cleanly.
+
+## 2026-08-30 ~07:08 UTC — No-op autonomous run (only open items blocked)
+Inspected TODO.md: the two remaining unchecked items are both explicitly blocked on this host and cannot be delegated.
+
+- "Run and document a physical iPad acceptance pass" — TODO entry says "still no physical iPad available on thefrogbrain… Item remains blocked on hardware and is not delegated." No Safari/installed-PWA/Pencil-altitude/real-file-import test path exists here.
+- "iPad polish: haptics" — TODO entry says "re-verified 2026-08-29: same WebKit status, no new public API; keep parked." iPadOS Safari does not expose navigator.vibrate; WKWebView native bridge is the only honest path.
+
+Sanity check: all 47 test suites green; git status clean. No worker spawned.
